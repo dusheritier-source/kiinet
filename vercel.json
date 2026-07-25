@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "builds": [
+    {
+      "src": "kinet/package.json",
+      "use": "@vercel/next"
+    }
+  ]
+}
