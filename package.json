@@ -1,4 +1,12 @@
 {
+  "name": "kinet-root",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd kinet && npm ci && npm run build",
+    "vercel-build": "cd kinet && npm ci && npm run build",
+    "start": "cd kinet && npm run start"
+  },
   "dependencies": {
     "firebase": "^12.16.0"
   }
