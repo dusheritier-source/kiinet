@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
@@ -287,8 +287,10 @@ function StoriesPageContent() {
 
 export default function StoriesPage() {
   return (
-    <AuthProvider>
-      <StoriesPageContent />
-    </AuthProvider>
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <AuthProvider>
+        <StoriesPageContent />
+      </AuthProvider>
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
@@ -16,7 +16,7 @@ import {
 } from "@/lib/business";
 import { getUserProfileById } from "@/lib/user-profile";
 
-function BookingsPageContent() {
+function BookingsPageInner() {
   const searchParams = useSearchParams();
   const { user } = useAuthContext();
   const [incoming, setIncoming] = useState<BookingRequestRecord[]>([]);
@@ -64,7 +64,7 @@ function BookingsPageContent() {
   return (
     <ProtectedRoute>
       <div className="mx-auto max-w-5xl space-y-6 py-8">
-        <Card>
+      <Card>
           <CardHeader>
             <CardTitle>Request Booking</CardTitle>
             <CardDescription>
@@ -171,10 +171,16 @@ function BookingsPageContent() {
   );
 }
 
-export default function BookingsPage() {
+function BookingsPageContent() {
   return (
     <AuthProvider>
-      <BookingsPageContent />
+      <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+        <BookingsPageInner />
+      </Suspense>
     </AuthProvider>
   );
+}
+
+export default function BookingsPage() {
+  return <BookingsPageContent />;
 }

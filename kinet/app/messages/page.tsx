@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -555,8 +555,10 @@ function MessagesPageContent() {
 
 export default function MessagesPage() {
   return (
-    <AuthProvider>
-      <MessagesPageContent />
-    </AuthProvider>
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <AuthProvider>
+        <MessagesPageContent />
+      </AuthProvider>
+    </Suspense>
   );
 }

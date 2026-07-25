@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -257,8 +257,10 @@ function MarketplacePageContent() {
 
 export default function MarketplacePage() {
   return (
-    <AuthProvider>
-      <MarketplacePageContent />
-    </AuthProvider>
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <AuthProvider>
+        <MarketplacePageContent />
+      </AuthProvider>
+    </Suspense>
   );
 }

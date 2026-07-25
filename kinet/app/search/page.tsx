@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search as SearchIcon, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -131,5 +131,9 @@ function SearchPageContent() {
 }
 
 export default function SearchPage() {
-  return <SearchPageContent />;
+  return (
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <SearchPageContent />
+    </Suspense>
+  );
 }

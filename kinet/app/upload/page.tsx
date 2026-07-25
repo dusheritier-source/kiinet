@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Film, Image as ImageIcon, UploadCloud, Video } from "lucide-react";
@@ -575,8 +575,10 @@ function UploadPageContent() {
 
 export default function UploadPage() {
   return (
-    <AuthProvider>
-      <UploadPageContent />
-    </AuthProvider>
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <AuthProvider>
+        <UploadPageContent />
+      </AuthProvider>
+    </Suspense>
   );
 }

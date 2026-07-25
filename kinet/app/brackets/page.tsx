@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { AuthProvider } from "@/components/AuthProvider";
@@ -122,8 +122,10 @@ function BracketsPageContent() {
 
 export default function BracketsPage() {
   return (
-    <AuthProvider>
-      <BracketsPageContent />
-    </AuthProvider>
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+      <AuthProvider>
+        <BracketsPageContent />
+      </AuthProvider>
+    </Suspense>
   );
 }
