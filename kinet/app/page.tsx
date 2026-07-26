@@ -44,18 +44,6 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 border-b bg-background">
-        <div className="mx-auto flex h-14 max-w-lg items-center justify-center px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-lg font-bold text-primary-foreground">K</span>
-            </div>
-            <span className="text-xl font-bold">Kinet</span>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content - Auth Only */}
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
