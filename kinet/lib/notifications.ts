@@ -13,21 +13,28 @@ import {
   where,
 } from "firebase/firestore";
 
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 
 async function getRecipientNotificationPreferences(recipientId: string) {
   if (!db) {
     return null;
   }
 
-  const snapshot = await getDoc(doc(db, "users", recipientId));
-  if (!snapshot.exists()) {
-    return null;
-  }
+  try {
+    const snapshot = await getDoc(doc(db, "users", recipientId));
+    if (!snapshot.exists()) {
+      return null;
+    }
 
-  const data = snapshot.data() as Record<string, unknown>;
-  const settings = (data.settings as Record<string, unknown> | undefined) ?? {};
-  return (settings.notificationPreferences as Record<string, unknown> | undefined) ?? null;
+    const data = snapshot.data() as Record<string, unknown>;
+    const settings = (data.settings as Record<string, unknown> | undefined) ?? {};
+    return (settings.notificationPreferences as Record<string, unknown> | undefined) ?? null;
+  } catch (error) {
+    if (isTransientFirestoreError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export interface AppNotification {
@@ -161,6 +168,9 @@ export function subscribeToNotifications(
           };
         })
       );
+    },
+    () => {
+      callback([]);
     }
   );
 }

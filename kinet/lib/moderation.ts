@@ -106,7 +106,7 @@ export async function getBlockedUsers() {
 
 export function isCurrentUserAdmin() {
   const currentUid = auth?.currentUser?.uid;
-  const raw = process.env.NEXT_PUBLIC_Kinet_ADMIN_UIDS ?? "";
+  const raw = process.env.NEXT_PUBLIC_KINET_ADMIN_UIDS ?? "";
   const allowed = raw
     .split(",")
     .map((value) => value.trim())

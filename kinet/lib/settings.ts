@@ -11,7 +11,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 
 export interface UserSettings {
   availabilityStatus: "available" | "locked_in" | "recovering";
@@ -54,38 +54,45 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
     return defaultSettings;
   }
 
-  const snapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
-  const data = snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : {};
-  const settings = (data.settings as Record<string, unknown> | undefined) ?? {};
-  const notificationPreferences =
-    (settings.notificationPreferences as Record<string, unknown> | undefined) ?? {};
+  try {
+    const snapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const data = snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : {};
+    const settings = (data.settings as Record<string, unknown> | undefined) ?? {};
+    const notificationPreferences =
+      (settings.notificationPreferences as Record<string, unknown> | undefined) ?? {};
 
-  return {
-    availabilityStatus:
-      settings.availabilityStatus === "locked_in" || settings.availabilityStatus === "recovering"
-        ? settings.availabilityStatus
-        : "available",
-    headline: String(settings.headline ?? ""),
-    emailDigestFrequency:
-      settings.emailDigestFrequency === "daily" || settings.emailDigestFrequency === "weekly"
-        ? settings.emailDigestFrequency
-        : "off",
-    pushNotificationsEnabled: settings.pushNotificationsEnabled === true,
-    pushPermission:
-      settings.pushPermission === "granted" || settings.pushPermission === "denied"
-        ? settings.pushPermission
-        : "default",
-    notificationPreferences: {
-      likes: notificationPreferences.likes !== false,
-      comments: notificationPreferences.comments !== false,
-      follows: notificationPreferences.follows !== false,
-      messages: notificationPreferences.messages !== false,
-      reposts: notificationPreferences.reposts !== false,
-      reports: notificationPreferences.reports !== false,
-    },
-    followedTopics: Array.isArray(data.followedTopics) ? (data.followedTopics as string[]) : [],
-    pinnedPosts: Array.isArray(data.pinnedPosts) ? (data.pinnedPosts as string[]) : [],
-  };
+    return {
+      availabilityStatus:
+        settings.availabilityStatus === "locked_in" || settings.availabilityStatus === "recovering"
+          ? settings.availabilityStatus
+          : "available",
+      headline: String(settings.headline ?? ""),
+      emailDigestFrequency:
+        settings.emailDigestFrequency === "daily" || settings.emailDigestFrequency === "weekly"
+          ? settings.emailDigestFrequency
+          : "off",
+      pushNotificationsEnabled: settings.pushNotificationsEnabled === true,
+      pushPermission:
+        settings.pushPermission === "granted" || settings.pushPermission === "denied"
+          ? settings.pushPermission
+          : "default",
+      notificationPreferences: {
+        likes: notificationPreferences.likes !== false,
+        comments: notificationPreferences.comments !== false,
+        follows: notificationPreferences.follows !== false,
+        messages: notificationPreferences.messages !== false,
+        reposts: notificationPreferences.reposts !== false,
+        reports: notificationPreferences.reports !== false,
+      },
+      followedTopics: Array.isArray(data.followedTopics) ? (data.followedTopics as string[]) : [],
+      pinnedPosts: Array.isArray(data.pinnedPosts) ? (data.pinnedPosts as string[]) : [],
+    };
+  } catch (error) {
+    if (isTransientFirestoreError(error)) {
+      return defaultSettings;
+    }
+    throw error;
+  }
 }
 
 export async function updateCurrentUserSettings(input: Partial<UserSettings>) {
@@ -149,17 +156,23 @@ export async function setPresence(isOnline: boolean) {
     return;
   }
 
-  await setDoc(
-    doc(db, "users", auth.currentUser.uid),
-    {
-      presence: {
-        isOnline,
-        lastSeenAt: serverTimestamp(),
+  try {
+    await setDoc(
+      doc(db, "users", auth.currentUser.uid),
+      {
+        presence: {
+          isOnline,
+          lastSeenAt: serverTimestamp(),
+        },
+        updatedAt: serverTimestamp(),
       },
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
+  } catch (error) {
+    if (!isTransientFirestoreError(error)) {
+      throw error;
+    }
+  }
 }
 
 export async function toggleTopicFollow(topic: string, isFollowing: boolean) {

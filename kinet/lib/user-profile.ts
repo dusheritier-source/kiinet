@@ -12,7 +12,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { recordFollowerGrowth } from "@/lib/profile-analytics";
 
@@ -283,8 +283,15 @@ export async function getCurrentUserProfile() {
     return null;
   }
 
-  const snapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
-  return snapshot.exists() ? snapshot.data() : null;
+  try {
+    const snapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
+    return snapshot.exists() ? snapshot.data() : null;
+  } catch (error) {
+    if (isTransientFirestoreError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function checkUsernameAvailability(username: string) {
@@ -301,8 +308,15 @@ export async function getUserProfileById(uid: string) {
     return null;
   }
 
-  const snapshot = await getDoc(doc(db, "users", uid));
-  return snapshot.exists() ? snapshot.data() : null;
+  try {
+    const snapshot = await getDoc(doc(db, "users", uid));
+    return snapshot.exists() ? snapshot.data() : null;
+  } catch (error) {
+    if (isTransientFirestoreError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function toggleFollowUser(targetUid: string, isFollowing: boolean) {

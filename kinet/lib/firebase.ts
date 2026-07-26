@@ -47,6 +47,27 @@ if (auth && typeof window !== "undefined") {
   });
 }
 
+export function isTransientFirestoreError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    const code = typeof (error as { code?: string }).code === "string"
+      ? (error as { code?: string }).code!.toLowerCase()
+      : "";
+
+    return (
+      code === "unavailable" ||
+      code === "offline" ||
+      code === "network-request-failed" ||
+      message.includes("offline") ||
+      message.includes("network") ||
+      message.includes("client is offline") ||
+      message.includes("timed out")
+    );
+  }
+
+  return false;
+}
+
 export const getClientAnalytics = async () => {
   if (!app || typeof window === "undefined") {
     return null;

@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 
 export interface ConversationSummary {
@@ -55,16 +55,28 @@ async function getCurrentUserMiniProfile() {
   }
 
   const user = auth.currentUser;
-  const profileSnapshot = await getDoc(doc(db, "users", user.uid));
-  const profile = profileSnapshot.exists()
-    ? (profileSnapshot.data() as Record<string, unknown>)
-    : null;
 
-  return {
-    uid: user.uid,
-    displayName: user.displayName || String(profile?.displayName ?? "Kinet User"),
-    photoURL: user.photoURL || String(profile?.photoURL ?? ""),
-  };
+  try {
+    const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+    const profile = profileSnapshot.exists()
+      ? (profileSnapshot.data() as Record<string, unknown>)
+      : null;
+
+    return {
+      uid: user.uid,
+      displayName: user.displayName || String(profile?.displayName ?? "Kinet User"),
+      photoURL: user.photoURL || String(profile?.photoURL ?? ""),
+    };
+  } catch (error) {
+    if (isTransientFirestoreError(error)) {
+      return {
+        uid: user.uid,
+        displayName: user.displayName || "Kinet User",
+        photoURL: user.photoURL || "",
+      };
+    }
+    throw error;
+  }
 }
 
 function buildConversationKey(ids: string[]) {
@@ -332,6 +344,9 @@ export function subscribeToConversations(
           };
         })
       );
+    },
+    () => {
+      callback([]);
     }
   );
 }
@@ -394,6 +409,9 @@ export function subscribeToConversationMessages(
             )
         );
       }
+    },
+    () => {
+      callback([]);
     }
   );
 }
