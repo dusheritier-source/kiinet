@@ -44,12 +44,40 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Main Content - Auth Only */}
+      {/* Top Navigation */}
+      <header className="sticky top-0 z-50 border-b bg-background">
+        <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
+          <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent">
+            Log In
+          </Link>
+          
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <span className="text-lg font-bold text-primary-foreground">K</span>
+            </div>
+            <span className="text-xl font-bold">Kinet</span>
+          </div>
+          
+          <Link href="/signup" className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+            Sign Up
+          </Link>
+        </div>
+      </header>
+
+      {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm text-center">
+          {/* Welcome Message */}
+          <div className="mb-8">
+            <h1 className="mb-2 text-3xl font-bold">Welcome to Kinet</h1>
+            <p className="text-muted-foreground">
+              The sports network for athletes, coaches, scouts, and creators
+            </p>
+          </div>
+
           {/* Invite-only Notice */}
           {settings?.requireInvite && (
-            <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
               <p className="text-sm font-medium text-primary">Invite-only access is active</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {settings.inviteOnlyMessage}
