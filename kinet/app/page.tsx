@@ -75,6 +75,60 @@ export default function Home() {
             </p>
           </div>
 
+          {/* Waitlist Section */}
+          <div className="rounded-2xl border bg-card p-6 shadow-sm">
+            <h2 className="mb-2 text-center text-lg font-semibold">Join the Waitlist</h2>
+            <p className="mb-4 text-center text-sm text-muted-foreground">
+              Get early access and updates
+            </p>
+            <form className="space-y-3" onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const name = formData.get('name') as string;
+              const email = formData.get('email') as string;
+              const role = formData.get('role') as string;
+              
+              await fetch('/api/waitlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, role })
+              });
+              
+              alert('You are on the list! We will notify you when early access is available.');
+              e.currentTarget.reset();
+            }}>
+              <input
+                name="name"
+                className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                placeholder="Your name"
+                required
+              />
+              <input
+                name="email"
+                className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                placeholder="Email"
+                type="email"
+                required
+              />
+              <select
+                name="role"
+                className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="athlete">Athlete</option>
+                <option value="coach">Coach</option>
+                <option value="scout">Scout</option>
+                <option value="fan">Fan</option>
+                <option value="creator">Creator</option>
+              </select>
+              <button
+                className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+                type="submit"
+              >
+                Join Waitlist
+              </button>
+            </form>
+          </div>
+
           {/* Invite-only Notice */}
           {settings?.requireInvite && (
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
