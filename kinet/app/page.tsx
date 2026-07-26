@@ -58,22 +58,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Auth Buttons */}
-          <div className="space-y-3">
-            <Link
-              href="/login"
-              className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3.5 font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/signup"
-              className="flex w-full items-center justify-center rounded-xl border border-border bg-background px-4 py-3.5 font-semibold transition-all hover:bg-accent"
-            >
-              Sign Up
-            </Link>
-          </div>
-
           {/* Invite-only Notice */}
           {settings?.requireInvite && (
             <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
