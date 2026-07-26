@@ -101,7 +101,7 @@ export default function SignupPage() {
         await redeemInviteCode(formData.inviteCode, credentials.user.uid);
       }
 
-      router.push("/role-selection");
+      router.push("/feed");
     } catch (err) {
       setError(getSignupErrorMessage(err));
     } finally {
