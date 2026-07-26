@@ -62,39 +62,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Profile Cards */}
-          <div className="mb-8 space-y-3">
-            {/* Profile 1 */}
-            <Link href="/login" className="flex items-center gap-4 rounded-2xl border border-gray-700 bg-[#1a2744] p-4 transition-all hover:bg-[#243456] hover:border-gray-600">
-              <div className="h-16 w-16 overflow-hidden rounded-full bg-gradient-to-br from-yellow-400 to-orange-500">
-                <div className="flex h-full w-full items-center justify-center text-2xl">👤</div>
-              </div>
-              <div className="flex-1">
-                <p className="text-lg font-semibold text-white">ganza.so</p>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
-                  <p className="text-sm text-gray-400">New notifications</p>
-                </div>
-              </div>
-              <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            {/* Profile 2 */}
-            <Link href="/login" className="flex items-center gap-4 rounded-2xl border border-gray-700 bg-[#1a2744] p-4 transition-all hover:bg-[#243456] hover:border-gray-600">
-              <div className="h-16 w-16 overflow-hidden rounded-full bg-gradient-to-br from-yellow-400 to-orange-500">
-                <div className="flex h-full w-full items-center justify-center text-2xl">🏠</div>
-              </div>
-              <div className="flex-1">
-                <p className="text-lg font-semibold text-white">1funnymemes00</p>
-              </div>
-              <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-
           {/* Create New Account Button */}
           <Link href="/signup" className="mb-4 block w-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 py-4 text-center text-lg font-semibold text-white transition-all hover:shadow-lg hover:scale-105">
             Create new account
