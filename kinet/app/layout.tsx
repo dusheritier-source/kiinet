@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import BottomNav from "@/components/BottomNav";
-import Navbar from "@/components/Navbar";
 import PWARegistrar from "@/components/PWARegistrar";
 import ThemeSync from "@/components/ThemeSync";
 import { AuthProvider } from "@/components/AuthProvider";
