@@ -86,7 +86,7 @@ export default function Home() {
 
           {/* Footer */}
           <p className="mt-8 text-center text-xs text-muted-foreground">
-            © 2024 Kinet. All rights reserved.
+            © 2026 Kinet. All rights reserved.
           </p>
         </div>
       </main>
