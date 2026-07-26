@@ -47,17 +47,6 @@ export default function Home() {
       {/* Main Content - Auth Only */}
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
-          {/* Logo and Welcome */}
-          <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary">
-              <span className="text-4xl font-bold text-primary-foreground">K</span>
-            </div>
-            <h1 className="mb-2 text-3xl font-bold">Welcome to Kinet</h1>
-            <p className="text-muted-foreground">
-              The sports network for athletes, coaches, scouts, and creators
-            </p>
-          </div>
-
           {/* Invite-only Notice */}
           {settings?.requireInvite && (
             <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
