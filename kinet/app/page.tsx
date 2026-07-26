@@ -53,218 +53,302 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-background to-muted/20">
-      {/* App Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-50 border-b bg-background">
+        <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <span className="text-lg font-bold text-primary-foreground">K</span>
             </div>
             <span className="text-xl font-bold">Kinet</span>
           </div>
-          <nav className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Sign Up
-            </Link>
-          </nav>
+          <div className="flex items-center gap-3">
+            <button className="rounded-lg p-2 transition-colors hover:bg-accent">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </button>
+            <button className="rounded-lg p-2 transition-colors hover:bg-accent">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-          {/* Hero Section */}
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-6 inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm">
-              <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-primary"></span>
-              <span className="font-medium text-primary">Now in Public Beta</span>
-            </div>
-            
-            <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-              The Sports Network for{" "}
-              <span className="gradient-text">Athletes & Creators</span>
-            </h1>
-            
-            <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-              Share highlights, book sessions, grow your audience, and build your path in the sports world.
-            </p>
+      {/* Main Content - Feed Style */}
+      <main className="flex-1 pb-16">
+        <div className="mx-auto max-w-lg">
+          {/* Stories / Highlights Bar */}
+          <div className="border-b bg-background">
+            <div className="flex gap-3 overflow-x-auto px-4 py-3 scrollbar-hide">
+              <div className="flex flex-col items-center gap-1">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full border-2 border-dashed border-primary p-0.5">
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10">
+                      <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">Your Story</span>
+              </div>
 
-            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                href="/signup"
-                className="w-full rounded-xl bg-primary px-8 py-3.5 text-center font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg sm:w-auto"
-              >
-                Get Started
-              </Link>
-              <Link
-                href="/about"
-                className="w-full rounded-xl border border-border bg-background px-8 py-3.5 text-center font-semibold transition-all hover:bg-accent sm:w-auto"
-              >
-                Learn More
-              </Link>
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-16 w-16 rounded-full border-2 border-primary p-0.5">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                    <span className="text-lg font-bold text-primary">🏀</span>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">Basketball</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-16 w-16 rounded-full border-2 border-primary p-0.5">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                    <span className="text-lg font-bold text-primary">⚽</span>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">Soccer</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-16 w-16 rounded-full border-2 border-primary p-0.5">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                    <span className="text-lg font-bold text-primary">🏈</span>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">Football</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-16 w-16 rounded-full border-2 border-primary p-0.5">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                    <span className="text-lg font-bold text-primary">🏆</span>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">Training</span>
+              </div>
             </div>
           </div>
 
-          {/* Features Grid */}
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-2xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold">Share Highlights</h3>
-              <p className="text-sm text-muted-foreground">Upload and showcase your best moments to build your sports portfolio.</p>
-            </div>
-
-            <div className="rounded-2xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold">Book Sessions</h3>
-              <p className="text-sm text-muted-foreground">Connect with coaches and athletes for training sessions and mentorship.</p>
-            </div>
-
-            <div className="rounded-2xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-              </div>
-              <h3 className="mb-2 text-lg font-semibold">Grow Audience</h3>
-              <p className="text-sm text-muted-foreground">Build your following and connect with scouts, teams, and fans worldwide.</p>
-            </div>
-          </div>
-
-          {/* Waitlist Section */}
-          <div className="mt-16 rounded-3xl border bg-card p-6 shadow-lg sm:p-8 lg:p-10">
-            <div className="mx-auto max-w-2xl">
-              <div className="text-center">
-                <h2 className="text-3xl font-bold">Join the Waitlist</h2>
-                <p className="mt-3 text-muted-foreground">
-                  Get early access and be the first to know when we launch new features.
-                </p>
-              </div>
-
-              <form className="mt-8 space-y-4" onSubmit={handleWaitlist}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="name" className="mb-1.5 block text-sm font-medium">
-                      Your Name
-                    </label>
-                    <input
-                      id="name"
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      placeholder="John Doe"
-                      value={form.name}
-                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-                      Email
-                    </label>
-                    <input
-                      id="email"
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      placeholder="you@example.com"
-                      type="email"
-                      value={form.email}
-                      onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                      required
-                    />
-                  </div>
+          {/* Posts Feed */}
+          <div className="space-y-0">
+            {/* Post 1 */}
+            <div className="border-b">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                  <span className="text-lg">🏀</span>
                 </div>
-
-                <div>
-                  <label htmlFor="role" className="mb-1.5 block text-sm font-medium">
-                    I am a...
-                  </label>
-                  <select
-                    id="role"
-                    className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={form.role}
-                    onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-                  >
-                    <option value="athlete">Athlete</option>
-                    <option value="coach">Coach</option>
-                    <option value="scout">Scout</option>
-                    <option value="fan">Fan</option>
-                    <option value="creator">Creator</option>
-                  </select>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">basketball_king</p>
+                  <p className="text-xs text-muted-foreground">Los Angeles, CA</p>
                 </div>
-
-                <div>
-                  <label htmlFor="note" className="mb-1.5 block text-sm font-medium">
-                    What do you want from Kinet?
-                  </label>
-                  <textarea
-                    id="note"
-                    className="min-h-[100px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="Tell us about your goals and what you're looking for..."
-                    value={form.note}
-                    onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
-                  />
-                </div>
-
-                <button
-                  className="w-full rounded-xl bg-primary px-4 py-3.5 font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg"
-                  type="submit"
-                >
-                  Join Waitlist
+                <button className="rounded-lg p-1 hover:bg-accent">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
                 </button>
+              </div>
+              
+              <div className="flex aspect-square items-center justify-center bg-muted/20">
+                <div className="text-center">
+                  <svg className="mx-auto h-16 w-16 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="mt-2 text-sm text-muted-foreground">Video Highlight</p>
+                </div>
+              </div>
 
-                {saved && (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center">
-                    <p className="text-sm font-medium text-primary">You're on the list! 🎉</p>
-                    <p className="mt-1 text-xs text-muted-foreground">We'll notify you when early access is available.</p>
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
                   </div>
-                )}
-              </form>
+                  <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="mt-2 text-sm"><span className="font-semibold">basketball_king</span> Game winning shot! 🏀🔥</p>
+                <p className="mt-1 text-xs text-muted-foreground">View all 12 comments</p>
+              </div>
+            </div>
+
+            {/* Post 2 */}
+            <div className="border-b">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                  <span className="text-lg">⚽</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">soccer_star_99</p>
+                  <p className="text-xs text-muted-foreground">Barcelona, Spain</p>
+                </div>
+                <button className="rounded-lg p-1 hover:bg-accent">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="flex aspect-square items-center justify-center bg-muted/20">
+                <div className="text-center">
+                  <svg className="mx-auto h-16 w-16 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="mt-2 text-sm text-muted-foreground">Training Session</p>
+                </div>
+              </div>
+
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
+                  </div>
+                  <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="mt-2 text-sm"><span className="font-semibold">soccer_star_99</span> Morning training session ⚽💪</p>
+                <p className="mt-1 text-xs text-muted-foreground">View all 8 comments</p>
+              </div>
+            </div>
+
+            {/* Post 3 */}
+            <div className="border-b">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                  <span className="text-lg">🏈</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">touchdown_king</p>
+                  <p className="text-xs text-muted-foreground">Dallas, TX</p>
+                </div>
+                <button className="rounded-lg p-1 hover:bg-accent">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="flex aspect-square items-center justify-center bg-muted/20">
+                <div className="text-center">
+                  <svg className="mx-auto h-16 w-16 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="mt-2 text-sm text-muted-foreground">Game Highlights</p>
+                </div>
+              </div>
+
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </button>
+                    <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
+                  </div>
+                  <button className="rounded-lg p-1 transition-colors hover:bg-accent">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="mt-2 text-sm"><span className="font-semibold">touchdown_king</span> Touchdown! 🏈🎉</p>
+                <p className="mt-1 text-xs text-muted-foreground">View all 24 comments</p>
+              </div>
             </div>
           </div>
-
-          {/* Invite-only Notice */}
-          {settings?.requireInvite && (
-            <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-6 text-center">
-              <p className="font-semibold text-primary">Invite-only onboarding is active</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {settings.inviteOnlyMessage}
-              </p>
-            </div>
-          )}
         </div>
       </main>
 
-      {/* App-like Footer */}
-      <footer className="border-t bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <span className="text-lg font-bold text-primary-foreground">K</span>
-              </div>
-              <span className="text-lg font-bold">Kinet</span>
+      {/* Bottom Navigation Bar - App Style */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background">
+        <div className="mx-auto flex h-14 max-w-lg items-center justify-around px-4">
+          <button className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-primary">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="text-[10px]">Home</span>
+          </button>
+
+          <button className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-muted-foreground transition-colors hover:text-foreground">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span className="text-[10px]">Search</span>
+          </button>
+
+          <button className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-muted-foreground transition-colors hover:text-foreground">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg border-2 border-current">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
             </div>
-            <p className="text-sm text-muted-foreground">
-              © 2024 Kinet. All rights reserved.
-            </p>
-          </div>
+            <span className="text-[10px]">Create</span>
+          </button>
+
+          <button className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-muted-foreground transition-colors hover:text-foreground">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className="text-[10px]">Messages</span>
+          </button>
+
+          <button className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-muted-foreground transition-colors hover:text-foreground">
+            <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+              <span className="text-xs">👤</span>
+            </div>
+            <span className="text-[10px]">Profile</span>
+          </button>
         </div>
-      </footer>
+      </nav>
     </div>
   );
 }
