@@ -47,21 +47,6 @@ export default function Home() {
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="mb-8 text-center">
-            <div className="mb-6 flex items-center justify-center gap-3">
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600">
-                <span className="text-4xl font-bold text-white">K</span>
-              </div>
-              <span className="text-5xl font-bold text-white">Kinet</span>
-            </div>
-            
-            <h1 className="mb-3 text-4xl font-bold text-white">Welcome to Kinet</h1>
-            <p className="text-lg text-gray-400">
-              The sports social network for athletes, coaches, scouts, and creators.
-            </p>
-          </div>
-
           {/* Create New Account Button */}
           <Link href="/signup" className="mb-4 block w-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 py-4 text-center text-lg font-semibold text-white transition-all hover:shadow-lg hover:scale-105">
             Create new account
