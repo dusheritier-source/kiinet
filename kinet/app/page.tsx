@@ -3,14 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Metadata } from "next";
 
 import { useAuthContext } from "@/components/AuthProvider";
 import { getAppAccessSettings, type AppAccessSettings } from "@/lib/admin";
-
-export const metadata: Metadata = {
-  title: "Welcome",
-};
 
 export default function Home() {
   const { user, loading } = useAuthContext();
