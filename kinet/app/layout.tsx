@@ -10,13 +10,13 @@ import { AuthProvider } from "@/components/AuthProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kinet - Sports Social Media",
+  title: "Welcome",
   description: "Connect with athletes, coaches, and scouts",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Kinet",
+    title: "Welcome",
   },
 };
 
@@ -36,11 +36,9 @@ export default function RootLayout({
         <AuthProvider>
           <PWARegistrar />
           <ThemeSync />
-          <Navbar />
           <main className="mx-auto min-h-screen w-full max-w-screen-2xl px-3 py-4 pb-20 sm:px-4 md:px-6 md:py-6">
             {children}
           </main>
-          <BottomNav />
         </AuthProvider>
       </body>
     </html>
