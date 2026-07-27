@@ -217,71 +217,65 @@ function FeedPageContent() {
   return (
     <ProtectedRoute>
       <div className="mx-auto max-w-2xl space-y-6 pb-24">
+        {/* Create Post - Instagram Style */}
         <Card>
-          <CardContent className="p-6">
-            <div className="flex gap-4">
-              <img src={user.photoURL || "https://placehold.co/80x80?text=U"} alt="Your avatar" className="h-12 w-12 rounded-full" />
-              <Button variant="ghost" className="h-auto flex-1 justify-start px-0" asChild>
-                <Link href="/upload">What&apos;s happening in your sport today?</Link>
+          <CardContent className="p-4">
+            <div className="flex gap-3">
+              <img src={user.photoURL || "https://placehold.co/80x80?text=U"} alt="Your avatar" className="h-10 w-10 rounded-full" />
+              <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
+                <Link href="/upload">What's happening in your sport today?</Link>
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
+        {/* Stories - Instagram Style Circular Rail */}
+        {stories.length > 0 && (
+          <div className="rounded-2xl border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div>
-                <p className="font-semibold">Stories</p>
-                <p className="text-xs text-muted-foreground">Quick updates from your people</p>
-              </div>
-              <Link href="/stories" className="text-sm text-primary hover:underline">
-                Open stories
+              <h3 className="text-sm font-semibold">Stories</h3>
+              <Link href="/stories" className="text-xs text-primary hover:underline">
+                View all
               </Link>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              <Link href="/stories" className="flex min-w-[76px] flex-col items-center gap-2">
-                <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px] shadow-sm">
-                  <div className="flex h-full w-full items-center justify-center rounded-full bg-background">
-                    <img
-                      src={user.photoURL || "https://placehold.co/80x80?text=Y"}
-                      alt="Your story"
-                      className="h-[70px] w-[70px] rounded-full object-cover"
-                    />
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {/* Your Story - Add Button */}
+              <Link href="/stories" className="flex flex-shrink-0 flex-col items-center gap-2">
+                <div className="relative">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px]">
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-background">
+                      <img
+                        src={user.photoURL || "https://placehold.co/80x80?text=Y"}
+                        alt="Your story"
+                        className="h-[60px] w-[60px] rounded-full object-cover"
+                      />
+                    </div>
                   </div>
-                  <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow">
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-background">
                     +
                   </span>
                 </div>
-                <span className="max-w-[76px] truncate text-center text-xs font-medium">Your story</span>
+                <span className="max-w-[72px] truncate text-center text-xs font-medium">Your story</span>
               </Link>
 
-              {storyHighlights.length === 0 ? (
-                <div className="flex items-center rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-                  No active stories yet.
-                </div>
-              ) : (
-                storyHighlights.map((story) => (
-                  <Link key={story.id} href={`/stories?story=${story.id}`} className="flex min-w-[76px] flex-col items-center gap-2">
-                    <div className="rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px] shadow-sm">
-                      <div className="rounded-full bg-background p-[2px]">
-                        <img
-                          src={story.authorAvatar || "https://placehold.co/80x80?text=S"}
-                          alt={story.authorName}
-                          className={`h-[70px] w-[70px] rounded-full object-cover ${story.seenBy?.includes(user.uid) ? "opacity-75" : ""}`}
-                        />
-                      </div>
+              {/* Other Stories */}
+              {storyHighlights.map((story) => (
+                <Link key={story.id} href={`/stories?story=${story.id}`} className="flex flex-shrink-0 flex-col items-center gap-2">
+                  <div className={`rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px] ${story.seenBy?.includes(user.uid) ? "opacity-50" : ""}`}>
+                    <div className="rounded-full bg-background p-[2px]">
+                      <img
+                        src={story.authorAvatar || "https://placehold.co/80x80?text=S"}
+                        alt={story.authorName}
+                        className="h-[60px] w-[60px] rounded-full object-cover"
+                      />
                     </div>
-                    <div className="text-center">
-                      <span className="block max-w-[76px] truncate text-xs font-medium">{story.authorName}</span>
-                      <span className="text-[11px] text-muted-foreground">{formatStoryTime(story.createdAt)}</span>
-                    </div>
-                  </Link>
-                ))
-              )}
+                  </div>
+                  <span className="max-w-[72px] truncate text-center text-xs font-medium">{story.authorName}</span>
+                </Link>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
         {postsLoading ? (
           <div className="flex min-h-[30vh] items-center justify-center">

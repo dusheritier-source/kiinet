@@ -4,6 +4,7 @@ import "./globals.css";
 import PWARegistrar from "@/components/PWARegistrar";
 import ThemeSync from "@/components/ThemeSync";
 import { AuthProvider } from "@/components/AuthProvider";
+import Navbar from "@/components/Navbar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           <PWARegistrar />
           <ThemeSync />
+          <Navbar />
           <main className="mx-auto min-h-screen w-full max-w-screen-2xl px-3 py-4 pb-20 sm:px-4 md:px-6 md:py-6">
             {children}
           </main>
