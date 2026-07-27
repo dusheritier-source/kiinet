@@ -17,6 +17,7 @@ import {
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import DefaultAvatar from "@/components/DefaultAvatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -221,9 +222,13 @@ function FeedPageContent() {
         {/* Create Post - Instagram Style */}
         <Card>
           <CardContent className="p-4">
-            <div className="flex gap-3">
-              <Image src={user.photoURL || "https://placehold.co/80x80?text=U"} alt="Your avatar" width={40} height={40} className="rounded-full" />
-              <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
+              <div className="flex gap-3">
+                {user.photoURL ? (
+                  <Image src={user.photoURL} alt="Your avatar" width={40} height={40} className="rounded-full" />
+                ) : (
+                  <DefaultAvatar username={user.displayName || user.email || "User"} className="h-10 w-10 rounded-full" />
+                )}
+                <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
                 <Link href="/upload">What's happening in your sport today?</Link>
               </Button>
             </div>
@@ -324,7 +329,11 @@ function FeedPageContent() {
           <Card key={post.id} className="overflow-hidden">
             <div className="border-b p-5">
               <div className="flex items-center gap-3">
-                <Image src={post.author.avatar || "https://placehold.co/64x64?text=H"} alt={`${post.author.name} avatar`} width={40} height={40} className="rounded-full" />
+                {post.author.avatar ? (
+                  <Image src={post.author.avatar} alt={`${post.author.name} avatar`} width={40} height={40} className="rounded-full" />
+                ) : (
+                  <DefaultAvatar username={post.author.name} className="h-10 w-10 rounded-full" />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Link href={`/profile/${post.userId}`} className="truncate text-sm font-semibold hover:underline">
@@ -587,7 +596,11 @@ function FeedPageContent() {
                         .filter((comment) => !comment.parentCommentId)
                         .map((comment) => (
                           <div key={comment.id} className="flex gap-3">
-                            <Image src={comment.author.avatar || "https://placehold.co/48x48?text=C"} alt={`${comment.author.name} avatar`} width={32} height={32} className="rounded-full" />
+                            {comment.author.avatar ? (
+                              <Image src={comment.author.avatar} alt={`${comment.author.name} avatar`} width={32} height={32} className="rounded-full" />
+                            ) : (
+                              <DefaultAvatar username={comment.author.name} className="h-8 w-8 rounded-full" />
+                            )}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="truncate font-semibold">{comment.author.name}</span>
