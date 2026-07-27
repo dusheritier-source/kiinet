@@ -12,14 +12,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { getOwnedPremiumGroups, type PremiumGroupRecord } from "@/lib/creator-hub";
 import { deleteUploadDraft, getUploadDrafts, saveUploadDraft } from "@/lib/drafts";
-import { createPost, getCurrentUserSport } from "@/lib/posts";
+import { createPost } from "@/lib/posts";
 
 function UploadPageContent() {
   const { user, loading } = useAuthContext();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [caption, setCaption] = useState("");
-  const [sport, setSport] = useState("");
   const [contentType, setContentType] = useState<"post" | "reel">("post");
   const [postType, setPostType] = useState<"standard" | "poll" | "qa">("standard");
   const [questionPrompt, setQuestionPrompt] = useState("");
@@ -57,13 +56,7 @@ function UploadPageContent() {
       return;
     }
 
-    getCurrentUserSport()
-      .then((savedSport) => {
-        if (savedSport) {
-          setSport(savedSport);
-        }
-      })
-      .then(() => getOwnedPremiumGroups())
+    void getOwnedPremiumGroups()
       .then(setPremiumGroups)
       .finally(() => setProfileLoading(false));
   }, [user]);
@@ -104,7 +97,6 @@ function UploadPageContent() {
       }
 
       setCaption(draft.caption);
-      setSport(draft.sport);
       setContentType(draft.contentType);
       setPostType(draft.postType ?? "standard");
       setQuestionPrompt(draft.questionPrompt ?? "");
@@ -152,7 +144,6 @@ function UploadPageContent() {
         body: JSON.stringify({
           task,
           caption,
-          sport,
           autoCaption,
           targetLanguage: "Spanish",
         }),
@@ -204,7 +195,6 @@ function UploadPageContent() {
     try {
       await createPost({
         caption,
-        sport,
         file,
         contentType,
         postType,
@@ -333,7 +323,7 @@ function UploadPageContent() {
                     {contentType === "reel" ? "Choose a video for your reel." : "Choose media for your post."}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Use hashtags in the caption like `#basketball` to appear in topic feeds.
+                    Use hashtags in the caption like `#travel` to appear in topic feeds.
                   </p>
                 </div>
               )}
@@ -374,12 +364,10 @@ function UploadPageContent() {
                 </div>
               ) : null}
 
-              <Input value={sport} onChange={(event) => setSport(event.target.value)} placeholder="Sport" disabled={submitting} />
-
               <textarea
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
-                placeholder="What happened here? Add #tags so people can discover it."
+                placeholder="What's on your mind? Add #tags so people can discover it."
                 disabled={submitting}
                 className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
@@ -428,7 +416,7 @@ function UploadPageContent() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setAutoCaption(`${sport || "Sport"} highlight: ${caption || file?.name || "Uploaded clip"}`)}
+                  onClick={() => setAutoCaption(`${caption || file?.name || "Uploaded clip"}`)}
                 >
                   Generate Caption
                 </Button>
@@ -471,7 +459,7 @@ function UploadPageContent() {
                   const response = await fetch("/api/highlight-analysis", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ caption, sport, contentType, autoCaption }),
+                    body: JSON.stringify({ caption, contentType, autoCaption }),
                   });
                   const data = (await response.json()) as { analysis?: string };
                   setAiHighlightAnalysis(data.analysis || "No analysis returned.");
@@ -529,7 +517,6 @@ function UploadPageContent() {
                   onClick={() =>
                     void saveUploadDraft({
                       caption,
-                      sport,
                       contentType,
                       previewType: mediaKind ?? "unknown",
                       postType,

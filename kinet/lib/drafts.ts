@@ -16,7 +16,7 @@ import { auth, db } from "@/lib/firebase";
 export interface UploadDraft {
   id: string;
   caption: string;
-  sport: string;
+  sport?: string;
   contentType: "post" | "reel";
   postType?: "standard" | "poll" | "qa";
   questionPrompt?: string;
@@ -45,7 +45,7 @@ export interface UploadDraft {
 
 export async function saveUploadDraft(input: {
   caption: string;
-  sport: string;
+  sport?: string;
   contentType: "post" | "reel";
   postType?: "standard" | "poll" | "qa";
   questionPrompt?: string;
@@ -77,7 +77,7 @@ export async function saveUploadDraft(input: {
   await addDoc(collection(db, "drafts"), {
     userId: auth.currentUser.uid,
     caption: input.caption.trim(),
-    sport: input.sport.trim(),
+    sport: input.sport?.trim() || "",
     contentType: input.contentType,
     postType: input.postType ?? "standard",
     questionPrompt: input.questionPrompt?.trim() ?? "",

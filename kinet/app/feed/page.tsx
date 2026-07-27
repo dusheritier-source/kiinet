@@ -318,7 +318,7 @@ function FeedPageContent() {
                     {post.postType === "poll" ? <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">POLL</span> : null}
                     {post.postType === "qa" ? <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">Q&A</span> : null}
                   </div>
-                  <span className="text-xs text-muted-foreground">{post.sport} • {formatTimeAgo(post.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground">{formatTimeAgo(post.createdAt)}</span>
                 </div>
                 {post.userId === user.uid ? (
                   <div className="flex gap-2">
@@ -337,22 +337,15 @@ function FeedPageContent() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      void reportEntity({
-                        targetId: post.id,
-                        targetType: "post",
-                        reason: "content",
-                        details: "Reported from feed.",
-                      })
-                    }
-                  >
-                    <ShieldAlert className="h-4 w-4" />
-                  </Button>
-                )}
+                  ) : (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {post.sponsored ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">
+                          {post.sponsorLabel || "Sponsored"}
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
               </div>
             </div>
 

@@ -16,7 +16,6 @@ import { subscribeToConversations, type ConversationSummary } from "@/lib/messag
 const primaryNav = [
   { href: "/feed", label: "Feed", icon: Home },
   { href: "/search", label: "Search", icon: Search },
-  { href: "/teams", label: "Teams", icon: Users },
   { href: "/notifications", label: "Alerts", icon: Bell, isAlert: true },
   { href: "/profile", label: "Profile" },
   { href: "/messages", label: "Messages" },
@@ -24,50 +23,36 @@ const primaryNav = [
 
 const workspaceGroups = [
   {
-    label: "Creator",
+    label: "Discover",
     items: [
       { href: "/saved", label: "Saved" },
       { href: "/topics", label: "Topics" },
       { href: "/media-lab", label: "Media Lab", icon: Film },
       { href: "/growth", label: "Growth", icon: Sparkles },
-      { href: "/business", label: "Business", icon: Briefcase },
-      { href: "/billing", label: "Billing", icon: Wallet },
       { href: "/marketplace", label: "Marketplace", icon: ShoppingBag },
       { href: "/bookings", label: "Bookings", icon: CalendarDays },
     ],
   },
   {
-    label: "Athlete",
-    items: [
-      { href: "/performance", label: "Performance", icon: LineChart },
-      { href: "/training", label: "Training", icon: Dumbbell },
-      { href: "/wellness", label: "Wellness", icon: Dumbbell },
-      { href: "/recruiting-ready", label: "Recruiting", icon: GraduationCap },
-      { href: "/directory", label: "Directory", icon: Compass },
-      { href: "/events", label: "Events", icon: Ticket },
-      { href: "/transition-hub", label: "Transition", icon: UserPlus },
-      { href: "/pathways", label: "Pathways", icon: Map },
-    ],
-  },
-  {
-    label: "Workspaces",
+    label: "Social",
     items: [
       { href: "/groups", label: "Groups", icon: Gem },
       { href: "/live", label: "Live", icon: Radio },
       { href: "/podcasts", label: "Podcasts", icon: Mic2 },
       { href: "/community", label: "Community" },
+      { href: "/events", label: "Events", icon: Ticket },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { href: "/business", label: "Business", icon: Briefcase },
+      { href: "/billing", label: "Billing", icon: Wallet },
       { href: "/platform", label: "Platform", icon: Workflow },
       { href: "/intelligence", label: "Intelligence", icon: Cpu },
       { href: "/strategy", label: "Strategy", icon: Target },
       { href: "/media-center", label: "Media", icon: Newspaper },
       { href: "/studio", label: "Studio", icon: Tv2 },
-      { href: "/operations", label: "Operations", icon: Briefcase },
-      { href: "/fan-hub", label: "Fan Hub", icon: Sparkles },
-      { href: "/security", label: "Security", icon: Shield },
-      { href: "/compliance", label: "Compliance" },
-      { href: "/org", label: "Org" },
-      { href: "/travel-legacy", label: "Legacy", icon: Map },
-      { href: "/league-hub", label: "League", icon: Workflow },
     ],
   },
 ];

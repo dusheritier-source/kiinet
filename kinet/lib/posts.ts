@@ -99,7 +99,7 @@ export interface PostComment {
 
 interface CreatePostInput {
   caption: string;
-  sport: string;
+  sport?: string;
   file?: File | null;
   contentType?: "post" | "reel";
   postType?: "standard" | "poll" | "qa";
@@ -424,12 +424,7 @@ export async function createPost({
   assertFirebaseReady();
 
   const user = auth.currentUser;
-  const { author, defaultSport } = await getCurrentAuthorProfile();
-  const resolvedSport = sport.trim() || defaultSport;
-
-  if (!resolvedSport) {
-    throw new Error("Add a sport before posting.");
-  }
+  const { author } = await getCurrentAuthorProfile();
 
   const mediaType = file?.type.startsWith("video/") ? "video" : "image";
   const uploadedMedia = file
@@ -461,7 +456,7 @@ export async function createPost({
     mediaType,
     contentType,
     postType,
-    sport: resolvedSport,
+    sport: sport.trim() || "",
     likes: [],
     commentsCount: 0,
     shares: 0,
