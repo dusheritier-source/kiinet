@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell, Briefcase, CalendarDays, ChevronDown, Compass, Cpu, Dumbbell, Film, Gem, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Mic2, Newspaper, Plus, Radio, Search, Settings, Shield, ShoppingBag, Sparkles, Target, Ticket, Tv2, UserPlus, Wallet, Workflow, Users } from "lucide-react";
 import { signOut } from "firebase/auth";
 
@@ -59,10 +60,13 @@ const workspaceGroups = [
 
 export default function Navbar() {
   const { user, loading } = useAuthContext();
+  const pathname = usePathname();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
   const previousNotificationIds = useRef<string[]>([]);
+
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   useEffect(() => {
     if (!user) {
@@ -119,7 +123,7 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
-          {!loading && user ? (
+          {!loading && user && !isAuthPage ? (
             <>
               <div className="flex items-center gap-2 lg:hidden">
                 <Link href="/feed" className="px-2 text-base font-semibold text-foreground">
