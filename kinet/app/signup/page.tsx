@@ -81,7 +81,10 @@ export default function SignupPage() {
         displayName: formData.fullName.trim(),
       }).catch(() => {});
 
-      router.push("/feed");
+      // Wait a moment for auth state to update, then redirect
+      setTimeout(() => {
+        router.push("/feed");
+      }, 500);
     } catch (err) {
       setError(getSignupErrorMessage(err));
       setIsSubmitting(false);
