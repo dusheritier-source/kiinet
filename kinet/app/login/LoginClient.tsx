@@ -157,9 +157,13 @@ export default function LoginClient() {
     setIsSubmitting(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      provider.addScope("email");
+      provider.addScope("profile");
+      const result = await signInWithPopup(auth, provider);
+      console.log("Google sign-in successful:", result.user);
       router.push(searchParams.get("next") || "/feed");
     } catch (err) {
+      console.error("Google sign-in error:", err);
       setError(getLoginErrorMessage(err));
     } finally {
       setIsSubmitting(false);
