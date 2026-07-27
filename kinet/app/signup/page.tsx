@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { useEffect, useState } from "react";
+import { createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +63,19 @@ export default function SignupPage() {
         formData.password
       );
 
-      router.push("/feed");
+      // Wait for auth state to be fully established
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          unsubscribe();
+          router.push("/feed");
+        }
+      });
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        unsubscribe();
+        router.push("/feed");
+      }, 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
       setIsSubmitting(false);
