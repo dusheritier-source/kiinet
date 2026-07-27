@@ -4,10 +4,12 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  GoogleAuthProvider,
   isSignInWithEmailLink,
   sendSignInLinkToEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
+  signInWithPopup,
 } from "firebase/auth";
 import { Lock, Mail } from "lucide-react";
 
@@ -134,6 +136,27 @@ export default function LoginClient() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setMagicLinkMessage("");
+
+    if (!isFirebaseConfigured || !auth) {
+      setError(firebaseConfigError ?? "Firebase is not configured.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push(searchParams.get("next") || "/feed");
+    } catch (err) {
+      setError(getLoginErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 py-12 px-4">
       <Card className="w-full max-w-md mx-auto">
@@ -210,7 +233,7 @@ export default function LoginClient() {
               <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
-          <Button variant="outline" className="w-full" disabled>
+          <Button variant="outline" className="w-full" disabled={isSubmitting} onClick={() => void handleGoogleSignIn()} type="button">
             Google
           </Button>
           <div className="text-center text-sm">

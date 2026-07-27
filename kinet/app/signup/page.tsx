@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +78,25 @@ export default function SignupPage() {
       }, 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setError("");
+
+    if (!isFirebaseConfigured || !auth) {
+      setError(firebaseConfigError ?? "Firebase is not configured.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/feed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-up failed. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -171,6 +190,19 @@ export default function SignupPage() {
               {isSubmitting ? "Creating account..." : "Create Account"}
             </Button>
           </form>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or sign up with
+              </span>
+            </div>
+          </div>
+          <Button variant="outline" className="w-full" disabled={isSubmitting} onClick={() => void handleGoogleSignUp()} type="button">
+            Continue with Google
+          </Button>
           <div className="text-center text-sm">
             Already have an account?{" "}
             <Link href="/login" className="text-primary hover:underline font-medium">
