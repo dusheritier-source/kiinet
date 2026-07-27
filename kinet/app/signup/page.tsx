@@ -10,9 +10,11 @@ import { Mail, Lock, User, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { redeemInviteCode, validateInviteCode } from "@/lib/admin";
 import { auth, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
+import { useAuthContext } from "@/components/AuthProvider";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { user, loading } = useAuthContext();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -81,10 +83,19 @@ export default function SignupPage() {
         displayName: formData.fullName.trim(),
       }).catch(() => {});
 
-      // Wait a moment for auth state to update, then redirect
+      // Wait for auth state to update, then redirect
+      const checkAuth = setInterval(() => {
+        if (user) {
+          clearInterval(checkAuth);
+          router.push("/feed");
+        }
+      }, 100);
+
+      // Timeout after 5 seconds
       setTimeout(() => {
+        clearInterval(checkAuth);
         router.push("/feed");
-      }, 500);
+      }, 5000);
     } catch (err) {
       setError(getSignupErrorMessage(err));
       setIsSubmitting(false);
