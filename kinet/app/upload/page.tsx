@@ -193,6 +193,7 @@ function UploadPageContent() {
     setSubmitting(true);
 
     try {
+      console.log("Starting upload...", { contentType, postType, hasFile: !!file });
       await createPost({
         caption,
         file,
@@ -222,12 +223,15 @@ function UploadPageContent() {
         downloadProtected,
         rightClickProtected,
       });
+      console.log("Upload successful!");
       if (loadedDraftId) {
         await deleteUploadDraft(loadedDraftId);
       }
       router.push(contentType === "reel" ? "/reels" : "/feed");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Your upload could not be published.");
+      console.error("Upload failed:", err);
+      const errorMessage = err instanceof Error ? err.message : "Your upload could not be published.";
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
