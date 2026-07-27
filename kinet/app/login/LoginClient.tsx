@@ -97,7 +97,9 @@ export default function LoginClient() {
 
     setIsSubmitting(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      console.log("Login attempt for:", email.trim());
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      console.log("Login successful:", userCredential.user.uid);
       await recordLoginActivity({
         email: email.trim(),
         method: "password",
@@ -105,6 +107,7 @@ export default function LoginClient() {
       });
       router.push(searchParams.get("next") || "/feed");
     } catch (err) {
+      console.error("Login failed:", err);
       setError(getLoginErrorMessage(err));
     } finally {
       setIsSubmitting(false);
