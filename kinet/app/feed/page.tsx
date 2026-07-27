@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Bookmark,
   CornerDownRight,
@@ -221,7 +222,7 @@ function FeedPageContent() {
         <Card>
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <img src={user.photoURL || "https://placehold.co/80x80?text=U"} alt="Your avatar" className="h-10 w-10 rounded-full" />
+              <Image src={user.photoURL || "https://placehold.co/80x80?text=U"} alt="Your avatar" width={40} height={40} className="rounded-full" />
               <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
                 <Link href="/upload">What's happening in your sport today?</Link>
               </Button>
@@ -244,10 +245,12 @@ function FeedPageContent() {
                 <div className="relative">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px]">
                     <div className="flex h-full w-full items-center justify-center rounded-full bg-background">
-                      <img
+                      <Image
                         src={user.photoURL || "https://placehold.co/80x80?text=Y"}
                         alt="Your story"
-                        className="h-[60px] w-[60px] rounded-full object-cover"
+                        width={60}
+                        height={60}
+                        className="rounded-full object-cover"
                       />
                     </div>
                   </div>
@@ -263,10 +266,12 @@ function FeedPageContent() {
                 <Link key={story.id} href={`/stories?story=${story.id}`} className="flex flex-shrink-0 flex-col items-center gap-2">
                   <div className={`rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px] ${story.seenBy?.includes(user.uid) ? "opacity-50" : ""}`}>
                     <div className="rounded-full bg-background p-[2px]">
-                      <img
+                      <Image
                         src={story.authorAvatar || "https://placehold.co/80x80?text=S"}
                         alt={story.authorName}
-                        className="h-[60px] w-[60px] rounded-full object-cover"
+                        width={60}
+                        height={60}
+                        className="rounded-full object-cover"
                       />
                     </div>
                   </div>
@@ -300,7 +305,7 @@ function FeedPageContent() {
           <Card key={post.id} className="overflow-hidden">
             <div className="border-b p-5">
               <div className="flex items-center gap-3">
-                <img src={post.author.avatar || "https://placehold.co/64x64?text=H"} alt={`${post.author.name} avatar`} className="h-10 w-10 rounded-full" />
+                <Image src={post.author.avatar || "https://placehold.co/64x64?text=H"} alt={`${post.author.name} avatar`} width={40} height={40} className="rounded-full" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Link href={`/profile/${post.userId}`} className="truncate text-sm font-semibold hover:underline">
@@ -377,13 +382,16 @@ function FeedPageContent() {
                       }
                     }}
                   />
-                ) : (
-                  <img
-                    src={post.mediaUrl}
-                    alt={post.accessibilityLabel || post.caption || "Post media"}
-                    className="aspect-video w-full object-cover"
-                  />
-                )}
+                  ) : (
+                    <Image
+                      src={post.mediaUrl}
+                      alt={post.accessibilityLabel || post.caption || "Post media"}
+                      width={800}
+                      height={450}
+                      className="aspect-video w-full object-cover"
+                      loading="lazy"
+                    />
+                  )}
                 {post.watermarkEnabled ? (
                   <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
                     {post.author.username}
@@ -567,7 +575,7 @@ function FeedPageContent() {
                         .filter((comment) => !comment.parentCommentId)
                         .map((comment) => (
                           <div key={comment.id} className="flex gap-3">
-                            <img src={comment.author.avatar || "https://placehold.co/48x48?text=C"} alt={`${comment.author.name} avatar`} className="h-8 w-8 rounded-full" />
+                            <Image src={comment.author.avatar || "https://placehold.co/48x48?text=C"} alt={`${comment.author.name} avatar`} width={32} height={32} className="rounded-full" />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="truncate font-semibold">{comment.author.name}</span>
