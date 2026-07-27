@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Briefcase, CalendarDays, ChevronDown, Compass, Cpu, Dumbbell, Film, Gem, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Mic2, Newspaper, Plus, Radio, Search, Settings, Shield, ShoppingBag, Sparkles, Target, Ticket, Tv2, UserPlus, Wallet, Workflow, Users } from "lucide-react";
+import { Bell, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
 import { signOut } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
@@ -20,42 +20,6 @@ const primaryNav = [
   { href: "/notifications", label: "Alerts", icon: Bell, isAlert: true },
   { href: "/profile", label: "Profile" },
   { href: "/messages", label: "Messages" },
-];
-
-const workspaceGroups = [
-  {
-    label: "Discover",
-    items: [
-      { href: "/saved", label: "Saved" },
-      { href: "/topics", label: "Topics" },
-      { href: "/media-lab", label: "Media Lab", icon: Film },
-      { href: "/growth", label: "Growth", icon: Sparkles },
-      { href: "/marketplace", label: "Marketplace", icon: ShoppingBag },
-      { href: "/bookings", label: "Bookings", icon: CalendarDays },
-    ],
-  },
-  {
-    label: "Social",
-    items: [
-      { href: "/groups", label: "Groups", icon: Gem },
-      { href: "/live", label: "Live", icon: Radio },
-      { href: "/podcasts", label: "Podcasts", icon: Mic2 },
-      { href: "/community", label: "Community" },
-      { href: "/events", label: "Events", icon: Ticket },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { href: "/business", label: "Business", icon: Briefcase },
-      { href: "/billing", label: "Billing", icon: Wallet },
-      { href: "/platform", label: "Platform", icon: Workflow },
-      { href: "/intelligence", label: "Intelligence", icon: Cpu },
-      { href: "/strategy", label: "Strategy", icon: Target },
-      { href: "/media-center", label: "Media", icon: Newspaper },
-      { href: "/studio", label: "Studio", icon: Tv2 },
-    ],
-  },
 ];
 
 export default function Navbar() {
@@ -174,27 +138,6 @@ export default function Navbar() {
                         </div>
                       </div>
 
-                      {workspaceGroups.map((group) => (
-                        <div key={group.label}>
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                            {group.label}
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {group.items.map((item) => {
-                              const Icon = item.icon;
-                              return (
-                                <Button key={item.href} variant="ghost" size="sm" asChild className="justify-start">
-                                  <Link href={item.href}>
-                                    {Icon ? <Icon className="mr-2 h-4 w-4" /> : null}
-                                    {item.label}
-                                  </Link>
-                                </Button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-
                       <div className="grid grid-cols-2 gap-2 border-t pt-3">
                         {isCurrentUserAdmin() ? (
                           <Button variant="ghost" size="sm" asChild className="justify-start">
@@ -249,36 +192,6 @@ export default function Navbar() {
                   <Link href="/upload">Create</Link>
                 </Button>
               </div>
-              <details className="relative hidden lg:block">
-                <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border px-3 text-sm font-medium">
-                  Workspaces
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </summary>
-                <div className="absolute right-0 top-11 z-50 w-[420px] rounded-xl border bg-background p-4 shadow-lg">
-                  <div className="space-y-4">
-                    {workspaceGroups.map((group) => (
-                      <div key={group.label}>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                          {group.label}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {group.items.map((item) => {
-                            const Icon = item.icon;
-                            return (
-                              <Button key={item.href} variant="ghost" size="sm" asChild className="justify-start">
-                                <Link href={item.href}>
-                                  {Icon ? <Icon className="mr-2 h-4 w-4" /> : null}
-                                  {item.label}
-                                </Link>
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </details>
               {isCurrentUserAdmin() ? (
                 <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
                   <Link href="/admin">
