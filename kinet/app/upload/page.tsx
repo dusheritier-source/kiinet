@@ -3,12 +3,12 @@
 import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Film, Image as ImageIcon, UploadCloud, Video } from "lucide-react";
+import { Film, Image as ImageIcon, UploadCloud, Video, X } from "lucide-react";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getOwnedPremiumGroups, type PremiumGroupRecord } from "@/lib/creator-hub";
 import { deleteUploadDraft, getUploadDrafts, saveUploadDraft } from "@/lib/drafts";
@@ -245,39 +245,35 @@ function UploadPageContent() {
     <ProtectedRoute>
       <div className="mx-auto max-w-2xl py-8">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UploadCloud className="h-5 w-5 text-primary" />
-              Create content
-            </CardTitle>
-            <CardDescription>
-              Publish a standard post or a reel using the same media pipeline.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-5" onSubmit={handleSubmit}>
+          <CardContent className="p-6">
+            <h1 className="text-2xl font-bold mb-1">Create content</h1>
+            <p className="text-sm text-muted-foreground mb-6">Publish a standard post or a reel using the same media pipeline.</p>
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              {/* Content Type Selection */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setContentType("post")}
-                  className={`rounded-xl border p-4 text-left ${contentType === "post" ? "border-primary bg-primary/5" : ""}`}
+                  className={`rounded-xl border-2 p-4 text-left transition ${contentType === "post" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}
                 >
-                  <ImageIcon className="mb-2 h-5 w-5 text-primary" />
-                  <p className="font-semibold">Post</p>
-                  <p className="text-sm text-muted-foreground">Photos or videos in the main feed.</p>
+                  <ImageIcon className="mb-2 h-6 w-6 text-primary" />
+                  <p className="font-semibold text-base">Post</p>
+                  <p className="text-xs text-muted-foreground">Photos or videos in the main feed</p>
                 </button>
                 <button
                   type="button"
                   onClick={() => setContentType("reel")}
-                  className={`rounded-xl border p-4 text-left ${contentType === "reel" ? "border-primary bg-primary/5" : ""}`}
+                  className={`rounded-xl border-2 p-4 text-left transition ${contentType === "reel" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}
                 >
-                  <Film className="mb-2 h-5 w-5 text-primary" />
-                  <p className="font-semibold">Reel</p>
-                  <p className="text-sm text-muted-foreground">Vertical video for the reels feed.</p>
+                  <Film className="mb-2 h-6 w-6 text-primary" />
+                  <p className="font-semibold text-base">Reel</p>
+                  <p className="text-xs text-muted-foreground">Vertical video for the reels feed</p>
                 </button>
               </div>
 
-              {contentType === "post" ? (
+              {/* Post Type Selection (only for posts) */}
+              {contentType === "post" && (
                 <div className="grid grid-cols-3 gap-3">
                   {([
                     { value: "standard", label: "Standard", hint: "Normal post" },
@@ -288,56 +284,90 @@ function UploadPageContent() {
                       key={option.value}
                       type="button"
                       onClick={() => setPostType(option.value)}
-                      className={`rounded-xl border p-4 text-left ${postType === option.value ? "border-primary bg-primary/5" : ""}`}
+                      className={`rounded-xl border-2 p-3 text-left transition ${postType === option.value ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}
                     >
-                      <p className="font-semibold">{option.label}</p>
-                      <p className="text-sm text-muted-foreground">{option.hint}</p>
+                      <p className="font-semibold text-sm">{option.label}</p>
+                      <p className="text-xs text-muted-foreground">{option.hint}</p>
                     </button>
                   ))}
                 </div>
-              ) : null}
+              )}
 
+              {/* File Upload */}
+              <div>
+                <Input
+                  type="file"
+                  accept={contentType === "reel" ? "video/*" : "image/*,video/*"}
+                  onChange={handleFileChange}
+                  disabled={submitting}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition hover:border-primary/50"
+                >
+                  {previewUrl ? (
+                    <div className="relative w-full">
+                      {mediaKind === "video" ? (
+                        <video src={previewUrl} controls className="max-h-[400px] w-full rounded-lg object-cover" />
+                      ) : (
+                        <img src={previewUrl} alt="Upload preview" className="max-h-[400px] w-full rounded-lg object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setFile(null);
+                          setPreviewUrl("");
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud className="mb-3 h-12 w-12 text-muted-foreground" />
+                      <p className="font-semibold">
+                        {contentType === "reel" ? "Choose a video for your reel" : "Choose media for your post"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">Click to browse or drag and drop</p>
+                    </>
+                  )}
+                </label>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <textarea
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  placeholder="What's on your mind? Add #tags so people can discover it."
+                  disabled={submitting}
+                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Collaborators */}
               <Input
-                type="file"
-                accept={contentType === "reel" ? "video/*" : "image/*,video/*"}
-                onChange={handleFileChange}
+                value={collaborators}
+                onChange={(event) => setCollaborators(event.target.value)}
+                placeholder="Collaboration tags, comma separated usernames"
                 disabled={submitting}
               />
 
-              {previewUrl ? (
-                <div className="overflow-hidden rounded-xl border bg-muted">
-                  {mediaKind === "video" ? (
-                    <video src={previewUrl} controls className="max-h-[420px] w-full bg-black object-cover" />
-                  ) : (
-                    <img src={previewUrl} alt="Upload preview" className="max-h-[420px] w-full object-cover" />
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed p-8 text-center">
-                  {contentType === "reel" ? (
-                    <Video className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-                  ) : (
-                    <ImageIcon className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-                  )}
-                  <p className="font-medium">
-                    {contentType === "reel" ? "Choose a video for your reel." : "Choose media for your post."}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Use hashtags in the caption like `#travel` to appear in topic feeds.
-                  </p>
-                </div>
-              )}
-
-              {postType === "qa" && contentType === "post" ? (
+              {/* Post Type Specific Fields */}
+              {postType === "qa" && contentType === "post" && (
                 <Input
                   value={questionPrompt}
                   onChange={(event) => setQuestionPrompt(event.target.value)}
                   placeholder="Ask a question to the community"
                   disabled={submitting}
                 />
-              ) : null}
+              )}
 
-              {postType === "poll" && contentType === "post" ? (
+              {postType === "poll" && contentType === "post" && (
                 <div className="space-y-3 rounded-xl border p-4">
                   <p className="text-sm font-medium">Poll Options</p>
                   {pollOptions.map((option, index) => (
@@ -362,151 +392,146 @@ function UploadPageContent() {
                     Add Option
                   </Button>
                 </div>
-              ) : null}
+              )}
 
-              <textarea
-                value={caption}
-                onChange={(event) => setCaption(event.target.value)}
-                placeholder="What's on your mind? Add #tags so people can discover it."
-                disabled={submitting}
-                className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-
-              <Input
-                value={collaborators}
-                onChange={(event) => setCollaborators(event.target.value)}
-                placeholder="Collaboration tags, comma separated usernames"
-                disabled={submitting}
-              />
-
+              {/* Schedule */}
               <Input
                 type="datetime-local"
                 value={scheduledFor}
                 onChange={(event) => setScheduledFor(event.target.value)}
                 disabled={submitting}
               />
+
+              {/* Visibility */}
               <div className="grid gap-3 md:grid-cols-2">
                 <select value={visibility} onChange={(event) => setVisibility(event.target.value as "public" | "subscribers" | "premium_group")} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                   <option value="public">Public</option>
                   <option value="subscribers">Subscribers only</option>
                   <option value="premium_group">Premium group only</option>
                 </select>
-                {visibility === "premium_group" ? (
+                {visibility === "premium_group" && (
                   <select value={premiumGroupId} onChange={(event) => setPremiumGroupId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                     <option value="">Choose premium group</option>
                     {premiumGroups.map((group) => (
                       <option key={group.id} value={group.id}>{group.name}</option>
                     ))}
                   </select>
-                ) : null}
+                )}
               </div>
-              <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                <input type="checkbox" checked={sponsored} onChange={(event) => setSponsored(event.target.checked)} />
-                Mark as sponsored
-              </label>
-              {sponsored ? (
-                <Input value={sponsorLabel} onChange={(event) => setSponsorLabel(event.target.value)} placeholder="Sponsor label" disabled={submitting} />
-              ) : null}
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input value={clipStartSec} onChange={(event) => setClipStartSec(event.target.value)} placeholder="Clip start (seconds)" disabled={submitting} />
-                <Input value={clipEndSec} onChange={(event) => setClipEndSec(event.target.value)} placeholder="Clip end (seconds)" disabled={submitting} />
-              </div>
-              <div className="grid gap-3 md:grid-cols-[1fr,auto]">
-                <Input value={autoCaption} onChange={(event) => setAutoCaption(event.target.value)} placeholder="Auto-caption text" disabled={submitting} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setAutoCaption(`${caption || file?.name || "Uploaded clip"}`)}
-                >
-                  Generate Caption
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={() => void runMediaAssist("caption_rewrite")} disabled={assistantLoading !== null}>
-                  {assistantLoading === "caption_rewrite" ? "Rewriting..." : "AI Rewrite Caption"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => void runMediaAssist("hashtags")} disabled={assistantLoading !== null}>
-                  {assistantLoading === "hashtags" ? "Suggesting..." : "AI Hashtags"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => void runMediaAssist("translate")} disabled={assistantLoading !== null}>
-                  {assistantLoading === "translate" ? "Translating..." : "Translate Caption"}
-                </Button>
-              </div>
-              <textarea
-                value={translatedCaption}
-                onChange={(event) => setTranslatedCaption(event.target.value)}
-                placeholder="Translated caption"
-                disabled={submitting}
-                className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <Input
-                value={accessibilityLabel}
-                onChange={(event) => setAccessibilityLabel(event.target.value)}
-                placeholder="Screen-reader label for this media"
-                disabled={submitting}
-              />
-              <textarea
-                value={aiHighlightAnalysis}
-                onChange={(event) => setAiHighlightAnalysis(event.target.value)}
-                placeholder="AI highlight analysis"
-                disabled={submitting}
-                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={async () => {
-                  const response = await fetch("/api/highlight-analysis", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ caption, contentType, autoCaption }),
-                  });
-                  const data = (await response.json()) as { analysis?: string };
-                  setAiHighlightAnalysis(data.analysis || "No analysis returned.");
-                }}
-                >
-                  Run AI Highlight Analysis
-                </Button>
-              <div className="grid gap-3 md:grid-cols-[1fr,auto]">
-                <Input value={thumbnailHint} onChange={(event) => setThumbnailHint(event.target.value)} placeholder="Best thumbnail note" disabled={submitting} />
-                <Button type="button" variant="outline" onClick={() => void runMediaAssist("thumbnail")} disabled={assistantLoading !== null}>
-                  {assistantLoading === "thumbnail" ? "Picking..." : "Best Thumbnail"}
-                </Button>
-              </div>
-              <div className="grid gap-3 md:grid-cols-[1fr,auto]">
-                <textarea
-                  value={voiceoverScript}
-                  onChange={(event) => setVoiceoverScript(event.target.value)}
-                  placeholder="Voiceover script for this clip"
-                  disabled={submitting}
-                  className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <Button type="button" variant="outline" onClick={() => void runMediaAssist("voiceover")} disabled={assistantLoading !== null}>
-                  {assistantLoading === "voiceover" ? "Writing..." : "AI Voiceover"}
-                </Button>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <input type="checkbox" checked={watermarkEnabled} onChange={(event) => setWatermarkEnabled(event.target.checked)} />
-                  Watermark content
-                </label>
-                <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <input type="checkbox" checked={downloadProtected} onChange={(event) => setDownloadProtected(event.target.checked)} />
-                  Hide download controls
-                </label>
-                <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <input type="checkbox" checked={rightClickProtected} onChange={(event) => setRightClickProtected(event.target.checked)} />
-                  Block right click
-                </label>
-              </div>
-              {remixPostId ? (
+
+              {/* Advanced Options */}
+              <details className="rounded-xl border p-4">
+                <summary className="cursor-pointer font-semibold text-sm">Advanced Options</summary>
+                <div className="mt-4 space-y-4">
+                  <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                    <input type="checkbox" checked={sponsored} onChange={(event) => setSponsored(event.target.checked)} />
+                    Mark as sponsored
+                  </label>
+                  {sponsored && (
+                    <Input value={sponsorLabel} onChange={(event) => setSponsorLabel(event.target.value)} placeholder="Sponsor label" disabled={submitting} />
+                  )}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input value={clipStartSec} onChange={(event) => setClipStartSec(event.target.value)} placeholder="Clip start (seconds)" disabled={submitting} />
+                    <Input value={clipEndSec} onChange={(event) => setClipEndSec(event.target.value)} placeholder="Clip end (seconds)" disabled={submitting} />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[1fr,auto]">
+                    <Input value={autoCaption} onChange={(event) => setAutoCaption(event.target.value)} placeholder="Auto-caption text" disabled={submitting} />
+                    <Button type="button" variant="outline" onClick={() => setAutoCaption(`${caption || file?.name || "Uploaded clip"}`)}>
+                      Generate Caption
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => void runMediaAssist("caption_rewrite")} disabled={assistantLoading !== null}>
+                      {assistantLoading === "caption_rewrite" ? "Rewriting..." : "AI Rewrite Caption"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => void runMediaAssist("hashtags")} disabled={assistantLoading !== null}>
+                      {assistantLoading === "hashtags" ? "Suggesting..." : "AI Hashtags"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => void runMediaAssist("translate")} disabled={assistantLoading !== null}>
+                      {assistantLoading === "translate" ? "Translating..." : "Translate Caption"}
+                    </Button>
+                  </div>
+                  <textarea
+                    value={translatedCaption}
+                    onChange={(event) => setTranslatedCaption(event.target.value)}
+                    placeholder="Translated caption"
+                    disabled={submitting}
+                    className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <Input
+                    value={accessibilityLabel}
+                    onChange={(event) => setAccessibilityLabel(event.target.value)}
+                    placeholder="Screen-reader label for this media"
+                    disabled={submitting}
+                  />
+                  <div className="grid gap-3 md:grid-cols-[1fr,auto]">
+                    <textarea
+                      value={aiHighlightAnalysis}
+                      onChange={(event) => setAiHighlightAnalysis(event.target.value)}
+                      placeholder="AI highlight analysis"
+                      disabled={submitting}
+                      className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        const response = await fetch("/api/highlight-analysis", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ caption, contentType, autoCaption }),
+                        });
+                        const data = (await response.json()) as { analysis?: string };
+                        setAiHighlightAnalysis(data.analysis || "No analysis returned.");
+                      }}
+                    >
+                      Run AI Highlight Analysis
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[1fr,auto]">
+                    <Input value={thumbnailHint} onChange={(event) => setThumbnailHint(event.target.value)} placeholder="Best thumbnail note" disabled={submitting} />
+                    <Button type="button" variant="outline" onClick={() => void runMediaAssist("thumbnail")} disabled={assistantLoading !== null}>
+                      {assistantLoading === "thumbnail" ? "Picking..." : "Best Thumbnail"}
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[1fr,auto]">
+                    <textarea
+                      value={voiceoverScript}
+                      onChange={(event) => setVoiceoverScript(event.target.value)}
+                      placeholder="Voiceover script for this clip"
+                      disabled={submitting}
+                      className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <Button type="button" variant="outline" onClick={() => void runMediaAssist("voiceover")} disabled={assistantLoading !== null}>
+                      {assistantLoading === "voiceover" ? "Writing..." : "AI Voiceover"}
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <input type="checkbox" checked={watermarkEnabled} onChange={(event) => setWatermarkEnabled(event.target.checked)} />
+                      Watermark content
+                    </label>
+                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <input type="checkbox" checked={downloadProtected} onChange={(event) => setDownloadProtected(event.target.checked)} />
+                      Hide download controls
+                    </label>
+                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <input type="checkbox" checked={rightClickProtected} onChange={(event) => setRightClickProtected(event.target.checked)} />
+                      Block right click
+                    </label>
+                  </div>
+                </div>
+              </details>
+
+              {remixPostId && (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
                   Remixing post: {remixPostId}
                 </div>
-              ) : null}
+              )}
 
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
+              {/* Action Buttons */}
               <div className="flex gap-3">
                 <Button type="submit" disabled={submitting} className="flex-1">
                   {submitting ? "Publishing..." : contentType === "reel" ? "Publish reel" : "Publish post"}
