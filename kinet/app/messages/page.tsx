@@ -37,6 +37,7 @@ import {
 } from "@/lib/messaging";
 import { getPlatformPreferences, translateMessagePreview } from "@/lib/phase9";
 import { formatTimeAgo } from "@/lib/posts";
+import DefaultAvatar from "@/components/DefaultAvatar";
 
 function MessagesPageContent() {
   const { user } = useAuthContext();
@@ -248,11 +249,11 @@ function MessagesPageContent() {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <img
-                          src={other?.photoURL || "https://placehold.co/64x64?text=M"}
-                          alt={other?.displayName || "Conversation"}
-                          className="h-14 w-14 rounded-full object-cover"
-                        />
+                        {other?.photoURL ? (
+                          <img src={other.photoURL} alt={other.displayName || "Conversation"} className="h-14 w-14 rounded-full object-cover" />
+                        ) : (
+                          <DefaultAvatar username={other?.displayName || "User"} className="h-14 w-14 rounded-full" />
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate font-semibold">{other?.displayName || "Conversation"}</p>
@@ -305,11 +306,11 @@ function MessagesPageContent() {
                     >
                       <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <img
-                      src={activeOtherUser?.photoURL || "https://placehold.co/64x64?text=C"}
-                      alt={activeOtherUser?.displayName || "Conversation"}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
+                    {activeOtherUser?.photoURL ? (
+                      <img src={activeOtherUser.photoURL} alt={activeOtherUser.displayName || "Conversation"} className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <DefaultAvatar username={activeOtherUser?.displayName || "User"} className="h-10 w-10 rounded-full" />
+                    )}
                     <div>
                       <Link
                         href={activeOtherUser ? `/profile/${activeOtherUser.uid}` : "#"}
@@ -381,11 +382,11 @@ function MessagesPageContent() {
                       >
                         <div className={`flex max-w-[86%] items-end gap-2 ${message.senderId === currentUserId ? "flex-row-reverse" : ""}`}>
                           {message.senderId !== currentUserId ? (
-                            <img
-                              src={activeOtherUser?.photoURL || "https://placehold.co/64x64?text=C"}
-                              alt={activeOtherUser?.displayName || "Conversation"}
-                              className="h-7 w-7 rounded-full object-cover"
-                            />
+                            activeOtherUser?.photoURL ? (
+                              <img src={activeOtherUser.photoURL} alt={activeOtherUser.displayName || "Conversation"} className="h-7 w-7 rounded-full object-cover" />
+                            ) : (
+                              <DefaultAvatar username={activeOtherUser?.displayName || "User"} className="h-7 w-7 rounded-full" />
+                            )
                           ) : null}
                           <div className="max-w-[82%]">
                           {message.attachmentUrl ? (

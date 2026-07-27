@@ -14,6 +14,7 @@ import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { subscribeToUserPosts, type FeedPost } from "@/lib/posts";
 import { recordProfileVisit } from "@/lib/profile-analytics";
 import { getUserProfileById, toggleFollowUser } from "@/lib/user-profile";
+import DefaultAvatar from "@/components/DefaultAvatar";
 
 interface PublicProfile {
   uid?: string;
@@ -129,8 +130,13 @@ export default function PublicProfilePageContent() {
           </div>
           <div className="flex flex-col gap-6 sm:flex-row">
             <Avatar className="h-28 w-28">
-              <AvatarImage src={profile.photoURL || ""} />
-              <AvatarFallback className="text-2xl font-bold">{initials}</AvatarFallback>
+              {profile.photoURL ? (
+                <AvatarImage src={profile.photoURL} />
+              ) : (
+                <AvatarFallback>
+                  <DefaultAvatar username={profile.displayName || "User"} className="h-full w-full" />
+                </AvatarFallback>
+              )}
             </Avatar>
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-2">
