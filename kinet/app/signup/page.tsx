@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Lock, User, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { getAppAccessSettings, redeemInviteCode, validateInviteCode } from "@/lib/admin";
+import { redeemInviteCode, validateInviteCode } from "@/lib/admin";
 import { auth, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
 
 export default function SignupPage() {
@@ -23,14 +23,6 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [requireInvite, setRequireInvite] = useState(false);
-  const [inviteMessage, setInviteMessage] = useState("");
-
-  useEffect(() => {
-    void getAppAccessSettings().then((settings) => {
-      setRequireInvite(settings.requireInvite);
-      setInviteMessage(settings.inviteOnlyMessage);
-    });
-  }, []);
 
   const getSignupErrorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "code" in err) {
@@ -77,14 +69,6 @@ export default function SignupPage() {
       return;
     }
 
-    if (requireInvite) {
-      const inviteStatus = await validateInviteCode(formData.inviteCode);
-      if (!inviteStatus.valid) {
-        setError(inviteStatus.reason);
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
       const credentials = await createUserWithEmailAndPassword(
@@ -93,18 +77,13 @@ export default function SignupPage() {
         formData.password
       );
 
-      await updateProfile(credentials.user, {
+      updateProfile(credentials.user, {
         displayName: formData.fullName.trim(),
-      });
-
-      if (requireInvite) {
-        await redeemInviteCode(formData.inviteCode, credentials.user.uid);
-      }
+      }).catch(() => {});
 
       router.push("/feed");
     } catch (err) {
       setError(getSignupErrorMessage(err));
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -118,9 +97,6 @@ export default function SignupPage() {
             <h1 className="text-3xl font-bold gradient-text">Join Kinet</h1>
           </div>
           <CardTitle className="text-2xl text-center">Create account</CardTitle>
-          <CardDescription className="text-center">
-            Join the sports community and showcase your talent
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleSignup} className="space-y-4">
@@ -160,25 +136,6 @@ export default function SignupPage() {
                 />
               </div>
             </div>
-            {requireInvite ? (
-              <div className="space-y-2">
-                <label htmlFor="inviteCode" className="text-sm font-medium">
-                  Invite Code
-                </label>
-                <Input
-                  id="inviteCode"
-                  type="text"
-                  placeholder="HOOP-ACCESS"
-                  value={formData.inviteCode}
-                  onChange={handleChange}
-                  required
-                  disabled={isSubmitting}
-                />
-                {inviteMessage ? (
-                  <p className="text-xs text-muted-foreground">{inviteMessage}</p>
-                ) : null}
-              </div>
-            ) : null}
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
                 Password
@@ -220,19 +177,6 @@ export default function SignupPage() {
               {isSubmitting ? "Creating account..." : "Create Account"}
             </Button>
           </form>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or sign up with
-              </span>
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" disabled>
-            Continue with Google
-          </Button>
           <div className="text-center text-sm">
             Already have an account?{" "}
             <Link href="/login" className="text-primary hover:underline font-medium">
