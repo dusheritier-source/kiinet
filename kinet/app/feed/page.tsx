@@ -301,6 +301,25 @@ function FeedPageContent() {
           </Card>
         ) : null}
 
+        {!postsLoading && !feedError && posts.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <h2 className="text-xl font-semibold mb-2">Be the first to share!</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your feed is empty. Start by creating your first post or reel to share with the community.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild>
+                  <Link href="/upload">Create Post</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/reels">Make a Reel</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {!feedError ? posts.map((post) => (
           <Card key={post.id} className="overflow-hidden">
             <div className="border-b p-5">
