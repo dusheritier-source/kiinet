@@ -68,6 +68,15 @@ export default function LoginClient() {
       if (code === "auth/wrong-password") return "Invalid email or password.";
       if (code === "auth/too-many-requests") return "Too many attempts. Try again later.";
       if (code === "auth/network-request-failed") return "Network error. Check your connection and try again.";
+      if (code === "auth/popup-closed-by-user") return "Sign-in popup was closed. Please try again.";
+      if (code === "auth/popup-blocked") return "Popup was blocked. Please allow popups for this site.";
+      if (code === "auth/account-exists-with-different-credential") return "An account already exists with this email using a different sign-in method.";
+      if (code === "auth/operation-not-allowed") return "Google sign-in is not enabled. Please contact support.";
+      if (code === "auth/unauthorized-domain") return "This domain is not authorized for Google sign-in.";
+      return `Error: ${code}`;
+    }
+    if (err instanceof Error) {
+      return err.message;
     }
     return "Login failed. Please try again.";
   };
