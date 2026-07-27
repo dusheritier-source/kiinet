@@ -12,6 +12,7 @@ const nextConfig = {
       },
     ],
     formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60,
   },
   typescript: {
     ignoreBuildErrors: true,
@@ -19,6 +20,9 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
 };
 
 module.exports = nextConfig;
