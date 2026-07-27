@@ -1,41 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Lock, User, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { redeemInviteCode, validateInviteCode } from "@/lib/admin";
 import { auth, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
-import { useAuthContext } from "@/components/AuthProvider";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { user, loading } = useAuthContext();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     confirmPassword: "",
     fullName: "",
-    inviteCode: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [requireInvite, setRequireInvite] = useState(false);
-
-  const getSignupErrorMessage = (err: unknown) => {
-    if (err && typeof err === "object" && "code" in err) {
-      const code = String((err as { code: string }).code);
-      if (code === "auth/email-already-in-use") return "That email is already in use.";
-      if (code === "auth/invalid-email") return "Please enter a valid email address.";
-      if (code === "auth/weak-password") return "Password should be at least 6 characters.";
-      if (code === "auth/network-request-failed") return "Network error. Check your connection and try again.";
-    }
-    return "Signup failed. Please try again.";
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError("");
@@ -73,31 +57,15 @@ export default function SignupPage() {
 
     setIsSubmitting(true);
     try {
-      const credentials = await createUserWithEmailAndPassword(
+      await createUserWithEmailAndPassword(
         auth,
         formData.email.trim(),
         formData.password
       );
 
-      updateProfile(credentials.user, {
-        displayName: formData.fullName.trim(),
-      }).catch(() => {});
-
-      // Wait for auth state to update, then redirect
-      const checkAuth = setInterval(() => {
-        if (user) {
-          clearInterval(checkAuth);
-          router.push("/feed");
-        }
-      }, 100);
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        clearInterval(checkAuth);
-        router.push("/feed");
-      }, 5000);
+      router.push("/feed");
     } catch (err) {
-      setError(getSignupErrorMessage(err));
+      setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
       setIsSubmitting(false);
     }
   };
