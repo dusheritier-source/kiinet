@@ -79,7 +79,7 @@ function BusinessPageContent() {
                 <a href="/growth">Open Growth Hub</a>
               </Button>
               <Button variant="outline" asChild>
-                <a href="/directory">Open Directory</a>
+                <a href="/search">Discover people</a>
               </Button>
             </div>
 

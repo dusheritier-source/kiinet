@@ -8,10 +8,14 @@ interface DefaultAvatarProps {
 }
 
 export default function DefaultAvatar({ username, className }: DefaultAvatarProps) {
-  const initial = username?.charAt(0).toUpperCase() || "U";
+  const initial = username?.trim().charAt(0).toUpperCase() || "U";
   
   return (
-    <div className={`flex items-center justify-center bg-yellow-400 text-yellow-900 font-semibold ${className}`}>
+    <div
+      className={`flex items-center justify-center bg-yellow-400 text-yellow-950 font-bold ${className}`}
+      role="img"
+      aria-label={`${username || "User"} default profile picture`}
+    >
       <span className="text-lg">{initial}</span>
     </div>
   );

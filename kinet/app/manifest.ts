@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Kinet",
     short_name: "Kinet",
-    description: "Sports social app for athletes, coaches, scouts, and fans.",
+    description: "A social app for sharing, discovering, and connecting.",
     start_url: "/feed",
     display: "standalone",
     background_color: "#0c1220",

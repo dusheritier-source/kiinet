@@ -5,16 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const pillars = [
   {
-    title: "Show your game",
-    description: "Post clips, practice work, and milestones so coaches and scouts can see your progress.",
+    title: "Share your moments",
+    description: "Post photos, videos, ideas, and milestones with the people who matter to you.",
   },
   {
     title: "Find your people",
-    description: "Connect athletes, coaches, scouts, and fans around the same sport ecosystem.",
+    description: "Connect with friends, creators, and communities around shared interests.",
   },
   {
-    title: "Train smarter",
-    description: "Use the AI Coach experience as a guided first step for drills, mindset, and recovery.",
+    title: "Create freely",
+    description: "Use creative tools to share your ideas and express yourself.",
   },
 ];
 
@@ -23,9 +23,9 @@ export default function AboutPage() {
     <div className="mx-auto max-w-4xl py-10">
       <div className="mb-10 text-center">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-primary">About Kinet</p>
-        <h1 className="mb-4 text-4xl font-bold">A sports network built around growth, not noise.</h1>
+        <h1 className="mb-4 text-4xl font-bold">A social network built around connection, not noise.</h1>
         <p className="mx-auto max-w-2xl text-muted-foreground">
-          Kinet is designed to help athletes build visibility, help coaches discover talent, and give every sports community a cleaner place to share progress.
+          Kinet is designed to help people share what they care about, discover new voices, and build meaningful communities.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default function AboutPage() {
           <div>
             <h2 className="text-2xl font-semibold">Ready to build your profile?</h2>
             <p className="text-muted-foreground">
-              Join the network and start shaping your athletic story.
+              Join the network and start sharing your story.
             </p>
           </div>
           <Button asChild>

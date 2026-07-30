@@ -5,8 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Bookmark,
+  Clapperboard,
   CornerDownRight,
   Heart,
+  ImagePlus,
   MessageCircle,
   Pencil,
   Repeat2,
@@ -86,7 +88,6 @@ function FeedPageContent() {
   const [pendingCommentPostId, setPendingCommentPostId] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editCaption, setEditCaption] = useState("");
-  const [editSport, setEditSport] = useState("");
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [sharePostId, setSharePostId] = useState<string | null>(null);
@@ -218,19 +219,34 @@ function FeedPageContent() {
 
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-2xl space-y-6 pb-24">
-        {/* Create Post - Instagram Style */}
-        <Card>
+      <div className="mx-auto max-w-xl space-y-5 pb-24">
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">For you</h1>
+            <p className="text-sm text-muted-foreground">Fresh posts from your community</p>
+          </div>
+          <Link href="/reels" className="rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background">Watch reels</Link>
+        </div>
+
+        <Card className="rounded-3xl border-border/70 shadow-sm">
           <CardContent className="p-4">
-              <div className="flex gap-3">
+            <div className="flex gap-3">
                 {user.photoURL ? (
                   <Image src={user.photoURL} alt="Your avatar" width={40} height={40} className="rounded-full" />
                 ) : (
                   <DefaultAvatar username={user.displayName || user.email || "User"} className="h-10 w-10 rounded-full" />
                 )}
-                <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
-                <Link href="/upload">What's happening in your sport today?</Link>
+              <Button variant="ghost" className="h-10 flex-1 justify-start rounded-full border bg-muted/50 px-4 text-sm text-muted-foreground hover:bg-muted" asChild>
+                <Link href="/upload?type=post">Share something...</Link>
               </Button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+              <Link href="/upload?type=post" className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
+                <ImagePlus className="h-4 w-4 text-emerald-500" /> Post
+              </Link>
+              <Link href="/upload?type=reel" className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
+                <Clapperboard className="h-4 w-4 text-rose-500" /> Reel
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -326,7 +342,7 @@ function FeedPageContent() {
         ) : null}
 
         {!feedError ? posts.map((post) => (
-          <Card key={post.id} className="overflow-hidden">
+          <Card key={post.id} className="overflow-hidden rounded-3xl border-border/70 shadow-sm">
             <div className="border-b p-5">
               <div className="flex items-center gap-3">
                 {post.author.avatar ? (
@@ -356,7 +372,6 @@ function FeedPageContent() {
                       onClick={() => {
                         setEditingPostId(post.id);
                         setEditCaption(post.caption);
-                        setEditSport(post.sport);
                       }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -467,11 +482,10 @@ function FeedPageContent() {
 
               {editingPostId === post.id ? (
                 <div className="space-y-2 rounded-xl border p-3">
-                  <input value={editSport} onChange={(event) => setEditSport(event.target.value)} className="h-10 w-full rounded-md border border-input px-3 text-sm" />
                   <textarea value={editCaption} onChange={(event) => setEditCaption(event.target.value)} className="min-h-24 w-full rounded-md border border-input px-3 py-2 text-sm" />
                   <div className="flex gap-2">
                     <Button type="button" size="sm" onClick={async () => {
-                      await updatePost(post.id, { caption: editCaption, sport: editSport });
+                      await updatePost(post.id, { caption: editCaption, sport: post.sport || "" });
                       setEditingPostId(null);
                     }}>
                       Save Changes

@@ -178,11 +178,25 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
     }
 
-    // Messages - users can read/write their own messages
+    // Direct messages - access is limited to members of the linked conversation.
     match /messages/{messageId} {
-      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+      function isConversationMember(conversationId) {
+        return isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+      }
+
+      allow read: if isConversationMember(resource.data.conversationId);
+      allow create: if request.resource.data.senderId == request.auth.uid
+        && isConversationMember(request.resource.data.conversationId);
+      // A sender can edit or delete their message; the recipient can only add a read receipt.
+      allow update: if isConversationMember(resource.data.conversationId)
+        && (
+          (resource.data.senderId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['text', 'attachmentUrl', 'attachmentType', 'deleted', 'deletedAt', 'editedAt']))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+            && request.auth.uid in request.resource.data.readBy)
+        );
       allow delete: if false;
     }
 
@@ -372,14 +386,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // Messages (legacy) - users can read/write their own messages
-    match /messages/{messageId} {
-      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
     }
 
     // Fallback - deny all other access

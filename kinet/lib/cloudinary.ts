@@ -1,10 +1,9 @@
 const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
-const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "";
 
 function assertCloudinaryConfigured() {
-  if (!cloudName || !uploadPreset) {
+  if (!cloudName) {
     throw new Error(
-      "Cloudinary is not configured. Add NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET."
+      "Cloudinary is not configured. Add NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME."
     );
   }
 }
@@ -12,9 +11,30 @@ function assertCloudinaryConfigured() {
 export async function uploadToCloudinary(file: File, folder: string) {
   assertCloudinaryConfigured();
 
+  // Get signature from backend
+  const signatureResponse = await fetch("/api/cloudinary/signature", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folder }),
+  });
+
+  if (!signatureResponse.ok) {
+    const errorData = await signatureResponse.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to get upload signature.");
+  }
+
+  const { signature, timestamp, apiKey } = await signatureResponse.json() as {
+    signature: string;
+    timestamp: number;
+    apiKey: string;
+    folder: string;
+  };
+
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
+  formData.append("api_key", apiKey);
+  formData.append("timestamp", timestamp.toString());
+  formData.append("signature", signature);
   formData.append("folder", folder);
 
   const response = await fetch(

@@ -227,8 +227,15 @@ function ReelsPageContent() {
 
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-sm space-y-4 bg-black p-4 text-white">
-        <div className="relative flex h-[80vh] flex-col justify-between overflow-hidden rounded-3xl">
+      <div className="mx-auto max-w-md space-y-3 bg-black p-3 text-white sm:rounded-[32px]">
+        <div className="flex items-center justify-between px-1 py-1">
+          <div>
+            <p className="text-base font-bold">Reels</p>
+            <p className="text-xs text-white/65">Short videos, made to discover</p>
+          </div>
+          <Link href="/upload?type=reel" className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-black">Create</Link>
+        </div>
+        <div className="relative flex h-[76vh] flex-col justify-between overflow-hidden rounded-3xl">
           <video
             ref={videoRef}
             src={reel.mediaUrl}

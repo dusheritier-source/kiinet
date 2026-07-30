@@ -57,6 +57,7 @@ export interface SearchProfile {
   followers: string[];
   following: string[];
   location?: string | null;
+  interests?: string[];
   role?: {
     type?: string | null;
     sport?: string | null;
@@ -381,7 +382,7 @@ export async function searchProfiles(searchTerm: string) {
     ? (currentUserData?.blockedUsers as string[])
     : [];
 
-  return snapshot.docs
+  const visibleProfiles = snapshot.docs
     .map(
       (docSnapshot: { data: () => Record<string, unknown> }) =>
         docSnapshot.data() as unknown as SearchProfile
@@ -395,14 +396,9 @@ export async function searchProfiles(searchTerm: string) {
       const haystack = [
         profile.displayName,
         profile.username,
-        profile.role?.sport,
-        profile.role?.position,
-        profile.role?.team,
-        profile.role?.experience,
-        profile.role?.age ? String(profile.role.age) : "",
-        profile.role?.height,
         profile.location,
         profile.role?.bio,
+        ...(profile.interests ?? []),
       ]
         .filter(Boolean)
         .join(" ")
@@ -410,4 +406,52 @@ export async function searchProfiles(searchTerm: string) {
 
       return haystack.includes(normalized);
     });
+
+  return visibleProfiles.sort((first, second) => {
+    const score = (profile: SearchProfile) => {
+      const username = String(profile.username ?? "").toLowerCase();
+      const name = String(profile.displayName ?? "").toLowerCase();
+      if (username === normalized) return 100;
+      if (name === normalized) return 90;
+      if (username.startsWith(normalized)) return 80;
+      if (name.startsWith(normalized)) return 70;
+      return (profile.verified ? 5 : 0) + (profile.followers?.length ?? 0) / 1000;
+    };
+
+    return score(second) - score(first);
+  });
+}
+
+export async function getSuggestedProfiles(maxResults = 12) {
+  if (!db || !auth?.currentUser) {
+    return [];
+  }
+
+  const currentUserId = auth.currentUser.uid;
+  const [profilesSnapshot, currentUserSnapshot] = await Promise.all([
+    getDocs(query(collection(db, "users"), limit(100))),
+    getDoc(doc(db, "users", currentUserId)),
+  ]);
+  const currentUser = currentUserSnapshot.exists()
+    ? (currentUserSnapshot.data() as SearchProfile)
+    : null;
+  const following = new Set(currentUser?.following ?? []);
+  const blockedUsers = new Set(
+    Array.isArray((currentUser as unknown as Record<string, unknown> | null)?.blockedUsers)
+      ? ((currentUser as unknown as Record<string, unknown>).blockedUsers as string[])
+      : []
+  );
+  const location = String(currentUser?.location ?? "").trim().toLowerCase();
+
+  return profilesSnapshot.docs
+    .map((docSnapshot) => docSnapshot.data() as SearchProfile)
+    .filter((profile) => profile.uid !== currentUserId && !blockedUsers.has(profile.uid))
+    .map((profile) => {
+      const mutualCount = (profile.followers ?? []).filter((uid) => following.has(uid)).length;
+      const sameLocation = Boolean(location) && String(profile.location ?? "").toLowerCase() === location;
+      const score = mutualCount * 10 + (sameLocation ? 3 : 0) + (profile.verified ? 2 : 0) + Math.min((profile.followers ?? []).length / 100, 2);
+      return { profile, mutualCount, score };
+    })
+    .sort((first, second) => second.score - first.score)
+    .slice(0, maxResults);
 }

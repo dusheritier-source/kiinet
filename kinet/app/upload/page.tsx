@@ -79,6 +79,10 @@ function UploadPageContent() {
     const draftId = searchParams.get("draft");
     const initialCaption = searchParams.get("caption");
     const remixId = searchParams.get("remix");
+    const requestedType = searchParams.get("type");
+    if (!draftId && (requestedType === "post" || requestedType === "reel")) {
+      setContentType(requestedType);
+    }
     if (initialCaption && !caption) {
       setCaption(initialCaption);
     }

@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Welcome",
-  description: "Connect with athletes, coaches, and scouts",
+  description: "Share, discover, and connect with your community.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

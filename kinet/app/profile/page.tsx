@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Bookmark, Brain, Dribbble, Dumbbell, Ellipsis, Film, GraduationCap, Grid3X3, Heart, LayoutGrid, LineChart, Link2, Pencil, Pin, PlaySquare, Settings, ShieldPlus, Trash2, Users } from "lucide-react";
+import { BadgeCheck, Bookmark, Dribbble, Ellipsis, Film, Grid3X3, Heart, LayoutGrid, Link2, Pencil, Pin, PlaySquare, Settings, Trash2 } from "lucide-react";
 import { History } from "lucide-react";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { deletePost, subscribeToUserPosts, togglePostLike, type FeedPost } from "@/lib/posts";
-import { getCurrentSeasonDashboard, getRecoverySnapshot, type SeasonalDashboard } from "@/lib/performance";
 import { getCurrentUserSettings, togglePinnedPost, type UserSettings } from "@/lib/settings";
 import { getCurrentUserProfile } from "@/lib/user-profile";
 
@@ -24,16 +23,8 @@ interface StoredProfile {
   coverPhotoURL?: string;
   profileTheme?: string;
   savedPosts?: string[];
-  role?: {
-    type?: string;
-    sport?: string;
-    position?: string;
-    team?: string;
-    experience?: string;
-    age?: number;
-    height?: string;
-    bio?: string;
-  };
+  bio?: string;
+  role?: { bio?: string };
   followers?: string[];
   following?: string[];
   postsCount?: number;
@@ -43,31 +34,10 @@ interface StoredProfile {
     supportUrl?: string;
     merchUrl?: string;
     collaborationPitch?: string;
-    training?: {
-      enabled?: boolean;
-      priceLabel?: string;
-    };
     consultation?: {
       enabled?: boolean;
       priceLabel?: string;
     };
-  };
-  athleteProfile?: {
-    stats?: {
-      pointsPerGame?: number;
-      assistsPerGame?: number;
-      reboundsPerGame?: number;
-    };
-    skills?: string[];
-    achievements?: string[];
-    gameLogs?: Array<{
-      opponent?: string;
-      date?: string;
-      points?: number;
-      assists?: number;
-      rebounds?: number;
-      result?: string;
-    }>;
   };
 }
 
@@ -85,12 +55,7 @@ function ProfilePageContent() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [pendingPostId, setPendingPostId] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [seasonDashboard, setSeasonDashboard] = useState<SeasonalDashboard | null>(null);
   const [contentView, setContentView] = useState<"posts" | "reels">("posts");
-  const [recoverySnapshot, setRecoverySnapshot] = useState<{
-    latest: { status: string; date: string; energy: number; soreness: number } | null;
-    streak: number;
-  } | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -110,16 +75,6 @@ function ProfilePageContent() {
       .then((nextSettings) => {
         if (!cancelled) {
           setSettings(nextSettings);
-        }
-      })
-      .then(async () => {
-        const [nextSeasonDashboard, nextRecoverySnapshot] = await Promise.all([
-          getCurrentSeasonDashboard(),
-          getRecoverySnapshot(),
-        ]);
-        if (!cancelled) {
-          setSeasonDashboard(nextSeasonDashboard);
-          setRecoverySnapshot(nextRecoverySnapshot);
         }
       })
       .finally(() => {
@@ -170,23 +125,12 @@ function ProfilePageContent() {
     },
   ];
 
-  const quickAccessLinks = [
-    { href: "/analytics", label: "Analytics", icon: LineChart },
-    { href: "/performance", label: "Performance", icon: ShieldPlus },
-    { href: "/training", label: "Training", icon: Dumbbell },
-    { href: "/recruiting-ready", label: "Recruiting", icon: GraduationCap },
-    { href: "/teams", label: "Teams", icon: Users },
-    { href: "/ai-coach", label: "AI Coach", icon: Brain },
-  ];
-
   const moreToolsLinks = [
     { href: "/saved", label: "Saved", icon: Bookmark },
     { href: "/drafts", label: "Drafts", icon: Film },
     { href: "/verify", label: "Verify", icon: BadgeCheck },
     { href: "/history", label: "History", icon: History },
     { href: "/media-lab", label: "Media Lab", icon: Film },
-    { href: "/directory", label: "Directory", icon: Users },
-    { href: "/stats-import", label: "Stats Import", icon: LineChart },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
@@ -215,7 +159,7 @@ function ProfilePageContent() {
             <div className="flex flex-col gap-5 md:flex-row md:items-start">
               <Avatar className="h-28 w-28 shrink-0 ring-4 ring-background shadow-lg">
                 <AvatarImage src={user.photoURL || profile?.photoURL || ""} />
-                <AvatarFallback className="text-2xl font-bold">{initials || "HL"}</AvatarFallback>
+                <AvatarFallback className="bg-yellow-400 text-2xl font-bold text-yellow-950">{initials || "U"}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1 space-y-3 text-center md:pt-6 md:text-left">
                 <div className="space-y-1">
@@ -235,25 +179,8 @@ function ProfilePageContent() {
 
                 {settings?.headline ? <p className="text-sm font-medium text-primary">{settings.headline}</p> : null}
 
-                <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-                  <Badge variant="outline">
-                    {settings?.availabilityStatus === "locked_in"
-                      ? "Locked In"
-                      : settings?.availabilityStatus === "recovering"
-                        ? "Recovering"
-                        : "Available"}
-                  </Badge>
-                  {profile?.role?.type ? <Badge>{profile.role.type.toUpperCase()}</Badge> : null}
-                  {profile?.role?.sport ? <Badge>{profile.role.sport}</Badge> : null}
-                  {profile?.role?.position ? <Badge>{profile.role.position}</Badge> : null}
-                  {profile?.role?.team ? <Badge>{profile.role.team}</Badge> : null}
-                  {profile?.role?.experience ? <Badge>{profile.role.experience}</Badge> : null}
-                  {profile?.role?.age ? <Badge>{profile.role.age}yo</Badge> : null}
-                  {profile?.role?.height ? <Badge>{profile.role.height}</Badge> : null}
-                </div>
-
                 <p className="mx-auto max-w-2xl text-sm leading-7 text-muted-foreground md:mx-0 md:text-base">
-                  {profile?.role?.bio || "Complete your profile to tell people what your game is about."}
+                  {profile?.bio || profile?.role?.bio || "Add a bio to tell people about yourself."}
                 </p>
               </div>
             </div>
@@ -301,29 +228,7 @@ function ProfilePageContent() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[1.4fr_1fr]">
-          <Card>
-            <CardContent className="p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <LineChart className="h-4 w-4 text-primary" />
-                <h2 className="font-semibold">Quick Access</h2>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {quickAccessLinks.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Button key={item.href} variant="outline" asChild className="justify-start">
-                      <Link href={item.href}>
-                        <Icon className="mr-2 h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    </Button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="px-4 py-4">
           <details className="group">
             <summary className="list-none">
               <Card className="cursor-pointer transition-colors group-open:border-primary/40">
@@ -387,95 +292,6 @@ function ProfilePageContent() {
         ) : null}
 
         <div className="grid gap-6 px-4">
-          {profile?.athleteProfile ? (
-            <Card>
-              <CardContent className="p-5">
-                <h2 className="mb-4 font-semibold">Athlete Card</h2>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl bg-muted p-4 text-center">
-                    <div className="text-2xl font-bold">{profile.athleteProfile.stats?.pointsPerGame ?? 0}</div>
-                    <div className="text-sm text-muted-foreground">PPG</div>
-                  </div>
-                  <div className="rounded-xl bg-muted p-4 text-center">
-                    <div className="text-2xl font-bold">{profile.athleteProfile.stats?.assistsPerGame ?? 0}</div>
-                    <div className="text-sm text-muted-foreground">APG</div>
-                  </div>
-                  <div className="rounded-xl bg-muted p-4 text-center">
-                    <div className="text-2xl font-bold">{profile.athleteProfile.stats?.reboundsPerGame ?? 0}</div>
-                    <div className="text-sm text-muted-foreground">RPG</div>
-                  </div>
-                </div>
-                {profile.athleteProfile.skills?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {profile.athleteProfile.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary">{skill}</Badge>
-                    ))}
-                  </div>
-                ) : null}
-                {profile.athleteProfile.achievements?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {profile.athleteProfile.achievements.map((achievement) => (
-                      <Badge key={achievement}>{achievement}</Badge>
-                    ))}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {seasonDashboard || recoverySnapshot ? (
-            <Card>
-              <CardContent className="p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="font-semibold">Performance Snapshot</h2>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/performance">Open Hub</Link>
-                  </Button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl bg-muted p-4">
-                    <p className="text-sm text-muted-foreground">Season</p>
-                    <p className="font-semibold">
-                      {seasonDashboard ? `${seasonDashboard.wins}-${seasonDashboard.losses} · ${seasonDashboard.gamesPlayed} games` : "No games logged yet"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {seasonDashboard ? `${seasonDashboard.avgPoints} PTS · ${seasonDashboard.avgAssists} AST · ${seasonDashboard.avgRebounds} REB` : "Add game logs to unlock season averages"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-muted p-4">
-                    <p className="text-sm text-muted-foreground">Recovery</p>
-                    <p className="font-semibold capitalize">
-                      {recoverySnapshot?.latest ? `${recoverySnapshot.latest.status} on ${recoverySnapshot.latest.date}` : "No recovery entries yet"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {recoverySnapshot?.latest
-                        ? `Energy ${recoverySnapshot.latest.energy}/10 · Soreness ${recoverySnapshot.latest.soreness}/10`
-                        : "Track sleep, soreness, and body readiness in the hub"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {profile?.athleteProfile?.gameLogs?.length ? (
-            <Card>
-              <CardContent className="p-5">
-                <h2 className="mb-4 font-semibold">Game Log</h2>
-                <div className="space-y-3">
-                  {profile.athleteProfile.gameLogs.slice(0, 5).map((log, index) => (
-                    <div key={`${log.date}-${log.opponent}-${index}`} className="rounded-xl border p-3">
-                      <p className="font-medium">{log.date} vs {log.opponent}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {log.points ?? 0} pts • {log.assists ?? 0} ast • {log.rebounds ?? 0} reb • {log.result || "Result n/a"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
           {settings?.pinnedPosts?.length ? (
             <Card>
               <CardContent className="p-5">

@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, updateProfile } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Lock, User, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { auth, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, db, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -57,11 +58,33 @@ export default function SignupPage() {
 
     setIsSubmitting(true);
     try {
-      await createUserWithEmailAndPassword(
+      const credential = await createUserWithEmailAndPassword(
         auth,
         formData.email.trim(),
         formData.password
       );
+      const displayName = formData.fullName.trim();
+      await updateProfile(credential.user, { displayName, photoURL: null });
+
+      // New accounts use a yellow initial avatar until the user uploads a photo.
+      if (db) {
+        await setDoc(
+          doc(db, "users", credential.user.uid),
+          {
+            uid: credential.user.uid,
+            email: credential.user.email ?? formData.email.trim(),
+            displayName,
+            photoURL: "",
+            followers: [],
+            following: [],
+            postsCount: 0,
+            reelsCount: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
 
       // Wait for auth state to be fully established
       const unsubscribe = onAuthStateChanged(auth, (user) => {

@@ -58,7 +58,7 @@ export default function Home() {
             
             <h1 className="mb-3 text-4xl font-bold text-white">Welcome to Kinet</h1>
             <p className="text-lg text-gray-400">
-              The sports social network for athletes, coaches, scouts, and creators.
+              A social network for people, creators, and communities.
             </p>
           </div>
 

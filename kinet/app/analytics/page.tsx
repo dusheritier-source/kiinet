@@ -9,19 +9,15 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCreatorAnalytics, type CreatorAnalytics } from "@/lib/analytics";
-import { getCurrentSeasonDashboard, type SeasonalDashboard } from "@/lib/performance";
 
 function AnalyticsPageContent() {
   const [analytics, setAnalytics] = useState<CreatorAnalytics | null>(null);
-  const [seasonDashboard, setSeasonDashboard] = useState<SeasonalDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "posts" | "reels">("all");
 
   useEffect(() => {
     getCreatorAnalytics()
       .then(setAnalytics)
-      .then(() => getCurrentSeasonDashboard())
-      .then(setSeasonDashboard)
       .finally(() => setLoading(false));
   }, []);
 
@@ -97,7 +93,7 @@ function AnalyticsPageContent() {
             <CardContent className="space-y-3 text-sm">
               <p>You have {analytics.totalPosts} posts and {analytics.totalReels} reels live.</p>
               <p>Average engagement per upload: <span className="font-semibold">{analytics.averageEngagement.toFixed(1)}</span></p>
-              <p>Top sport focus: <span className="font-semibold">{analytics.topSport || "Not enough data yet"}</span></p>
+              <p>Top topic: <span className="font-semibold">{analytics.topHashtag ? `#${analytics.topHashtag}` : "Not enough data yet"}</span></p>
               <p>Top hashtag: <span className="font-semibold">{analytics.topHashtag ? `#${analytics.topHashtag}` : "Use hashtags to build reach"}</span></p>
               <p>Profile completion: <span className="font-semibold">{analytics.profileCompletion}%</span></p>
               <p>Recent profile visitors: <span className="font-semibold">{analytics.visitorCount}</span></p>
@@ -125,37 +121,6 @@ function AnalyticsPageContent() {
             </CardContent>
           </Card>
         </div>
-
-        {seasonDashboard ? (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Seasonal Performance</CardTitle>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/performance">Open Performance Hub</Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-xl bg-muted p-4">
-                <p className="text-sm text-muted-foreground">Record</p>
-                <p className="text-2xl font-bold">{seasonDashboard.wins}-{seasonDashboard.losses}</p>
-              </div>
-              <div className="rounded-xl bg-muted p-4">
-                <p className="text-sm text-muted-foreground">Averages</p>
-                <p className="text-sm font-semibold">{seasonDashboard.avgPoints} / {seasonDashboard.avgAssists} / {seasonDashboard.avgRebounds}</p>
-              </div>
-              <div className="rounded-xl bg-muted p-4">
-                <p className="text-sm text-muted-foreground">Recovery Trend</p>
-                <p className="text-2xl font-bold">{seasonDashboard.recoveryTrend}</p>
-              </div>
-              <div className="rounded-xl bg-muted p-4">
-                <p className="text-sm text-muted-foreground">Best Game</p>
-                <p className="text-sm font-semibold">{seasonDashboard.bestGame?.label || "No game log yet"}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[0.95fr,1.05fr]">
           <Card>
