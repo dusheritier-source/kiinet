@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { recordFollowerGrowth } from "@/lib/profile-analytics";
@@ -225,7 +225,7 @@ export async function updateCurrentUserProfile(input: {
   await ensureUsernameAvailable(normalizedUsername, user.uid);
 
   if (input.avatarFile) {
-    const uploadedAvatar = await uploadToCloudinary(
+    const uploadedAvatar = await uploadToFirebaseStorage(
       input.avatarFile,
       `Kinet/avatars/${user.uid}`
     );
@@ -233,7 +233,7 @@ export async function updateCurrentUserProfile(input: {
   }
 
   if (input.coverPhotoFile) {
-    const uploadedCover = await uploadToCloudinary(
+    const uploadedCover = await uploadToFirebaseStorage(
       input.coverPhotoFile,
       `Kinet/covers/${user.uid}`
     );

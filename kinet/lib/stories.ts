@@ -12,7 +12,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 
 export interface StoryItem {
@@ -74,7 +74,7 @@ export async function createStory(file: File, caption: string) {
     throw new Error("You must be signed in to post a story.");
   }
 
-  const uploadedStory = await uploadToCloudinary(file, `Kinet/stories/${auth.currentUser.uid}`);
+  const uploadedStory = await uploadToFirebaseStorage(file, `Kinet/stories/${auth.currentUser.uid}`);
   const mediaUrl = uploadedStory.url;
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 

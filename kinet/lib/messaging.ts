@@ -14,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 
@@ -208,7 +208,7 @@ export async function sendConversationMessage(
   let attachmentType = "";
 
   if (attachmentFile) {
-    const uploadedAttachment = await uploadToCloudinary(
+    const uploadedAttachment = await uploadToFirebaseStorage(
       attachmentFile,
       `Kinet/messages/${conversationId}`
     );

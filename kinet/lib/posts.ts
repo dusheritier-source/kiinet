@@ -18,7 +18,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 import { recordViewedPost } from "@/lib/history";
 import { createNotification } from "@/lib/notifications";
@@ -423,14 +423,14 @@ export async function createPost({
 }: CreatePostInput) {
   assertFirebaseReady();
 
-  const user = auth.currentUser;
+  const user = auth!.currentUser;
   const { author } = await getCurrentAuthorProfile();
 
   const mediaType = file?.type.startsWith("video/") ? "video" : "image";
   const uploadedMedia = file
-    ? await uploadToCloudinary(
+    ? await uploadToFirebaseStorage(
         file,
-        `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user.uid}`
+        `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`
       )
     : null;
   const mediaUrl = uploadedMedia?.url ?? "";
@@ -450,7 +450,7 @@ export async function createPost({
   }
 
   await addDoc(collection(db!, "posts"), {
-    userId: user.uid,
+    userId: user!.uid,
     caption: trimmedCaption,
     mediaUrl,
     mediaType,
@@ -494,18 +494,18 @@ export async function createPost({
           }
         : null,
     author,
-    storagePath: uploadedMedia?.publicId ?? "",
+    storagePath: uploadedMedia?.path ?? "",
     createdAt: serverTimestamp(),
   });
 
   await Promise.all(
     mentionUserIds
-      .filter((mentionedUserId) => mentionedUserId !== user.uid)
+      .filter((mentionedUserId) => mentionedUserId !== user!.uid)
       .map((mentionedUserId) =>
         createNotification({
           type: "mention",
           recipientId: mentionedUserId,
-          actorId: user.uid,
+          actorId: user!.uid,
           actorName: author.name,
           actorAvatar: author.avatar,
           message: `${author.name} mentioned you in a post.`,
@@ -515,12 +515,12 @@ export async function createPost({
 
   await Promise.all(
     collaboratorRecords
-      .filter((collaborator) => collaborator.uid !== user.uid)
+      .filter((collaborator) => collaborator.uid !== user!.uid)
       .map((collaborator) =>
         createNotification({
           type: "mention",
           recipientId: collaborator.uid,
-          actorId: user.uid,
+          actorId: user!.uid,
           actorName: author.name,
           actorAvatar: author.avatar,
           message: `${author.name} tagged you as a collaborator on a post.`,
@@ -528,7 +528,7 @@ export async function createPost({
       )
   );
 
-  await incrementUserCounter(user.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1);
+  await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1);
 }
 
 export async function updatePost(postId: string, input: { caption: string; sport: string }) {

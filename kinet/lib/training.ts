@@ -12,7 +12,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 
 export interface DrillRecord {
@@ -204,7 +204,7 @@ export async function getTeamPracticePlans(teamId: string) {
 
 export async function createPlaybookBoard(input: { teamId: string; title: string; imageFile: File }) {
   requireAuth();
-  const upload = await uploadToCloudinary(input.imageFile, `Kinet/playbooks/${input.teamId}`);
+  const upload = await uploadToFirebaseStorage(input.imageFile, `Kinet/playbooks/${input.teamId}`);
   await addDoc(collection(db!, "playbookBoards"), {
     teamId: input.teamId,
     title: input.title.trim(),
@@ -344,7 +344,7 @@ export async function getCurrentUserRecoveryAppointments() {
 
 export async function addMedicalClearance(input: { title: string; imageFile: File }) {
   requireAuth();
-  const upload = await uploadToCloudinary(input.imageFile, `Kinet/medical/${auth!.currentUser!.uid}`);
+  const upload = await uploadToFirebaseStorage(input.imageFile, `Kinet/medical/${auth!.currentUser!.uid}`);
   await addDoc(collection(db!, "medicalClearances"), {
     userId: auth!.currentUser!.uid,
     title: input.title.trim(),

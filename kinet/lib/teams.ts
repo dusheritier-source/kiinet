@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { createNotification } from "@/lib/notifications";
 
 export interface TeamMember {
@@ -811,7 +811,7 @@ export async function addTeamGalleryItem(teamId: string, file: File, caption: st
     throw new Error("You must be signed in.");
   }
 
-  const uploaded = await uploadToCloudinary(file, `Kinet/team-galleries/${teamId}`);
+  const uploaded = await uploadToFirebaseStorage(file, `Kinet/team-galleries/${teamId}`);
   await addDoc(collection(db, "teamGallery"), {
     teamId,
     mediaUrl: uploaded.url,

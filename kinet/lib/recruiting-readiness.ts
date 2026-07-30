@@ -10,7 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 import { getUserProfileById } from "@/lib/user-profile";
 
@@ -291,7 +291,7 @@ export async function saveCurrentRecruitingReadiness(profile: RecruitingReadines
 
 export async function uploadTranscript(file: File, title: string) {
   requireAuth();
-  const upload = await uploadToCloudinary(file, `Kinet/recruiting/transcripts/${auth!.currentUser!.uid}`);
+  const upload = await uploadToFirebaseStorage(file, `Kinet/recruiting/transcripts/${auth!.currentUser!.uid}`);
   const current = await getCurrentRecruitingReadiness();
   current.academic.transcriptUrl = upload.url;
   current.academic.transcriptName = title.trim() || file.name;
@@ -300,7 +300,7 @@ export async function uploadTranscript(file: File, title: string) {
 
 export async function addReferenceLetter(file: File, title: string, authorName: string) {
   requireAuth();
-  const upload = await uploadToCloudinary(file, `Kinet/recruiting/references/${auth!.currentUser!.uid}`);
+  const upload = await uploadToFirebaseStorage(file, `Kinet/recruiting/references/${auth!.currentUser!.uid}`);
   const current = await getCurrentRecruitingReadiness();
   current.referenceLetters.unshift({
     id: randomId("ref"),

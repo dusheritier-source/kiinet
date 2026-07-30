@@ -9,7 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 
 function requireUser() {
@@ -240,7 +240,7 @@ export async function getDrillRubrics() {
 
 export async function saveVoiceNote(input: { label: string; transcript: string; audioFile?: File | null }) {
   requireUser();
-  const upload = input.audioFile ? await uploadToCloudinary(input.audioFile, `Kinet/voice-notes/${auth!.currentUser!.uid}`) : null;
+  const upload = input.audioFile ? await uploadToFirebaseStorage(input.audioFile, `Kinet/voice-notes/${auth!.currentUser!.uid}`) : null;
   await addDoc(collection(db!, "voiceNotes"), {
     label: input.label.trim(),
     transcript: input.transcript.trim(),

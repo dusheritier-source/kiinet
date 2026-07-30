@@ -1,6 +1,6 @@
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
 
 export interface ProspectTimelineItem {
@@ -334,7 +334,7 @@ export async function saveCurrentPathwaysProfile(profile: PathwaysProfile) {
 
 export async function uploadLanguageCertificate(file: File, label: string, issuer: string) {
   requireUser();
-  const upload = await uploadToCloudinary(file, `Kinet/pathways/language/${auth!.currentUser!.uid}`);
+  const upload = await uploadToFirebaseStorage(file, `Kinet/pathways/language/${auth!.currentUser!.uid}`);
   const current = await getCurrentPathwaysProfile();
   current.languageCertificates.unshift({
     id: randomId("lang"),
