@@ -90,14 +90,14 @@ export default function SignupPage() {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           unsubscribe();
-          router.push("/feed");
+          router.push("/onboarding");
         }
       });
 
       // Timeout after 5 seconds
       setTimeout(() => {
         unsubscribe();
-        router.push("/feed");
+        router.push("/onboarding");
       }, 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
@@ -117,7 +117,7 @@ export default function SignupPage() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push("/feed");
+      router.push("/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-up failed. Please try again.");
       setIsSubmitting(false);
