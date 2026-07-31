@@ -13,6 +13,7 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "919183651612",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:919183651612:web:58b55e27330a00abe5c0d9",
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-W1SVHLK71K",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://kinet-3a9b6-default-rtdb.firebaseio.com",
 };
 
 const requiredFirebaseConfigValues = [
