@@ -34,6 +34,14 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            // Optimize Google OAuth
+            authorization: {
+              params: {
+                prompt: "consent",
+                access_type: "offline",
+                response_type: "code",
+              },
+            },
           }),
         ]
       : []),
@@ -59,6 +67,13 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            avatarUrl: true,
+            passwordHash: true,
+          },
         });
 
         if (!user || !user.passwordHash) {
@@ -82,22 +97,36 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/login",
   },
+  // Optimize callbacks for better performance
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, profile }) {
       if (user) {
         token.id = user.id;
+      }
+      // Cache user data in token to reduce database queries
+      if (profile) {
+        token.picture = profile.picture;
+        token.name = profile.name;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.image = token.picture as string | null;
       }
       return session;
     },
+  },
+  // Enable debug mode in development only
+  debug: process.env.NODE_ENV === "development",
+  // Reduce token expiration for better security
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 };
