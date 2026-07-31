@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && next build",
     "cap:sync": "npx cap sync",
     "cap:sync:android": "npx cap sync android",
     "cap:copy": "npx cap copy",

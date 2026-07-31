@@ -18,7 +18,7 @@ export default async function FeedPage() {
         </div>
       }
     >
-      <FeedClient userId={session.user.id} />
+      <FeedClient />
     </Suspense>
   );
 }
