@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -28,36 +28,57 @@ export default function LoginClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [magicLinkMessage, setMagicLinkMessage] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const hasCheckedMagicLink = useRef(false);
 
   useEffect(() => {
-    if (!auth || typeof window === "undefined" || !isSignInWithEmailLink(auth, window.location.href)) {
+    if (typeof window === "undefined" || !auth || hasCheckedMagicLink.current) {
+      if (!hasCheckedMagicLink.current) {
+        hasCheckedMagicLink.current = true;
+        setIsLoading(false);
+      }
       return;
     }
 
-    const storedEmail = window.localStorage.getItem("Kinet_magic_email") ?? email.trim();
-    if (!storedEmail) {
-      return;
-    }
+    hasCheckedMagicLink.current = true;
 
-    setIsSubmitting(true);
-    setError("");
-    void signInWithEmailLink(auth, storedEmail, window.location.href)
-      .then(async () => {
-        window.localStorage.removeItem("Kinet_magic_email");
-        await recordLoginActivity({
-          email: storedEmail,
-          method: "magic_link",
-          deviceLabel: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Browser",
+    try {
+      if (!isSignInWithEmailLink(auth, window.location.href)) {
+        setIsLoading(false);
+        return;
+      }
+
+      const storedEmail = window.localStorage.getItem("Kinet_magic_email");
+      if (!storedEmail) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsSubmitting(true);
+      setError("");
+      void signInWithEmailLink(auth, storedEmail, window.location.href)
+        .then(async () => {
+          window.localStorage.removeItem("Kinet_magic_email");
+          await recordLoginActivity({
+            email: storedEmail,
+            method: "magic_link",
+            deviceLabel: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Browser",
+          });
+          router.push(searchParams.get("next") || "/feed");
+        })
+        .catch((err: unknown) => {
+          setError(getLoginErrorMessage(err));
+          setIsLoading(false);
+        })
+        .finally(() => {
+          setIsSubmitting(false);
         });
-        router.push(searchParams.get("next") || "/feed");
-      })
-      .catch((err: unknown) => {
-        setError(getLoginErrorMessage(err));
-      })
-      .finally(() => {
-        setIsSubmitting(false);
-      });
-  }, [email, router, searchParams]);
+    } catch (err) {
+      console.error("Magic link error:", err);
+      setIsSubmitting(false);
+      setIsLoading(false);
+    }
+  }, [router, searchParams]);
 
   const getLoginErrorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "code" in err) {
@@ -184,6 +205,14 @@ export default function LoginClient() {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 py-12 px-4">
