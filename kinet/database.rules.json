@@ -1,0 +1,63 @@
+{
+  "rules": {
+    "messages": {
+      "$messageId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == data.child('senderId').val()",
+        ".validate": "newData.hasChildren(['conversationId', 'senderId', 'text', 'createdAt'])"
+      }
+    },
+    "likes": {
+      "$postId": {
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+    "typing": {
+      "$conversationId": {
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+    "presence": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $userId",
+        ".validate": "newData.hasChildren(['status', 'lastSeen'])"
+      }
+    },
+    "notifications": {
+      "$userId": {
+        "$notificationId": {
+          ".read": "auth != null && auth.uid == $userId",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'",
+          ".validate": "newData.hasChildren(['type', 'message', 'createdAt', 'read'])"
+        }
+      }
+    },
+    "comments": {
+      "$commentId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || auth.uid == data.child('userId').val())",
+        ".validate": "newData.hasChildren(['postId', 'userId', 'text', 'createdAt'])"
+      }
+    },
+    "reactions": {
+      "$commentId": {
+        "$emoji": {
+          "$userId": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid == $userId",
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    }
+  }
+}
