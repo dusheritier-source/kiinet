@@ -1,67 +1,57 @@
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { auth, db } from "@/lib/firebase";
+import AWS from "aws-sdk";
 
-export interface UploadResult {
-  url: string;
-  path: string;
-}
+// Cloudflare R2 client configuration (S3-compatible)
+const r2Client = new AWS.S3({
+  endpoint: process.env.R2_ENDPOINT,
+  accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  s3ForcePathStyle: true,
+});
 
-function getStoragePath(folder: string, filename: string): string {
-  const user = auth?.currentUser;
-  const userId = user?.uid || "anonymous";
+const R2_BUCKET = process.env.R2_BUCKET_NAME!;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL!;
+
+export function generateFileName(originalName: string, userId: string): string {
   const timestamp = Date.now();
-  const sanitizedFilename = filename.replace(/[^a-z0-9._-]/gi, "_");
-  return `${folder}/${userId}/${timestamp}-${sanitizedFilename}`;
+  const randomString = Math.random().toString(36).substring(2, 15);
+  const extension = originalName.split(".").pop() || "bin";
+  return `${userId}/${timestamp}-${randomString}.${extension}`;
 }
 
-export async function uploadToFirebaseStorage(file: File, folder: string): Promise<UploadResult> {
-  if (!db || !auth?.currentUser) {
-    throw new Error("You must be signed in to upload files.");
-  }
+export async function uploadToR2(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+  folder: string = "posts"
+): Promise<string> {
+  const key = `${folder}/${fileName}`;
 
-  const storage = getStorage();
-  const filename = file.name || "upload";
-  const path = getStoragePath(folder, filename);
-  const storageRef = ref(storage, path);
+  const params = {
+    Bucket: R2_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ACL: "public-read",
+  };
 
-  return new Promise((resolve, reject) => {
-    const uploadTask = uploadBytesResumable(storageRef, file, {
-      contentType: file.type,
-    });
+  await r2Client.upload(params).promise();
 
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log(`Upload is ${progress}% done`);
-      },
-      (error) => {
-        console.error("Upload failed:", error);
-        reject(new Error(`Upload failed: ${error.message}`));
-      },
-      async () => {
-        try {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve({
-            url: downloadURL,
-            path: path,
-          });
-        } catch (error) {
-          reject(new Error(`Failed to get download URL: ${error instanceof Error ? error.message : "Unknown error"}`));
-        }
-      }
-    );
-  });
+  return `${R2_PUBLIC_URL}/${key}`;
 }
 
-export async function deleteFromFirebaseStorage(path: string): Promise<void> {
-  const storage = getStorage();
-  const storageRef = ref(storage, path);
-  
-  try {
-    await import("firebase/storage").then(({ deleteObject }) => deleteObject(storageRef));
-  } catch (error) {
-    console.error("Failed to delete file:", error);
-    throw new Error(`Failed to delete file: ${error instanceof Error ? error.message : "Unknown error"}`);
-  }
+export async function deleteFromR2(fileName: string, folder: string = "posts"): Promise<void> {
+  const key = `${folder}/${fileName}`;
+  const params = {
+    Bucket: R2_BUCKET,
+    Key: key,
+  };
+
+  await r2Client.deleteObject(params).promise();
 }
+
+// Alias for compatibility with code expecting Firebase Storage naming
+export const uploadToFirebaseStorage = uploadToR2;
+export const writeAuditLog = async (action: string, userId: string, details: Record<string, unknown>) => {
+  // Placeholder - implement based on your audit logging needs
+  console.log(`Audit: ${action} by ${userId}`, details);
+};

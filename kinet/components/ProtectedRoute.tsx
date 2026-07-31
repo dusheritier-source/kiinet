@@ -1,78 +1,43 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { SessionProvider, useSession } from "next-auth/react";
+import { useEffect } from "react";
 
-import { getCurrentUserAccessStatus } from "@/lib/admin";
-import { useAuthContext } from "@/components/AuthProvider";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
 
-export default function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuthContext();
+function ProtectedRouteInner({ children }: ProtectedRouteProps) {
+  const { data: session, status } = useSession();
   const router = useRouter();
-  const pathname = usePathname();
-  const [accessStatus, setAccessStatus] = useState<"active" | "watch" | "suspended">("active");
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (status === "loading") return;
+    if (!session) {
+      router.push("/login");
     }
-  }, [loading, pathname, router, user]);
+  }, [session, status, router]);
 
-  useEffect(() => {
-    if (!user) {
-      setAccessStatus("active");
-      return;
-    }
-
-    void getCurrentUserAccessStatus().then(setAccessStatus);
-  }, [user]);
-
-  if (loading) {
+  if (status === "loading") {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-cyan-400" />
       </div>
     );
   }
 
-  if (!user) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <h2 className="text-2xl font-bold">Sign in required</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              You need an account before using this part of Kinet.
-            </p>
-            <Button className="mt-4" asChild>
-              <Link href="/login">Go to login</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (accessStatus === "suspended") {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <h2 className="text-2xl font-bold">Account paused</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              An admin has temporarily restricted this account. Contact support or an admin to review it.
-            </p>
-            <Button className="mt-4" asChild>
-              <Link href="/profile">Back to profile</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (!session) {
+    return null;
   }
 
   return <>{children}</>;
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+  return (
+    <SessionProvider>
+      <ProtectedRouteInner>{children}</ProtectedRouteInner>
+    </SessionProvider>
+  );
 }
