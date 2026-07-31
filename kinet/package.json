@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "postinstall": "prisma generate",
     "cap:sync": "npx cap sync",
     "cap:sync:android": "npx cap sync android",
     "cap:copy": "npx cap copy",
