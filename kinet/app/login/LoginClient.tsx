@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GoogleAuthProvider,
+  getRedirectResult,
   isSignInWithEmailLink,
+  onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
   signInWithPopup,
+  signInWithRedirect,
 } from "firebase/auth";
 import { Lock, Mail } from "lucide-react";
 
@@ -77,6 +80,35 @@ export default function LoginClient() {
       setIsSubmitting(false);
       setIsLoading(false);
     }
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!auth || typeof window === "undefined") {
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.push(searchParams.get("next") || "/feed");
+      }
+    });
+
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          const isNewUser = result?.additionalUserInfo?.isNewUser;
+          if (isNewUser) {
+            router.push("/onboarding");
+          } else {
+            router.push(searchParams.get("next") || "/feed");
+          }
+        }
+      })
+      .catch((redirectError) => {
+        console.warn("Google redirect result error:", redirectError);
+      });
+
+    return () => unsubscribe();
   }, [router, searchParams]);
 
   const getLoginErrorMessage = (err: unknown) => {
@@ -183,10 +215,10 @@ export default function LoginClient() {
       const provider = new GoogleAuthProvider();
       provider.addScope("email");
       provider.addScope("profile");
+      provider.setCustomParameters({ prompt: "select_account" });
       const result = await signInWithPopup(auth, provider);
       console.log("Google sign-in successful:", result.user);
       
-      // Use Firebase's additionalUserInfo to detect new users without an extra Firestore read
       const isNewUser = result?.additionalUserInfo?.isNewUser;
       if (isNewUser) {
         router.push("/onboarding");
@@ -194,7 +226,21 @@ export default function LoginClient() {
       }
 
       router.push(searchParams.get("next") || "/feed");
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err && "code" in err ? String((err as { code?: string }).code) : "";
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        const provider = new GoogleAuthProvider();
+        provider.addScope("email");
+        provider.addScope("profile");
+        provider.setCustomParameters({ prompt: "select_account" });
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       console.error("Google sign-in error:", err);
       setError(getLoginErrorMessage(err));
     } finally {

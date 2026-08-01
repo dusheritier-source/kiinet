@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, updateProfile } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -118,7 +118,17 @@ export default function SignupPage() {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push("/onboarding");
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err && "code" in err ? String((err as { code?: string }).code) : "";
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        const provider = new GoogleAuthProvider();
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Google sign-up failed. Please try again.");
       setIsSubmitting(false);
     }
