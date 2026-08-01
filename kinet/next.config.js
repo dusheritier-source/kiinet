@@ -10,6 +10,11 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
       },
+      {
+        protocol: 'https',
+        // Allow Supabase project subdomains (specific project hostnames are recommended)
+        hostname: '*.supabase.co',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,

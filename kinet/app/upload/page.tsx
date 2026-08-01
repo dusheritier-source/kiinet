@@ -301,49 +301,94 @@ function UploadPageContent() {
                 </div>
               )}
 
-              {/* File Upload */}
-              <div>
-                <Input
-                  type="file"
-                  accept={contentType === "reel" ? "video/*" : "image/*,video/*"}
-                  onChange={handleFileChange}
-                  disabled={submitting}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition hover:border-primary/50"
-                >
-                  {previewUrl ? (
-                    <div className="relative w-full">
-                      {mediaKind === "video" ? (
-                        <video src={previewUrl} controls className="max-h-[400px] w-full rounded-lg object-cover" />
+              {/* File Upload - modern social upload UI (no drag-and-drop) */}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="md:col-span-2">
+                  <div className="rounded-xl border p-4 bg-muted/5">
+                    <input
+                      type="file"
+                      accept={contentType === "reel" ? "video/*" : "image/*,video/*"}
+                      onChange={handleFileChange}
+                      disabled={submitting}
+                      className="hidden"
+                      id="file-upload"
+                    />
+
+                    <div className="w-full h-[420px] rounded-lg bg-black/5 overflow-hidden relative flex items-center justify-center">
+                      {previewUrl ? (
+                        mediaKind === "video" ? (
+                          <video src={previewUrl} controls className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={previewUrl} alt="Upload preview" className="w-full h-full object-cover" />
+                        )
                       ) : (
-                        <img src={previewUrl} alt="Upload preview" className="max-h-[400px] w-full rounded-lg object-cover" />
+                        <div className="text-center px-6">
+                          <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <p className="mt-3 font-semibold">Tap to select a file</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Images up to 5MB, videos up to 200MB recommended.</p>
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setFile(null);
-                          setPreviewUrl("");
-                        }}
-                        className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      <label htmlFor="file-upload" className="absolute left-4 top-4">
+                        <Button size="sm">Add media</Button>
+                      </label>
                     </div>
-                  ) : (
-                    <>
-                      <UploadCloud className="mb-3 h-12 w-12 text-muted-foreground" />
-                      <p className="font-semibold">
-                        {contentType === "reel" ? "Choose a video for your reel" : "Choose media for your post"}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">Click to browse or drag and drop</p>
-                    </>
-                  )}
-                </label>
+
+                    <div className="mt-4 flex items-center gap-3">
+                      {previewUrl ? (
+                        <>
+                          <Button onClick={() => { setFile(null); setPreviewUrl(""); }} variant="outline">Remove</Button>
+                          <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm text-primary">Open preview</a>
+                          {mediaKind === "video" && (
+                            <Button variant="outline" onClick={() => void runMediaAssist("thumbnail")}>Select cover</Button>
+                          )}
+                        </>
+                      ) : (
+                        <label htmlFor="file-upload"><Button>Choose file</Button></label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="space-y-4">
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Caption</p>
+                    <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption..." className="mt-2 min-h-20 w-full rounded-md border px-3 py-2 text-sm" />
+                    <Input value={collaborators} onChange={(e) => setCollaborators(e.target.value)} placeholder="Tag collaborators (comma separated)" className="mt-3" />
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Quick Trim</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <input type="number" min={0} value={clipStartSec} onChange={(e) => setClipStartSec(e.target.value)} className="h-10 rounded-md border px-2" placeholder="Start (s)" />
+                      <input type="number" min={0} value={clipEndSec} onChange={(e) => setClipEndSec(e.target.value)} className="h-10 rounded-md border px-2" placeholder="End (s)" />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Visibility</p>
+                    <select value={visibility} onChange={(e) => setVisibility(e.target.value as any)} className="mt-2 w-full h-10 rounded-md border px-2">
+                      <option value="public">Public</option>
+                      <option value="subscribers">Subscribers</option>
+                      <option value="premium_group">Premium group</option>
+                    </select>
+                    {visibility === "premium_group" && (
+                      <select value={premiumGroupId} onChange={(e) => setPremiumGroupId(e.target.value)} className="mt-2 w-full h-10 rounded-md border px-2">
+                        <option value="">Choose group</option>
+                        {premiumGroups.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">AI Tools</p>
+                    <div className="mt-2 flex flex-col gap-2">
+                      <Button type="button" variant="outline" onClick={() => void runMediaAssist("caption_rewrite")} disabled={assistantLoading !== null}>Rewrite Caption</Button>
+                      <Button type="button" variant="outline" onClick={() => void runMediaAssist("hashtags")} disabled={assistantLoading !== null}>Add Hashtags</Button>
+                    </div>
+                  </div>
+                </aside>
               </div>
 
               {/* Caption */}

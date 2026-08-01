@@ -16,9 +16,8 @@ import { Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { auth, db, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, firebaseConfigError, isFirebaseConfigured } from "@/lib/firebase";
 import { recordLoginActivity } from "@/lib/phase8";
-import { getDoc, doc } from "firebase/firestore";
 
 export default function LoginClient() {
   const router = useRouter();
@@ -187,16 +186,13 @@ export default function LoginClient() {
       const result = await signInWithPopup(auth, provider);
       console.log("Google sign-in successful:", result.user);
       
-      // Check if this is a new user (no profile in Firestore yet)
-      if (db && result.user) {
-        const userDoc = await getDoc(doc(db, "users", result.user.uid));
-        if (!userDoc.exists()) {
-          // New user - redirect to onboarding
-          router.push("/onboarding");
-          return;
-        }
+      // Use Firebase's additionalUserInfo to detect new users without an extra Firestore read
+      const isNewUser = result?.additionalUserInfo?.isNewUser;
+      if (isNewUser) {
+        router.push("/onboarding");
+        return;
       }
-      
+
       router.push(searchParams.get("next") || "/feed");
     } catch (err) {
       console.error("Google sign-in error:", err);

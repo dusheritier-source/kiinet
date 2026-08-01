@@ -34,12 +34,11 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            // Optimize Google OAuth
+            // Use lighter auth params to avoid forcing consent and offline token requests
             authorization: {
               params: {
-                prompt: "consent",
-                access_type: "offline",
-                response_type: "code",
+                prompt: "select_account",
+                access_type: "online",
               },
             },
           }),
