@@ -1,6 +1,5 @@
-import NextAuth from "next-auth";
-import { authOptions } from "@/lib/auth";
+// This file is intentionally left empty
+// Firebase Auth is used directly instead of NextAuth
+// See lib/firebase.ts for Firebase configuration
 
-const handler = NextAuth(authOptions);
-
-export { handler as GET, handler as POST };
+export { };

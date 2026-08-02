@@ -1,24 +1,9 @@
-import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
 
-export default withAuth(
-  function middleware(req) {
-    // Additional middleware logic if needed
-    return;
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
-  }
-);
+export function middleware(req) {
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: [
-    "/feed/:path*",
-    "/messages/:path*",
-    "/settings/:path*",
-    "/upload/:path*",
-    "/notifications/:path*",
-    "/bookmarks/:path*",
-  ],
+  matcher: [],
 };

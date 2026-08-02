@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Virtuoso } from "react-virtuoso";
-import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +20,32 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
+import { auth } from "@/lib/firebase";
+import { useAuthContext } from "@/components/AuthProvider";
+
+async function getAuthHeaders() {
+  if (!auth?.currentUser) {
+    return {};
+  }
+  const idToken = await auth.currentUser.getIdToken();
+  return idToken ? { Authorization: `Bearer ${idToken}` } : {};
+}
+
+async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
+  const authHeaders = await getAuthHeaders();
+  const headers = new Headers(init.headers ?? {});
+
+  Object.entries(authHeaders).forEach(([key, value]) => {
+    if (value) {
+      headers.set(key, value);
+    }
+  });
+
+  return fetch(input, {
+    ...init,
+    headers,
+  });
+}
 
 interface Post {
   id: string;
@@ -61,7 +86,7 @@ async function fetchFeed({
     url.searchParams.set("cursor", pageParam);
   }
 
-  const response = await fetch(url.toString(), { signal });
+  const response = await fetchWithAuth(url.toString(), { signal });
 
   if (!response.ok) {
     throw new Error("Failed to fetch feed");
@@ -71,7 +96,7 @@ async function fetchFeed({
 }
 
 export default function FeedClient() {
-  const { data: session } = useSession();
+  const { user } = useAuthContext();
   const [newPostContent, setNewPostContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,7 +121,7 @@ export default function FeedClient() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/posts", {
+      const response = await fetchWithAuth("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: newPostContent }),
@@ -117,7 +142,7 @@ export default function FeedClient() {
     // Optimistic update
     // Implementation would update the cache immediately
     try {
-      await fetch("/api/posts/like", {
+      await fetchWithAuth("/api/posts/like", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId, action: hasLiked ? "unlike" : "like" }),
@@ -130,7 +155,7 @@ export default function FeedClient() {
 
   const handleSave = async (postId: string, isSaved: boolean) => {
     try {
-      await fetch("/api/posts/save", {
+      await fetchWithAuth("/api/posts/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId, action: isSaved ? "unsave" : "save" }),
@@ -143,7 +168,7 @@ export default function FeedClient() {
 
   const handleRepost = async (postId: string) => {
     try {
-      await fetch("/api/posts/repost", {
+      await fetchWithAuth("/api/posts/repost", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId }),
@@ -210,17 +235,17 @@ export default function FeedClient() {
             <CardContent className="p-4">
               <div className="flex gap-3">
                 <Avatar className="h-10 w-10">
-                  {session?.user?.image ? (
+                  {user?.photoURL ? (
                     <Image
-                      src={session.user.image}
-                      alt={session.user.name || "User"}
+                      src={user.photoURL}
+                      alt={user.displayName || "User"}
                       width={40}
                       height={40}
                       className="rounded-full"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-400 to-blue-600 text-white">
-                      {session?.user?.name?.[0] || "U"}
+                      {user?.displayName?.charAt(0).toUpperCase() || "U"}
                     </div>
                   )}
                 </Avatar>

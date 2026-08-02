@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const firebaseUser = await getFirebaseUserFromRequest(request);
 
-    if (!session?.user?.id) {
+    if (!firebaseUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
         content: content.trim(),
         mediaUrl: mediaUrl || null,
         mediaType: mediaType || null,
-        authorId: session.user.id,
+        authorId: firebaseUser.uid,
       },
       include: {
         author: {

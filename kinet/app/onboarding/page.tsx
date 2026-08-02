@@ -2,14 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
 import { User, AtSign, Shield } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { auth, db } from "@/lib/firebase";
 import { saveUserProfile } from "@/lib/user-profile";
 import type { KinetRole } from "@/lib/user-profile";
 
@@ -26,18 +23,11 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => {
-    if (!auth?.currentUser) {
-      router.push("/login");
-      return;
+    const storedName = window.localStorage.getItem("kinet-display-name") || "";
+    if (storedName) {
+      setFormData((prev) => ({ ...prev, displayName: storedName }));
     }
-
-    const user = auth.currentUser;
-    const displayName = user.displayName || "";
-    
-    if (displayName && displayName !== "Kinet User") {
-      setFormData((prev) => ({ ...prev, displayName }));
-    }
-  }, [router]);
+  }, []);
 
   const handleUsernameChange = (value: string) => {
     const normalized = value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
@@ -64,14 +54,7 @@ export default function OnboardingPage() {
 
     setIsSubmitting(true);
     try {
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error("You must be signed in.");
-      }
-
-      await updateProfile(user, {
-        displayName: formData.displayName.trim(),
-      });
+      window.localStorage.setItem("kinet-display-name", formData.displayName.trim());
 
       await saveUserProfile({
         role: formData.role,

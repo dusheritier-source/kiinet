@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
 import { uploadToR2, generateFileName } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const firebaseUser = await getFirebaseUserFromRequest(request);
 
-    if (!session?.user?.id) {
+    if (!firebaseUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
 
     // Generate unique filename
-    const fileName = generateFileName(file.name, session.user.id);
+    const fileName = generateFileName(file.name, firebaseUser.uid);
     const folder = type === "avatar" ? "avatars" : type === "reel" ? "reels" : "posts";
 
     // Upload to R2

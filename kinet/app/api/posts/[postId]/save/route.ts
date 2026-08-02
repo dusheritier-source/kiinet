@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -10,9 +9,9 @@ export async function POST(
   { params }: { params: { postId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const firebaseUser = await getFirebaseUserFromRequest(request);
 
-    if (!session?.user?.id) {
+    if (!firebaseUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -24,7 +23,7 @@ export async function POST(
     if (action === "save") {
       await prisma.bookmark.create({
         data: {
-          userId: session.user.id,
+          userId: firebaseUser.uid,
           postId,
         },
       });
@@ -32,7 +31,7 @@ export async function POST(
       await prisma.bookmark.delete({
         where: {
           userId_postId: {
-            userId: session.user.id,
+            userId: firebaseUser.uid,
             postId,
           },
         },

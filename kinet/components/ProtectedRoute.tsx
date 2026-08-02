@@ -1,25 +1,25 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SessionProvider, useSession } from "next-auth/react";
 import { useEffect } from "react";
+import { useAuthContext } from "@/components/AuthProvider";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-function ProtectedRouteInner({ children }: ProtectedRouteProps) {
-  const { data: session, status } = useSession();
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { user, loading } = useAuthContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (!session) {
-      router.push("/login");
+    if (loading) return;
+    if (!user) {
+      router.replace("/login");
     }
-  }, [session, status, router]);
+  }, [user, loading, router]);
 
-  if (status === "loading") {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-cyan-400" />
@@ -27,17 +27,9 @@ function ProtectedRouteInner({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!session) {
+  if (!user) {
     return null;
   }
 
   return <>{children}</>;
-}
-
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  return (
-    <SessionProvider>
-      <ProtectedRouteInner>{children}</ProtectedRouteInner>
-    </SessionProvider>
-  );
 }

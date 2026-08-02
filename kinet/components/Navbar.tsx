@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
-import { signOut } from "firebase/auth";
-
-import { auth } from "@/lib/firebase";
 import { subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
 import { isCurrentUserAdmin } from "@/lib/moderation";
@@ -153,18 +150,11 @@ export default function Navbar() {
                             Settings
                           </Link>
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="col-span-2"
-                          onClick={() => {
-                            if (auth) {
-                              void signOut(auth);
-                            }
-                          }}
-                        >
-                          Logout
-                          <LogOut className="ml-2 h-4 w-4" />
+                        <Button variant="outline" size="sm" className="col-span-2" asChild>
+                          <Link href="/feed">
+                            Continue
+                            <LogOut className="ml-2 h-4 w-4" />
+                          </Link>
                         </Button>
                       </div>
                     </div>
@@ -206,18 +196,11 @@ export default function Navbar() {
                   Settings
                 </Link>
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden lg:inline-flex"
-                onClick={() => {
-                  if (auth) {
-                    void signOut(auth);
-                  }
-                }}
-              >
-                Logout
-                <LogOut className="ml-2 h-4 w-4" />
+              <Button variant="outline" size="sm" className="hidden lg:inline-flex" asChild>
+                <Link href="/feed">
+                  Continue
+                  <LogOut className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
             </>
           ) : (
