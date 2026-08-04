@@ -55,6 +55,7 @@ import {
   type ConversationSummary,
 } from "@/lib/messaging";
 import { getPlatformPreferences, translateMessagePreview } from "@/lib/phase9";
+import { isTransientFirestoreError } from "@/lib/firebase";
 import { formatTimeAgo } from "@/lib/posts";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { searchProfiles, type SearchProfile } from "@/lib/user-profile";
@@ -167,10 +168,12 @@ function MessagesPageContent() {
   }, [isOnline, user]);
 
   useEffect(() => {
-    void getPlatformPreferences().then((preferences) => {
-      setAutoTranslate(preferences.autoTranslateDms);
-      setDmLanguage(preferences.dmTranslationLanguage);
-    });
+    void getPlatformPreferences()
+      .then((preferences) => {
+        setAutoTranslate(preferences.autoTranslateDms);
+        setDmLanguage(preferences.dmTranslationLanguage);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -190,6 +193,11 @@ function MessagesPageContent() {
     setCreating(true);
     createOrGetConversation(starterUser)
       .then((conversationId) => setActiveConversationId(conversationId))
+      .catch((conversationError: unknown) => {
+        if (!isTransientFirestoreError(conversationError)) {
+          setError(conversationError instanceof Error ? conversationError.message : "Could not start conversation.");
+        }
+      })
       .finally(() => setCreating(false));
   }, [starterUser, user]);
 
@@ -199,11 +207,13 @@ function MessagesPageContent() {
 
   useEffect(() => {
     if (!highlightedMessageId || !activeConversationId) return;
-    void getConversationMessage(highlightedMessageId).then((message) => {
-      if (!message || message.conversationId !== activeConversationId) return;
-      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
-      window.setTimeout(() => document.getElementById(`message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-    });
+    void getConversationMessage(highlightedMessageId)
+      .then((message) => {
+        if (!message || message.conversationId !== activeConversationId) return;
+        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
+        window.setTimeout(() => document.getElementById(`message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+      })
+      .catch(() => undefined);
   }, [activeConversationId, highlightedMessageId]);
 
   useEffect(() => {
@@ -254,8 +264,10 @@ function MessagesPageContent() {
         setHasOlderMessages(hasOlder);
         setMessagesLoading(false);
       },
-      () => {
-        setError("Messages could not be loaded. Check your connection and try again.");
+      (subscriptionError) => {
+        if (!isTransientFirestoreError(subscriptionError)) {
+          setError("Messages could not be loaded. Please try again.");
+        }
         setMessagesLoading(false);
       }
     );
@@ -429,7 +441,9 @@ function MessagesPageContent() {
       } else {
         setMessages((current) => current.map((message) => message.id === optimisticId ? { ...message, clientStatus: "failed" } : message));
       }
-      setError(sendError instanceof Error ? sendError.message : "Message could not be sent.");
+      if (!isTransientFirestoreError(sendError)) {
+        setError(sendError instanceof Error ? sendError.message : "Message could not be sent.");
+      }
     } finally {
       setSending(false);
       setUploadProgress(null);
@@ -443,7 +457,9 @@ function MessagesPageContent() {
       await sendConversationMessage(activeConversationId, message.text, null, message.id);
     } catch (retryError) {
       setMessages((current) => current.map((item) => item.id === message.id ? { ...item, clientStatus: "failed" } : item));
-      setError(retryError instanceof Error ? retryError.message : "Message retry failed.");
+      if (!isTransientFirestoreError(retryError)) {
+        setError(retryError instanceof Error ? retryError.message : "Message retry failed.");
+      }
     }
   };
 
@@ -456,7 +472,9 @@ function MessagesPageContent() {
       setShowNewMessage(false);
       setPeopleSearch("");
     } catch (conversationError) {
-      setError(conversationError instanceof Error ? conversationError.message : "Could not start conversation.");
+      if (!isTransientFirestoreError(conversationError)) {
+        setError(conversationError instanceof Error ? conversationError.message : "Could not start conversation.");
+      }
     } finally {
       setCreating(false);
     }
@@ -473,7 +491,9 @@ function MessagesPageContent() {
       setGroupName("");
       setSelectedGroupMembers([]);
     } catch (groupError) {
-      setError(groupError instanceof Error ? groupError.message : "Could not create group.");
+      if (!isTransientFirestoreError(groupError)) {
+        setError(groupError instanceof Error ? groupError.message : "Could not create group.");
+      }
     } finally {
       setCreating(false);
     }
@@ -490,7 +510,9 @@ function MessagesPageContent() {
       });
       setHasOlderMessages(result.hasOlder);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Older messages could not be loaded.");
+      if (!isTransientFirestoreError(loadError)) {
+        setError(loadError instanceof Error ? loadError.message : "Older messages could not be loaded.");
+      }
     } finally {
       setOlderMessagesLoading(false);
     }

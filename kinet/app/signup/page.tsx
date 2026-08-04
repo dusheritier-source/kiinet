@@ -132,8 +132,9 @@ export default function SignupPage() {
               />
             </div>
             {error && (
-              <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
-                {error}
+              <div role="alert" className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
+                <p>{error}</p>
+                {error.includes("not authorized") ? <p className="mt-2 text-xs text-muted-foreground">Email/password signup can still work while the Google domain is being authorized.</p> : null}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={submitting || loading}>
