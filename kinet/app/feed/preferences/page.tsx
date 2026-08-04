@@ -1,0 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AuthProvider } from "@/components/AuthProvider";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { defaultFeedPreferences, getFeedPreferences, saveFeedPreferences, type FeedPreferences } from "@/lib/feed-preferences";
+
+function PreferencesContent() { const [value, setValue] = useState<FeedPreferences | null>(null); const [saved, setSaved] = useState(false); useEffect(() => { void getFeedPreferences().then(setValue); }, []); if (!value) return <div className="p-10 text-center">Loading…</div>; const listInput = (key: "mutedWords" | "mutedTopics" | "mutedUserIds", label: string, hint: string) => <label className="block text-sm font-medium">{label}<Input className="mt-2" value={value[key].join(", ")} onChange={(event) => setValue({ ...value, [key]: event.target.value.split(",").map((item) => item.trim().replace(/^#|^@/, "").toLowerCase()).filter(Boolean) })} placeholder={hint} /></label>; return <ProtectedRoute><main className="mx-auto max-w-2xl px-4 py-8"><Card><CardHeader><CardTitle>Feed controls</CardTitle><CardDescription>Choose what appears in your personal feed.</CardDescription></CardHeader><CardContent className="space-y-5"><label className="block text-sm font-medium">Content type<select value={value.contentFilter} onChange={(event) => setValue({ ...value, contentFilter: event.target.value as FeedPreferences["contentFilter"] })} className="mt-2 h-10 w-full rounded-md border bg-background px-3"><option value="all">All posts</option><option value="media">Photos and videos</option><option value="text">Text posts</option></select></label>{listInput("mutedWords", "Muted words", "spoilers, phrase")}{listInput("mutedTopics", "Muted topics", "politics, spoilers")}{listInput("mutedUserIds", "Muted accounts", "user ID or username")}<p className="text-xs text-muted-foreground">Separate items with commas. Muting is private and does not unfollow anyone.</p><Button onClick={() => void saveFeedPreferences(value || defaultFeedPreferences).then(() => { setSaved(true); window.setTimeout(() => setSaved(false), 1500); })}>{saved ? "Saved" : "Save feed controls"}</Button></CardContent></Card></main></ProtectedRoute>; }
+export default function FeedPreferencesPage() { return <AuthProvider><PreferencesContent /></AuthProvider>; }

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
+import { Camera, Link2, MapPin, Palette, UserRound } from "lucide-react";
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
@@ -11,197 +11,29 @@ import { Input } from "@/components/ui/input";
 import { getCurrentUserProfile, updateCurrentUserProfile } from "@/lib/user-profile";
 
 function EditProfilePageContent() {
-  const { user, loading } = useAuthContext();
-  const router = useRouter();
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState({
-    displayName: "",
-    username: "",
-    sport: "",
-    position: "",
-    team: "",
-    experience: "",
-    age: "",
-    height: "",
-    location: "",
-    bio: "",
-    pointsPerGame: "",
-    assistsPerGame: "",
-    reboundsPerGame: "",
-    skills: "",
-    achievements: "",
-    gameLogs: "",
-    profileTheme: "classic",
-  });
-  const [saving, setSaving] = useState(false);
+  const { user, loading } = useAuthContext(); const router = useRouter();
+  const [avatarFile, setAvatarFile] = useState<File | null>(null); const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const [form, setForm] = useState({ displayName: "", username: "", bio: "", pronouns: "", category: "Personal", location: "", website: "", profileTheme: "classic", status: "", musicUrl: "", accentColor: "#6366f1", contactEmail: "", actionLabel: "", actionUrl: "", profileLayout: "highlights_first", temporaryAvatarDays: "", avatarAlt: "", coverAlt: "", links: [{ label: "Instagram", url: "" }, { label: "TikTok", url: "" }, { label: "YouTube", url: "" }] });
 
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
+  useEffect(() => { if (!user) return; void getCurrentUserProfile().then((profile) => {
+    const role = (profile?.role as Record<string, unknown> | undefined) ?? {}; const storedLinks = Array.isArray(profile?.socialLinks) ? profile.socialLinks as Array<{ label?: string; url?: string }> : [];
+    const action = (profile?.actionButton as { label?: string; url?: string } | undefined) ?? {};
+    setForm({ displayName: user.displayName || String(profile?.displayName ?? ""), username: String(profile?.username ?? user.uid.slice(0, 8)), bio: String(profile?.bio ?? role.bio ?? ""), pronouns: String(profile?.pronouns ?? ""), category: String(profile?.category ?? role.type ?? "Personal"), location: String(profile?.location ?? ""), website: String(profile?.website ?? ""), profileTheme: String(profile?.profileTheme ?? "classic"), status: String(profile?.status ?? ""), musicUrl: String(profile?.musicUrl ?? ""), accentColor: String(profile?.accentColor ?? "#6366f1"), contactEmail: String(profile?.contactEmail ?? ""), actionLabel: String(action.label ?? ""), actionUrl: String(action.url ?? ""), profileLayout: String(profile?.profileLayout ?? "highlights_first"), temporaryAvatarDays: "", avatarAlt: String(profile?.avatarAlt ?? ""), coverAlt: String(profile?.coverAlt ?? ""), links: [0, 1, 2].map((index) => ({ label: String(storedLinks[index]?.label ?? ["Instagram", "TikTok", "YouTube"][index]), url: String(storedLinks[index]?.url ?? "") })) });
+  }); }, [user]);
 
-    getCurrentUserProfile().then((profile) => {
-      const role = (profile?.role as Record<string, unknown> | undefined) ?? {};
-      const athleteProfile = (profile?.athleteProfile as Record<string, unknown> | undefined) ?? {};
-      const stats = (athleteProfile.stats as Record<string, unknown> | undefined) ?? {};
-      const gameLogs = Array.isArray(athleteProfile.gameLogs)
-        ? (athleteProfile.gameLogs as Array<Record<string, unknown>>)
-        : [];
+  const submit = async (event: FormEvent) => { event.preventDefault(); setSaving(true); setError(""); try { await updateCurrentUserProfile({ displayName: form.displayName, username: form.username, bio: form.bio, pronouns: form.pronouns, category: form.category, location: form.location, website: form.website, socialLinks: form.links, avatarFile, coverPhotoFile, profileTheme: form.profileTheme, status: form.status, musicUrl: form.musicUrl, accentColor: form.accentColor, contactEmail: form.contactEmail, actionButton: form.actionLabel && form.actionUrl ? { label: form.actionLabel, url: form.actionUrl } : undefined, profileLayout: form.profileLayout as "highlights_first" | "content_first", temporaryAvatarDays: Number(form.temporaryAvatarDays) || undefined, avatarAlt: form.avatarAlt, coverAlt: form.coverAlt }); router.push("/profile"); } catch (cause) { setError(cause instanceof Error ? cause.message : "Profile could not be saved."); } finally { setSaving(false); } };
 
-      setFormData({
-        displayName: user.displayName || String(profile?.displayName ?? ""),
-        username: String(profile?.username ?? user.uid.slice(0, 8)),
-        sport: String(role.sport ?? ""),
-        position: String(role.position ?? ""),
-        team: String(role.team ?? ""),
-        experience: String(role.experience ?? ""),
-        age: role.age ? String(role.age) : "",
-        height: String(role.height ?? ""),
-        location: String(profile?.location ?? ""),
-        bio: String(role.bio ?? ""),
-        pointsPerGame: stats.pointsPerGame ? String(stats.pointsPerGame) : "",
-        assistsPerGame: stats.assistsPerGame ? String(stats.assistsPerGame) : "",
-        reboundsPerGame: stats.reboundsPerGame ? String(stats.reboundsPerGame) : "",
-        skills: Array.isArray(athleteProfile.skills) ? (athleteProfile.skills as string[]).join(", ") : "",
-        achievements: Array.isArray(athleteProfile.achievements) ? (athleteProfile.achievements as string[]).join(", ") : "",
-        gameLogs: gameLogs
-          .map((log) =>
-            [
-              String(log.date ?? ""),
-              String(log.opponent ?? ""),
-              String(log.points ?? ""),
-              String(log.assists ?? ""),
-              String(log.rebounds ?? ""),
-              String(log.result ?? ""),
-            ].join("|")
-          )
-          .join("\n"),
-        profileTheme: String(profile?.profileTheme ?? "classic"),
-      });
-    });
-  }, [user]);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSaving(true);
-    try {
-      await updateCurrentUserProfile({
-        displayName: formData.displayName,
-        username: formData.username,
-        sport: formData.sport,
-        position: formData.position,
-        team: formData.team,
-        experience: formData.experience,
-        age: formData.age ? Number(formData.age) : undefined,
-        height: formData.height,
-        location: formData.location,
-        bio: formData.bio,
-        avatarFile,
-        coverPhotoFile,
-        profileTheme: formData.profileTheme,
-        stats: {
-          pointsPerGame: formData.pointsPerGame ? Number(formData.pointsPerGame) : undefined,
-          assistsPerGame: formData.assistsPerGame ? Number(formData.assistsPerGame) : undefined,
-          reboundsPerGame: formData.reboundsPerGame ? Number(formData.reboundsPerGame) : undefined,
-        },
-        skills: formData.skills.split(",").map((value) => value.trim()).filter(Boolean),
-        achievements: formData.achievements.split(",").map((value) => value.trim()).filter(Boolean),
-        gameLogs: formData.gameLogs
-          .split("\n")
-          .map((row) => row.trim())
-          .filter(Boolean)
-          .map((row) => {
-            const [date, opponent, points, assists, rebounds, result] = row.split("|");
-            return {
-              date: (date ?? "").trim(),
-              opponent: (opponent ?? "").trim(),
-              points: points ? Number(points.trim()) : undefined,
-              assists: assists ? Number(assists.trim()) : undefined,
-              rebounds: rebounds ? Number(rebounds.trim()) : undefined,
-              result: (result ?? "").trim(),
-            };
-          }),
-      });
-      router.push("/profile");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <ProtectedRoute>
-      <div className="mx-auto max-w-3xl py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit profile</CardTitle>
-            <CardDescription>Update your public identity, athlete details, stat card, trophies, and game log history.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <Input value={formData.displayName} onChange={(event) => setFormData((current) => ({ ...current, displayName: event.target.value }))} placeholder="Display name" />
-              <Input value={formData.username} onChange={(event) => setFormData((current) => ({ ...current, username: event.target.value }))} placeholder="Username" />
-              <Input type="file" accept="image/*" onChange={(event: ChangeEvent<HTMLInputElement>) => setAvatarFile(event.target.files?.[0] ?? null)} />
-              <Input type="file" accept="image/*" onChange={(event: ChangeEvent<HTMLInputElement>) => setCoverPhotoFile(event.target.files?.[0] ?? null)} />
-              <select
-                value={formData.profileTheme}
-                onChange={(event) => setFormData((current) => ({ ...current, profileTheme: event.target.value }))}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="classic">Classic</option>
-                <option value="sunset">Sunset</option>
-                <option value="court">Court</option>
-                <option value="midnight">Midnight</option>
-              </select>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input value={formData.sport} onChange={(event) => setFormData((current) => ({ ...current, sport: event.target.value }))} placeholder="Sport" />
-                <Input value={formData.position} onChange={(event) => setFormData((current) => ({ ...current, position: event.target.value }))} placeholder="Position" />
-                <Input value={formData.team} onChange={(event) => setFormData((current) => ({ ...current, team: event.target.value }))} placeholder="Team / organization" />
-                <Input value={formData.experience} onChange={(event) => setFormData((current) => ({ ...current, experience: event.target.value }))} placeholder="Experience level" />
-                <Input value={formData.age} type="number" onChange={(event) => setFormData((current) => ({ ...current, age: event.target.value }))} placeholder="Age" />
-                <Input value={formData.height} onChange={(event) => setFormData((current) => ({ ...current, height: event.target.value }))} placeholder="Height" />
-              </div>
-              <Input value={formData.location} onChange={(event) => setFormData((current) => ({ ...current, location: event.target.value }))} placeholder="Location" />
-              <textarea value={formData.bio} onChange={(event) => setFormData((current) => ({ ...current, bio: event.target.value }))} placeholder="Bio" className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Input value={formData.pointsPerGame} type="number" onChange={(event) => setFormData((current) => ({ ...current, pointsPerGame: event.target.value }))} placeholder="Points per game" />
-                <Input value={formData.assistsPerGame} type="number" onChange={(event) => setFormData((current) => ({ ...current, assistsPerGame: event.target.value }))} placeholder="Assists per game" />
-                <Input value={formData.reboundsPerGame} type="number" onChange={(event) => setFormData((current) => ({ ...current, reboundsPerGame: event.target.value }))} placeholder="Rebounds per game" />
-              </div>
-
-              <Input value={formData.skills} onChange={(event) => setFormData((current) => ({ ...current, skills: event.target.value }))} placeholder="Skills, comma separated" />
-              <Input value={formData.achievements} onChange={(event) => setFormData((current) => ({ ...current, achievements: event.target.value }))} placeholder="Achievements / trophies, comma separated" />
-              <textarea
-                value={formData.gameLogs}
-                onChange={(event) => setFormData((current) => ({ ...current, gameLogs: event.target.value }))}
-                placeholder="Game logs: date|opponent|points|assists|rebounds|result"
-                className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? "Saving..." : "Save profile"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </ProtectedRoute>
-  );
+  if (loading || !user) return <div className="flex min-h-[60vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>;
+  return <ProtectedRoute><main className="mx-auto max-w-3xl px-4 py-8"><Card className="overflow-hidden rounded-3xl"><CardHeader><CardTitle className="text-2xl">Edit profile</CardTitle><CardDescription>Build the public identity people see across Kinet.</CardDescription></CardHeader><CardContent><form onSubmit={submit} className="space-y-6">
+    <section><h2 className="mb-3 flex items-center gap-2 font-semibold"><Camera className="h-4 w-4" />Profile images</h2><div className="grid gap-3 sm:grid-cols-2"><label className="rounded-xl border p-3 text-sm">Profile photo<Input className="mt-2" type="file" accept="image/*" onChange={(event: ChangeEvent<HTMLInputElement>) => setAvatarFile(event.target.files?.[0] ?? null)} /><Input className="mt-2" maxLength={160} value={form.avatarAlt} onChange={(event) => setForm({ ...form, avatarAlt: event.target.value })} placeholder="Describe your profile photo" /></label><label className="rounded-xl border p-3 text-sm">Cover image<Input className="mt-2" type="file" accept="image/*" onChange={(event: ChangeEvent<HTMLInputElement>) => setCoverPhotoFile(event.target.files?.[0] ?? null)} /><Input className="mt-2" maxLength={160} value={form.coverAlt} onChange={(event) => setForm({ ...form, coverAlt: event.target.value })} placeholder="Describe your cover image" /></label></div></section>
+    <section><h2 className="mb-3 flex items-center gap-2 font-semibold"><UserRound className="h-4 w-4" />Identity</h2><div className="grid gap-3 sm:grid-cols-2"><Input required maxLength={60} value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Display name" /><Input required maxLength={30} value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="Username" /><Input maxLength={40} value={form.pronouns} onChange={(event) => setForm({ ...form, pronouns: event.target.value })} placeholder="Pronouns" /><select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="h-10 rounded-md border bg-background px-3 text-sm"><option>Personal</option><option>Creator</option><option>Artist</option><option>Musician</option><option>Photographer</option><option>Writer</option><option>Business</option><option>Community</option></select></div><textarea required maxLength={300} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} placeholder="Tell people about yourself" className="mt-3 min-h-28 w-full rounded-md border bg-background p-3 text-sm" /><p className="mt-1 text-right text-xs text-muted-foreground">{form.bio.length}/300</p></section>
+    <section><h2 className="mb-3 flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4" />Details</h2><div className="grid gap-3 sm:grid-cols-2"><Input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} placeholder="Location" /><Input value={form.website} onChange={(event) => setForm({ ...form, website: event.target.value })} placeholder="Website" /></div></section>
+    <section><h2 className="mb-3 flex items-center gap-2 font-semibold"><Link2 className="h-4 w-4" />Social links</h2><div className="space-y-2">{form.links.map((link, index) => <div key={index} className="grid grid-cols-[130px_1fr] gap-2"><Input value={link.label} onChange={(event) => setForm({ ...form, links: form.links.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item) })} placeholder="Label" /><Input value={link.url} onChange={(event) => setForm({ ...form, links: form.links.map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item) })} placeholder="https://…" /></div>)}</div></section>
+    <section><h2 className="mb-3 flex items-center gap-2 font-semibold"><Palette className="h-4 w-4" />Profile experience</h2><div className="grid gap-3 sm:grid-cols-2"><Input maxLength={80} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} placeholder="Status or mood" /><Input value={form.musicUrl} onChange={(event) => setForm({ ...form, musicUrl: event.target.value })} placeholder="Profile song link" /><Input type="email" value={form.contactEmail} onChange={(event) => setForm({ ...form, contactEmail: event.target.value })} placeholder="Public contact email" /><label className="flex h-10 items-center gap-3 rounded-md border px-3 text-sm">Accent <input type="color" value={form.accentColor} onChange={(event) => setForm({ ...form, accentColor: event.target.value })} className="h-7 flex-1" /></label><Input maxLength={24} value={form.actionLabel} onChange={(event) => setForm({ ...form, actionLabel: event.target.value })} placeholder="Action label (Hire me)" /><Input value={form.actionUrl} onChange={(event) => setForm({ ...form, actionUrl: event.target.value })} placeholder="Action button URL" /><select value={form.profileLayout} onChange={(event) => setForm({ ...form, profileLayout: event.target.value })} className="h-10 rounded-md border bg-background px-3 text-sm"><option value="highlights_first">Highlights before content</option><option value="content_first">Content before highlights</option></select><select value={form.temporaryAvatarDays} onChange={(event) => setForm({ ...form, temporaryAvatarDays: event.target.value })} className="h-10 rounded-md border bg-background px-3 text-sm"><option value="">Keep new avatar</option><option value="1">Use avatar for 1 day</option><option value="7">Use avatar for 7 days</option><option value="30">Use avatar for 30 days</option></select></div></section>
+    <label className="block text-sm font-medium">Profile color theme<select value={form.profileTheme} onChange={(event) => setForm({ ...form, profileTheme: event.target.value })} className="mt-2 h-10 w-full rounded-md border bg-background px-3"><option value="classic">Classic</option><option value="sunset">Sunset</option><option value="midnight">Midnight</option></select></label>
+    {error ? <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
+  </form></CardContent></Card></main></ProtectedRoute>;
 }
 
-export default function EditProfilePage() {
-  return (
-    <AuthProvider>
-      <EditProfilePageContent />
-    </AuthProvider>
-  );
-}
+export default function EditProfilePage() { return <AuthProvider><EditProfilePageContent /></AuthProvider>; }

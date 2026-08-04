@@ -1,7 +1,7 @@
-// Minimal client-side Firebase stub so the app can run without Firebase Auth.
 import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from "firebase/database";
 
@@ -39,16 +39,14 @@ const app = isFirebaseConfigured
     : initializeApp(firebaseConfig)
   : null;
 
-export const auth = {
-  currentUser: {
-    uid: "local-user",
-    displayName: "Local User",
-    email: "local@kinet.app",
-    photoURL: null,
-  },
-} as any;
-
-export const db = app ? getFirestore(app) : null;
+// The checked-in fallback config guarantees an app; environment values override it.
+export const auth = getAuth(app!);
+function initializeClientFirestore() {
+  if (!app) return null;
+  try { return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+  catch { return getFirestore(app); }
+}
+export const db = initializeClientFirestore();
 export const storage = app ? getStorage(app) : null;
 export const rtdb = app ? getDatabase(app) : null;
 

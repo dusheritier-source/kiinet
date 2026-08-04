@@ -7,12 +7,13 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { uploadToFirebaseStorage } from "@/lib/storage";
-import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { auth, db, isTransientFirestoreError, storage } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { recordFollowerGrowth } from "@/lib/profile-analytics";
 
@@ -57,7 +58,25 @@ export interface SearchProfile {
   followers: string[];
   following: string[];
   location?: string | null;
+  bio?: string | null;
+  pronouns?: string | null;
+  category?: string | null;
+  website?: string | null;
+  socialLinks?: Array<{ label: string; url: string }>;
+  status?: string | null;
+  musicUrl?: string | null;
+  accentColor?: string | null;
+  contactEmail?: string | null;
+  actionButton?: { label: string; url: string } | null;
+  profileLayout?: "highlights_first" | "content_first";
+  previousPhotoURL?: string | null;
+  temporaryAvatarExpiresAt?: { seconds?: number } | null;
+  avatarAlt?: string | null;
+  coverAlt?: string | null;
   interests?: string[];
+  discoveryMutualCount?: number;
+  discoveryIsFollowing?: boolean;
+  privateAccount?: boolean;
   role?: {
     type?: string | null;
     sport?: string | null;
@@ -114,6 +133,21 @@ async function ensureUsernameAvailable(username: string, currentUid?: string) {
 function normalizeUsername(input: string, fallbackUid: string) {
   const normalized = input.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
   return normalized || fallbackUid.slice(0, 8).toLowerCase();
+}
+
+function normalizeExternalUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  try { const parsed = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`); return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : ""; }
+  catch { return ""; }
+}
+
+async function uploadProfileImage(file: File, path: string) {
+  if (!storage) throw new Error("Image storage is unavailable.");
+  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
+  const reference = ref(storage, `${path}/${Date.now()}.${extension}`);
+  await uploadBytes(reference, file, { contentType: file.type || "image/jpeg" });
+  return getDownloadURL(reference);
 }
 
 export async function saveUserProfile(input: CompleteProfileInput) {
@@ -180,8 +214,21 @@ export async function saveUserProfile(input: CompleteProfileInput) {
 export async function updateCurrentUserProfile(input: {
   displayName: string;
   username?: string;
-  sport: string;
+  sport?: string;
   bio: string;
+  pronouns?: string;
+  category?: string;
+  website?: string;
+  socialLinks?: Array<{ label: string; url: string }>;
+  status?: string;
+  musicUrl?: string;
+  accentColor?: string;
+  contactEmail?: string;
+  actionButton?: { label: string; url: string };
+  profileLayout?: "highlights_first" | "content_first";
+  temporaryAvatarDays?: number;
+  avatarAlt?: string;
+  coverAlt?: string;
   position?: string;
   team?: string;
   experience?: string;
@@ -225,19 +272,15 @@ export async function updateCurrentUserProfile(input: {
   await ensureUsernameAvailable(normalizedUsername, user.uid);
 
   if (input.avatarFile) {
-    const uploadedAvatar = await uploadToFirebaseStorage(
-      input.avatarFile,
-      `Kinet/avatars/${user.uid}`
-    );
-    photoURL = uploadedAvatar.url;
+    const oldPhotoURL = photoURL;
+    photoURL = await uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`);
+    if (input.temporaryAvatarDays) {
+      await setDoc(doc(db, "users", user.uid), { previousPhotoURL: oldPhotoURL || null, temporaryAvatarExpiresAt: new Date(Date.now() + input.temporaryAvatarDays * 86_400_000) }, { merge: true });
+    }
   }
 
   if (input.coverPhotoFile) {
-    const uploadedCover = await uploadToFirebaseStorage(
-      input.coverPhotoFile,
-      `Kinet/covers/${user.uid}`
-    );
-    coverPhotoURL = uploadedCover.url;
+    coverPhotoURL = await uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`);
   }
 
   await updateFirebaseProfile(user as never, {
@@ -253,8 +296,26 @@ export async function updateCurrentUserProfile(input: {
       username: normalizedUsername,
       coverPhotoURL,
       profileTheme: input.profileTheme?.trim() || String(currentProfile?.profileTheme ?? "classic"),
+      bio: input.bio.trim(),
+      pronouns: input.pronouns?.trim() || null,
+      category: input.category?.trim() || "Personal",
+      website: normalizeExternalUrl(input.website ?? "") || null,
+      socialLinks: (input.socialLinks ?? []).map((link) => ({ label: link.label.trim() || "Link", url: normalizeExternalUrl(link.url) })).filter((link) => link.url).slice(0, 5),
+      status: input.status?.trim().slice(0, 80) || null,
+      musicUrl: normalizeExternalUrl(input.musicUrl ?? "") || null,
+      accentColor: /^#[0-9a-f]{6}$/i.test(input.accentColor ?? "") ? input.accentColor : "#6366f1",
+      contactEmail: input.contactEmail?.trim().toLowerCase() || null,
+      actionButton: input.actionButton && normalizeExternalUrl(input.actionButton.url) ? { label: input.actionButton.label.trim().slice(0, 30) || "Visit", url: normalizeExternalUrl(input.actionButton.url) } : null,
+      profileLayout: input.profileLayout === "content_first" ? "content_first" : "highlights_first",
+      avatarAlt: input.avatarAlt?.trim().slice(0, 160) || null,
+      coverAlt: input.coverAlt?.trim().slice(0, 160) || null,
+      ...(input.avatarFile ? {
+        previousPhotoURL: input.temporaryAvatarDays ? String(currentProfile?.photoURL ?? user.photoURL ?? "") || null : null,
+        temporaryAvatarExpiresAt: input.temporaryAvatarDays ? new Date(Date.now() + input.temporaryAvatarDays * 86_400_000) : null,
+      } : {}),
       role: {
-        sport: input.sport.trim(),
+        type: input.category?.trim() || String((currentProfile?.role as Record<string, unknown> | undefined)?.type ?? "personal"),
+        sport: input.sport?.trim() || null,
         position: input.position?.trim() || null,
         team: input.team?.trim() || null,
         experience: input.experience?.trim() || null,
@@ -330,6 +391,16 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
     return;
   }
 
+  if (!isFollowing) {
+    const targetBefore = await getDoc(doc(db, "users", targetUid));
+    const targetSettings = targetBefore.exists() ? ((targetBefore.data().settings as Record<string, unknown> | undefined) ?? {}) : {};
+    if (targetSettings.privateAccount === true || targetSettings.profileVisibility === "private") {
+      await setDoc(doc(db, "followRequests", `${currentUid}_${targetUid}`), { requesterId: currentUid, recipientId: targetUid, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      await createNotification({ type: "follow_request", recipientId: targetUid, actorId: currentUid, actorName: auth.currentUser.displayName || "Kinet User", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} requested to follow you.` });
+      return "requested" as const;
+    }
+  }
+
   await setDoc(
     doc(db, "users", currentUid),
     {
@@ -363,6 +434,12 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
       message: `${auth.currentUser.displayName || "Someone"} followed you.`,
     });
   }
+  return isFollowing ? "unfollowed" as const : "following" as const;
+}
+
+export function subscribeToUserProfile(uid: string, callback: (profile: Record<string, unknown> | null) => void) {
+  if (!db) { callback(null); return () => undefined; }
+  return onSnapshot(doc(db, "users", uid), (snapshot) => callback(snapshot.exists() ? snapshot.data() as Record<string, unknown> : null), () => callback(null));
 }
 
 export async function searchProfiles(searchTerm: string) {
@@ -388,6 +465,22 @@ export async function searchProfiles(searchTerm: string) {
         docSnapshot.data() as unknown as SearchProfile
     )
     .filter((profile: SearchProfile) => !blockedUsers.includes(profile.uid))
+    .filter((profile: SearchProfile) => {
+      const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;
+      return !auth.currentUser || !Array.isArray(targetBlocked) || !targetBlocked.includes(auth.currentUser.uid);
+    })
+    .map((profile: SearchProfile) => {
+      const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
+      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
+      const canSeeDetails = !isPrivate || !auth.currentUser || profile.uid === auth.currentUser.uid || (profile.followers ?? []).includes(auth.currentUser.uid);
+      return canSeeDetails ? { ...profile, privateAccount: isPrivate } : {
+        ...profile,
+        privateAccount: true,
+        interests: [],
+        location: null,
+        role: profile.role ? { ...profile.role, bio: null } : profile.role,
+      };
+    })
     .filter((profile: SearchProfile) => {
       if (!normalized) {
         return true;

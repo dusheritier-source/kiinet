@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
+import { createNotification } from "@/lib/notifications";
 
 type ListenerCleanup = () => void;
 
@@ -173,13 +174,17 @@ export async function recordLoginActivity(input: { email: string; method: string
     return;
   }
 
+  const existing = await getDocs(query(collection(db, "loginHistory"), where("userId", "==", auth.currentUser.uid), limit(50)));
+  const normalizedDevice = input.deviceLabel.trim() || "Browser";
+  const knownDevice = existing.docs.some((item) => String(item.data().deviceLabel ?? "").toLowerCase() === normalizedDevice.toLowerCase());
   await addDoc(collection(db, "loginHistory"), {
     userId: auth.currentUser.uid,
     email: input.email.trim(),
     method: input.method.trim(),
-    deviceLabel: input.deviceLabel.trim() || "Browser",
+    deviceLabel: normalizedDevice,
     createdAt: serverTimestamp(),
   });
+  if (!knownDevice) await createNotification({ type: "security_alert", recipientId: auth.currentUser.uid, actorId: "security-system", actorName: "Kinet Security", actorAvatar: "", message: `New sign-in detected on ${normalizedDevice} using ${input.method.trim() || "your account"}.`, targetUrl: "/security" });
 }
 
 export async function getLoginHistory() {

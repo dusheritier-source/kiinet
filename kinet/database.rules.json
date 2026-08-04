@@ -21,7 +21,7 @@
         "$userId": {
           ".read": "auth != null",
           ".write": "auth != null && auth.uid == $userId",
-          ".validate": "newData.isBoolean()"
+          ".validate": "newData.hasChildren(['isTyping', 'timestamp']) && newData.child('isTyping').isBoolean() && newData.child('timestamp').isNumber()"
         }
       }
     },

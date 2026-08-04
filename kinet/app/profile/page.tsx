@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Bookmark, Dribbble, Ellipsis, Film, Grid3X3, Heart, LayoutGrid, Link2, Pencil, Pin, PlaySquare, Settings, Trash2 } from "lucide-react";
+import { Archive, BadgeCheck, BarChart3, Bookmark, ChevronLeft, ChevronRight, Ellipsis, Eye, Film, Globe2, Grid3X3, Heart, LayoutGrid, Link2, Mail, MapPin, Music2, Pencil, Pin, PlaySquare, Plus, Repeat2, Settings, Share2, Sparkles, Tag, Trash2, UserCheck, UserX } from "lucide-react";
 import { History } from "lucide-react";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
@@ -11,9 +11,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { deletePost, subscribeToUserPosts, togglePostLike, type FeedPost } from "@/lib/posts";
 import { getCurrentUserSettings, togglePinnedPost, type UserSettings } from "@/lib/settings";
-import { getCurrentUserProfile } from "@/lib/user-profile";
+import { getCurrentUserProfile, subscribeToUserProfile, type SearchProfile } from "@/lib/user-profile";
+import { getProfilesByIds, getSuggestedSocialProfiles, getTaggedProfilePosts, removeFollower, respondToFollowRequest, setPrivateProfile, subscribeToFollowRequests, type FollowRequest } from "@/lib/profile-social";
+import { createProfileHighlight, deleteProfileHighlight, getProfileStories, moveProfileHighlight, renameProfileHighlight, subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
+import type { StoryItem } from "@/lib/stories";
 
 interface StoredProfile {
   uid?: string;
@@ -24,12 +28,23 @@ interface StoredProfile {
   profileTheme?: string;
   savedPosts?: string[];
   bio?: string;
+  pronouns?: string;
+  category?: string;
+  website?: string;
+  socialLinks?: Array<{ label: string; url: string }>;
+  location?: string;
   role?: { bio?: string };
   followers?: string[];
   following?: string[];
   postsCount?: number;
   reelsCount?: number;
   verified?: boolean;
+  settings?: { privateAccount?: boolean };
+  status?: string; musicUrl?: string; accentColor?: string; contactEmail?: string;
+  actionButton?: { label: string; url: string } | null;
+  profileLayout?: "highlights_first" | "content_first";
+  previousPhotoURL?: string | null; temporaryAvatarExpiresAt?: { seconds?: number } | null;
+  avatarAlt?: string | null; coverAlt?: string | null;
   business?: {
     supportUrl?: string;
     merchUrl?: string;
@@ -55,7 +70,19 @@ function ProfilePageContent() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [pendingPostId, setPendingPostId] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [contentView, setContentView] = useState<"posts" | "reels">("posts");
+  const [contentView, setContentView] = useState<"posts" | "reels" | "reposts" | "tagged">("posts");
+  const [taggedPosts, setTaggedPosts] = useState<FeedPost[]>([]);
+  const [visibleCount, setVisibleCount] = useState(12);
+  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchProfile[]>([]);
+  const [connectionTitle, setConnectionTitle] = useState("");
+  const [connectionProfiles, setConnectionProfiles] = useState<SearchProfile[]>([]);
+  const [shared, setShared] = useState(false);
+  const [highlights, setHighlights] = useState<ProfileHighlight[]>([]);
+  const [storyArchive, setStoryArchive] = useState<StoryItem[]>([]);
+  const [highlightTitle, setHighlightTitle] = useState("");
+  const [selectedStories, setSelectedStories] = useState<string[]>([]);
+  const [showHighlightCreator, setShowHighlightCreator] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -84,11 +111,23 @@ function ProfilePageContent() {
       });
 
     const unsubscribe = subscribeToUserPosts(user.uid, setPosts);
+    const unsubscribeProfile = subscribeToUserProfile(user.uid, (data) => { if (data) setProfile(data as StoredProfile); });
+    const unsubscribeHighlights = subscribeToProfileHighlights(user.uid, setHighlights);
+    void getProfileStories(user.uid).then(setStoryArchive);
     return () => {
       cancelled = true;
       unsubscribe();
+      unsubscribeProfile();
+      unsubscribeHighlights();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !profile) return;
+    void getTaggedProfilePosts(user.uid).then(setTaggedPosts);
+    void getSuggestedSocialProfiles({ ...profile, uid: user.uid, displayName: profile.displayName || user.displayName || "User", photoURL: profile.photoURL || "", verified: Boolean(profile.verified), followers: profile.followers ?? [], following: profile.following ?? [] } as SearchProfile).then(setSuggestions);
+    return subscribeToFollowRequests(setFollowRequests);
+  }, [profile, user]);
 
   const initials = useMemo(() => {
     const name = user?.displayName || profile?.displayName || "Kinet User";
@@ -100,16 +139,23 @@ function ProfilePageContent() {
   }, [profile?.displayName, user?.displayName]);
 
   const standardPosts = useMemo(
-    () => posts.filter((post) => post.contentType === "post"),
+    () => posts.filter((post) => post.contentType === "post" && !post.originalPostId),
     [posts]
   );
 
   const reelPosts = useMemo(
-    () => posts.filter((post) => post.contentType === "reel"),
+    () => posts.filter((post) => post.contentType === "reel" && !post.originalPostId),
     [posts]
   );
 
-  const visibleContent = contentView === "reels" ? reelPosts : standardPosts;
+  const reposts = useMemo(() => posts.filter((post) => Boolean(post.originalPostId)), [posts]);
+  const visibleContent = (contentView === "reels" ? reelPosts : contentView === "reposts" ? reposts : contentView === "tagged" ? taggedPosts : standardPosts).slice(0, visibleCount);
+  const temporaryAvatarActive = Boolean(profile?.temporaryAvatarExpiresAt?.seconds && profile.temporaryAvatarExpiresAt.seconds * 1000 > Date.now());
+  const avatarUrl = temporaryAvatarActive ? (profile?.photoURL || user?.photoURL || "") : (profile?.previousPhotoURL || profile?.photoURL || user?.photoURL || "");
+  const completionItems = [{ label: "Profile photo", complete: Boolean(avatarUrl) }, { label: "Cover image", complete: Boolean(profile?.coverPhotoURL) }, { label: "Bio", complete: Boolean(profile?.bio) }, { label: "Location", complete: Boolean(profile?.location) }, { label: "Link", complete: Boolean(profile?.website || profile?.socialLinks?.length) }, { label: "Image descriptions", complete: Boolean(profile?.avatarAlt && profile?.coverAlt) }];
+  const completion = Math.round(completionItems.filter((item) => item.complete).length / completionItems.length * 100);
+
+  const highlightSection = <Card className="mx-4 mt-6"><CardContent className="p-5"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Story highlights</h2><p className="text-xs text-muted-foreground">Keep your favorite stories on your profile.</p></div><Button size="sm" variant="outline" onClick={() => setShowHighlightCreator((value) => !value)}><Plus className="mr-1 h-4 w-4" />New</Button></div>{showHighlightCreator ? <div className="mb-5 rounded-2xl border p-4"><Input value={highlightTitle} onChange={(event) => setHighlightTitle(event.target.value)} placeholder="Highlight title" className="mb-3" /><div className="max-h-48 space-y-2 overflow-y-auto">{storyArchive.length ? storyArchive.map((story) => <label key={story.id} className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm"><input type="checkbox" checked={selectedStories.includes(story.id)} onChange={() => setSelectedStories((items) => items.includes(story.id) ? items.filter((id) => id !== story.id) : [...items, story.id])} /><img src={story.mediaUrl} alt="Story" className="h-10 w-10 rounded-lg object-cover" /><span>{(story.expiresAt?.seconds ?? 0) * 1000 < Date.now() ? "Archived story" : "Active story"}</span></label>) : <p className="text-sm text-muted-foreground">Create a story first, then save it here.</p>}</div><Button className="mt-3" size="sm" disabled={!selectedStories.length} onClick={() => void createProfileHighlight(highlightTitle, storyArchive.filter((story) => selectedStories.includes(story.id)), highlights.length).then(() => { setHighlightTitle(""); setSelectedStories([]); setShowHighlightCreator(false); })}>Create highlight</Button></div> : null}<div className="flex gap-4 overflow-x-auto pb-2">{highlights.map((highlight, index) => <div key={highlight.id} className="w-24 shrink-0 text-center"><Link href={`/highlights/${highlight.id}`}><img src={highlight.coverUrl} alt={highlight.title} className="mx-auto h-20 w-20 rounded-full border-4 object-cover" style={{ borderColor: profile?.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-sm font-medium">{highlight.title}</p></Link><div className="mt-1 flex justify-center"><button aria-label="Move left" disabled={index === 0} onClick={() => void moveProfileHighlight(highlights, highlight.id, -1)}><ChevronLeft className="h-4 w-4" /></button><button aria-label="Rename" className="px-1 text-[10px] text-muted-foreground" onClick={() => { const title = window.prompt("Rename highlight", highlight.title); if (title) void renameProfileHighlight(highlight.id, title); }}>Edit</button><button aria-label="Delete" onClick={() => void deleteProfileHighlight(highlight.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></button><button aria-label="Move right" disabled={index === highlights.length - 1} onClick={() => void moveProfileHighlight(highlights, highlight.id, 1)}><ChevronRight className="h-4 w-4" /></button></div></div>)}</div></CardContent></Card>;
 
   const primaryActions = [
     {
@@ -126,6 +172,10 @@ function ProfilePageContent() {
   ];
 
   const moreToolsLinks = [
+    { href: `/profile/${user?.uid || ""}`, label: "Public Preview", icon: Eye },
+    { href: "/profile/insights", label: "Profile Insights", icon: BarChart3 },
+    { href: "/profile/share", label: "Share & Contact Card", icon: Share2 },
+    { href: "/profile/data", label: "Profile Data", icon: Archive },
     { href: "/saved", label: "Saved", icon: Bookmark },
     { href: "/drafts", label: "Drafts", icon: Film },
     { href: "/verify", label: "Verify", icon: BadgeCheck },
@@ -146,9 +196,9 @@ function ProfilePageContent() {
     <ProtectedRoute>
       <div className="mx-auto max-w-3xl pb-20">
         <div className="px-4 pt-4">
-          <div className={`relative h-52 overflow-hidden rounded-[28px] bg-gradient-to-r ${getProfileThemeClass(profile?.profileTheme)}`}>
+          <div className={`relative h-52 overflow-hidden rounded-[28px] bg-gradient-to-r ${getProfileThemeClass(profile?.profileTheme)}`} style={profile?.accentColor ? { backgroundImage: `linear-gradient(135deg, ${profile.accentColor}, #111827)` } : undefined}>
             {profile?.coverPhotoURL ? (
-              <img src={profile.coverPhotoURL} alt="Cover" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
             ) : null}
             <div className="absolute inset-0 bg-black/25" />
           </div>
@@ -157,8 +207,8 @@ function ProfilePageContent() {
         <Card className="mx-4 -mt-14 rounded-[28px] border-border/60 shadow-lg">
           <CardContent className="space-y-6 p-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-start">
-              <Avatar className="h-28 w-28 shrink-0 ring-4 ring-background shadow-lg">
-                <AvatarImage src={user.photoURL || profile?.photoURL || ""} />
+              <Avatar className="h-28 w-28 shrink-0 shadow-lg" style={{ boxShadow: `0 0 0 4px ${highlights.length ? (profile?.accentColor || "#6366f1") : "var(--background)"}` }}>
+                <AvatarImage src={avatarUrl} alt={profile?.avatarAlt || `${profile?.displayName || "User"} profile photo`} />
                 <AvatarFallback className="bg-yellow-400 text-2xl font-bold text-yellow-950">{initials || "U"}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1 space-y-3 text-center md:pt-6 md:text-left">
@@ -168,13 +218,12 @@ function ProfilePageContent() {
                       {user.displayName || profile?.displayName || "Kinet User"}
                     </h1>
                     {profile?.verified ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <Dribbble className="h-3 w-3" />
-                        Verified
-                      </Badge>
+                      <Badge variant="secondary" className="gap-1"><BadgeCheck className="h-3 w-3 text-primary" />Verified</Badge>
                     ) : null}
                   </div>
                   <p className="text-sm text-muted-foreground">@{profile?.username || user.uid.slice(0, 8)}</p>
+                  {profile?.status ? <p className="text-sm font-medium" style={{ color: profile.accentColor }}>{profile.status}</p> : null}
+                  <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground md:justify-start">{profile?.pronouns ? <span>{profile.pronouns}</span> : null}{profile?.category ? <Badge variant="outline">{profile.category}</Badge> : null}</div>
                 </div>
 
                 {settings?.headline ? <p className="text-sm font-medium text-primary">{settings.headline}</p> : null}
@@ -182,24 +231,26 @@ function ProfilePageContent() {
                 <p className="mx-auto max-w-2xl text-sm leading-7 text-muted-foreground md:mx-0 md:text-base">
                   {profile?.bio || profile?.role?.bio || "Add a bio to tell people about yourself."}
                 </p>
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm md:justify-start">{profile?.location ? <span className="inline-flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</span> : null}{profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><Globe2 className="h-4 w-4" />Website</a> : null}{profile?.musicUrl ? <a href={profile.musicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><Music2 className="h-4 w-4" />Profile song</a> : null}{profile?.contactEmail ? <a href={`mailto:${profile.contactEmail}`} className="inline-flex items-center gap-1 text-primary"><Mail className="h-4 w-4" />Contact</a> : null}{profile?.socialLinks?.map((link) => <a key={`${link.label}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{link.label}</a>)}</div>
+                {profile?.actionButton ? <Button size="sm" asChild style={{ backgroundColor: profile.accentColor || undefined }}><a href={profile.actionButton.url} target="_blank" rel="noreferrer">{profile.actionButton.label}</a></Button> : null}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-2xl bg-muted/70 p-4 text-center">
+              <button type="button" onClick={() => void getProfilesByIds(profile?.followers ?? []).then((items) => { setConnectionTitle("Followers"); setConnectionProfiles(items); })} className="rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted">
                 <div className="text-2xl font-bold text-primary">{profile?.followers?.length ?? 0}</div>
                 <div className="text-sm text-muted-foreground">Followers</div>
-              </div>
-              <div className="rounded-2xl bg-muted/70 p-4 text-center">
+              </button>
+              <button type="button" onClick={() => void getProfilesByIds(profile?.following ?? []).then((items) => { setConnectionTitle("Following"); setConnectionProfiles(items); })} className="rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted">
                 <div className="text-2xl font-bold">{profile?.following?.length ?? 0}</div>
                 <div className="text-sm text-muted-foreground">Following</div>
-              </div>
+              </button>
               <div className="rounded-2xl bg-muted/70 p-4 text-center">
-                <div className="text-2xl font-bold">{profile?.postsCount ?? standardPosts.length}</div>
+                <div className="text-2xl font-bold">{standardPosts.length}</div>
                 <div className="text-sm text-muted-foreground">Posts</div>
               </div>
               <div className="rounded-2xl bg-muted/70 p-4 text-center">
-                <div className="text-2xl font-bold">{profile?.reelsCount ?? reelPosts.length}</div>
+                <div className="text-2xl font-bold">{reelPosts.length}</div>
                 <div className="text-sm text-muted-foreground">Reels</div>
               </div>
             </div>
@@ -219,14 +270,18 @@ function ProfilePageContent() {
               <Button
                 className="h-11 md:flex-1"
                 variant="outline"
-                onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/profile/${user.uid}`)}
+                onClick={async () => { const url = `${window.location.origin}/profile/${user.uid}`; if (navigator.share) await navigator.share({ title: user.displayName || "Kinet profile", url }); else await navigator.clipboard.writeText(url); setShared(true); window.setTimeout(() => setShared(false), 1600); }}
               >
-                <Link2 className="mr-2 h-4 w-4" />
-                Copy Profile Link
+                {shared ? <Link2 className="mr-2 h-4 w-4 text-green-600" /> : <Share2 className="mr-2 h-4 w-4" />}{shared ? "Profile shared" : "Share profile"}
               </Button>
             </div>
+            <label className="flex items-center justify-between rounded-xl border p-3 text-sm"><span><span className="block font-medium">Private account</span><span className="text-xs text-muted-foreground">Approve people before they can see your content.</span></span><input type="checkbox" checked={Boolean(profile?.settings?.privateAccount)} onChange={(event) => { const privateAccount = event.target.checked; setProfile((current) => current ? { ...current, settings: { ...current.settings, privateAccount } } : current); void setPrivateProfile(privateAccount); }} /></label>
           </CardContent>
         </Card>
+
+        {profile?.profileLayout !== "content_first" ? highlightSection : null}
+
+        {completion < 100 ? <Card className="mx-4 mt-6"><CardContent className="p-5"><div className="flex items-center justify-between"><h2 className="flex items-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-primary" />Complete your profile</h2><span className="text-sm font-semibold">{completion}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completion}%` }} /></div><div className="mt-3 flex flex-wrap gap-2">{completionItems.filter((item) => !item.complete).map((item) => <span key={item.label} className="rounded-full bg-muted px-3 py-1 text-xs">Add {item.label.toLowerCase()}</span>)}</div><Button className="mt-4" size="sm" variant="outline" asChild><Link href="/edit-profile">Improve profile</Link></Button></CardContent></Card> : null}
 
         <div className="px-4 py-4">
           <details className="group">
@@ -291,6 +346,10 @@ function ProfilePageContent() {
           </Card>
         ) : null}
 
+        {followRequests.length ? <Card className="mx-4 mt-6"><CardContent className="p-5"><h2 className="mb-3 flex items-center gap-2 font-semibold"><UserCheck className="h-4 w-4 text-primary" />Follow requests</h2><div className="space-y-2">{followRequests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-xl border p-3"><Avatar><AvatarImage src={request.requester?.photoURL || ""} /><AvatarFallback>{request.requester?.displayName?.slice(0, 1) || "U"}</AvatarFallback></Avatar><Link href={`/profile/${request.requesterId}`} className="min-w-0 flex-1"><p className="truncate font-medium">{request.requester?.displayName || "Kinet user"}</p><p className="truncate text-xs text-muted-foreground">@{request.requester?.username || request.requesterId.slice(0, 8)}</p></Link><Button size="sm" onClick={() => void respondToFollowRequest(request, true)}>Accept</Button><Button size="sm" variant="outline" onClick={() => void respondToFollowRequest(request, false)}>Delete</Button></div>)}</div></CardContent></Card> : null}
+
+        {suggestions.length ? <Card className="mx-4 mt-6"><CardContent className="p-5"><h2 className="mb-3 font-semibold">People you may know</h2><div className="flex gap-3 overflow-x-auto pb-2">{suggestions.map((suggestion) => <Link key={suggestion.uid} href={`/profile/${suggestion.uid}`} className="min-w-40 rounded-2xl border p-4 text-center hover:bg-muted/40"><Avatar className="mx-auto h-14 w-14"><AvatarImage src={suggestion.photoURL} /><AvatarFallback>{suggestion.displayName.slice(0, 1)}</AvatarFallback></Avatar><p className="mt-2 truncate text-sm font-medium">{suggestion.displayName}</p><p className="truncate text-xs text-muted-foreground">@{suggestion.username || suggestion.uid.slice(0, 8)}</p></Link>)}</div></CardContent></Card> : null}
+
         <div className="grid gap-6 px-4">
           {settings?.pinnedPosts?.length ? (
             <Card>
@@ -335,39 +394,16 @@ function ProfilePageContent() {
                   <Film className="h-4 w-4 text-primary" />
                   <h2 className="font-semibold">Your Content</h2>
                 </div>
-                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted p-1">
-                  <button
-                    type="button"
-                    onClick={() => setContentView("posts")}
-                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      contentView === "posts" ? "bg-background shadow-sm" : "text-muted-foreground"
-                    }`}
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                    Posts
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setContentView("reels")}
-                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      contentView === "reels" ? "bg-background shadow-sm" : "text-muted-foreground"
-                    }`}
-                  >
-                    <PlaySquare className="h-4 w-4" />
-                    Reels
-                  </button>
-                </div>
+                <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1">{([{ id: "posts", label: "Posts", icon: Grid3X3 }, { id: "reels", label: "Videos", icon: PlaySquare }, { id: "reposts", label: "Reposts", icon: Repeat2 }, { id: "tagged", label: "Tagged", icon: Tag }] as const).map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => { setContentView(tab.id); setVisibleCount(12); }} className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium ${contentView === tab.id ? "bg-background shadow-sm" : "text-muted-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div>
               </div>
 
               {visibleContent.length === 0 ? (
                 <div className="rounded-2xl border border-dashed p-8 text-center">
                   <p className="font-medium">
-                    {contentView === "reels" ? "No reels yet" : "No posts yet"}
+                    {contentView === "reels" ? "No videos yet" : contentView === "reposts" ? "No reposts yet" : contentView === "tagged" ? "No tagged posts yet" : "No posts yet"}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {contentView === "reels"
-                      ? "Upload a reel and it will appear here on your profile."
-                      : "Create a post and it will appear here on your profile."}
+                    {contentView === "tagged" ? "Posts that mention or tag you will appear here." : `Your ${contentView} will appear here.`}
                   </p>
                   <Button className="mt-4" asChild>
                     <Link href={contentView === "reels" ? "/upload" : "/upload"}>
@@ -415,7 +451,7 @@ function ProfilePageContent() {
                           <span className="text-sm font-semibold">{post.likes.length}</span>
                         </span>
                       </button>
-                      <details className="absolute right-2 top-2 z-20">
+                      {post.userId === user.uid ? <details className="absolute right-2 top-2 z-20">
                         <summary className="flex list-none items-center justify-center rounded-full bg-black/60 p-2 text-white marker:hidden">
                           <Ellipsis className="h-4 w-4" />
                         </summary>
@@ -449,14 +485,17 @@ function ProfilePageContent() {
                             Delete
                           </button>
                         </div>
-                      </details>
+                      </details> : null}
                     </div>
                   ))}
                 </div>
               )}
+              {visibleContent.length < (contentView === "reels" ? reelPosts : contentView === "reposts" ? reposts : contentView === "tagged" ? taggedPosts : standardPosts).length ? <div className="mt-5 text-center"><Button variant="outline" onClick={() => setVisibleCount((count) => count + 12)}>Load more</Button></div> : null}
             </CardContent>
           </Card>
         </div>
+        {profile?.profileLayout === "content_first" ? highlightSection : null}
+        {connectionTitle ? <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setConnectionTitle("")}><div className="max-h-[70vh] w-full max-w-md overflow-y-auto rounded-3xl bg-background p-5" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">{connectionTitle}</h2><Button variant="ghost" size="sm" onClick={() => setConnectionTitle("")}>Close</Button></div>{connectionProfiles.length ? <div className="space-y-2">{connectionProfiles.map((item) => <div key={item.uid} className="flex items-center gap-3 rounded-xl border p-3"><Avatar><AvatarImage src={item.photoURL} /><AvatarFallback>{item.displayName.slice(0, 1)}</AvatarFallback></Avatar><Link href={`/profile/${item.uid}`} className="min-w-0 flex-1" onClick={() => setConnectionTitle("")}><p className="truncate font-medium">{item.displayName}</p><p className="truncate text-xs text-muted-foreground">@{item.username || item.uid.slice(0, 8)}</p></Link>{connectionTitle === "Followers" ? <Button size="sm" variant="outline" onClick={() => void removeFollower(item.uid).then(() => setConnectionProfiles((current) => current.filter((profileItem) => profileItem.uid !== item.uid)))}><UserX className="mr-1 h-4 w-4" />Remove</Button> : null}</div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">No people to show.</p>}</div></div> : null}
       </div>
     </ProtectedRoute>
   );

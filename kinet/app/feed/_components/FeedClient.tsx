@@ -1,482 +1,66 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { Virtuoso } from "react-virtuoso";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Bookmark, Check, ChevronLeft, ChevronRight, Copy, Heart, ImagePlus, MessageCircle, RefreshCw, Repeat2, Send, Share2 } from "lucide-react";
+import { useAuthContext } from "@/components/AuthProvider";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar } from "@/components/ui/avatar";
-import {
-  Heart,
-  MessageCircle,
-  Repeat2,
-  Share2,
-  Bookmark,
-  ImagePlus,
-  MoreHorizontal,
-  TrendingUp,
-  Users,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import Image from "next/image";
-import { auth } from "@/lib/firebase";
-import { useAuthContext } from "@/components/AuthProvider";
+import { addPostComment, createPost, deletePostComment, editPostComment, formatTimeAgo, quotePost, recordPostShare, repostPost, subscribeToComments, subscribeToFeed, toggleCommentReaction, togglePinnedComment, togglePollVote, togglePostLike, toggleSavePost, type FeedPost, type PostComment } from "@/lib/posts";
+import { getCurrentUserProfile } from "@/lib/user-profile";
 
-async function getAuthHeaders() {
-  if (!auth?.currentUser) {
-    return {};
-  }
-  const idToken = await auth.currentUser.getIdToken();
-  return idToken ? { Authorization: `Bearer ${idToken}` } : {};
+type FeedMode = "for_you" | "following" | "latest";
+
+function modeReason(followingAuthor: boolean, post: FeedPost) {
+  const reason = followingAuthor ? "Because you follow this creator" : post.likes.length + post.commentsCount > 5 ? "Popular on Kinet" : post.hashtags[0] ? `Recommended in #${post.hashtags[0]}` : "Recommended for you";
+  return <p className="mt-1 text-[11px] text-muted-foreground">{reason}</p>;
 }
 
-async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
-  const authHeaders = await getAuthHeaders();
-  const headers = new Headers(init.headers ?? {});
-
-  Object.entries(authHeaders).forEach(([key, value]) => {
-    if (value) {
-      headers.set(key, value);
-    }
-  });
-
-  return fetch(input, {
-    ...init,
-    headers,
-  });
+function Comments({ post }: { post: FeedPost }) {
+  const { user } = useAuthContext(); const [comments, setComments] = useState<PostComment[]>([]); const [text, setText] = useState(""); const [sending, setSending] = useState(false); const [replyTo, setReplyTo] = useState<PostComment | null>(null); const [sort, setSort] = useState<"top" | "newest">("top");
+  useEffect(() => subscribeToComments(post.id, setComments), [post.id]);
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!text.trim()) return; setSending(true); try { await addPostComment(post.id, text, replyTo?.id); setText(""); setReplyTo(null); } finally { setSending(false); } };
+  const reactionCount = (comment: PostComment) => Object.values(comment.reactions || {}).reduce((sum, users) => sum + users.length, 0); const roots = comments.filter((comment) => !comment.parentCommentId).sort((a, b) => a.pinned ? -1 : b.pinned ? 1 : sort === "newest" ? (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0) : reactionCount(b) - reactionCount(a));
+  const commentRow = (comment: PostComment, nested = false) => <div key={comment.id} className={`flex gap-2 ${nested ? "ml-10" : ""}`}><Avatar className="h-8 w-8"><AvatarImage src={comment.author.avatar} alt="" /><AvatarFallback>{comment.author.name.slice(0, 1)}</AvatarFallback></Avatar><div className="min-w-0"><div className={`rounded-2xl px-3 py-2 text-sm ${comment.pinned ? "border border-primary/40 bg-primary/5" : "bg-muted"}`}><p className="font-medium">{comment.author.name}{comment.pinned ? <span className="ml-2 text-[10px] text-primary">Pinned</span> : null}</p><p>{comment.text}{comment.editedAt ? <span className="ml-1 text-[10px] text-muted-foreground">edited</span> : null}</p></div><div className="ml-2 mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground"><button onClick={() => { setReplyTo(comment); setText(`@${comment.author.username.replace(/^@/, "")} `); }}>Reply</button>{["❤️","😂","👏"].map((emoji) => <button key={emoji} onClick={() => void toggleCommentReaction(comment.id, emoji)}>{emoji}{comment.reactions?.[emoji]?.length || ""}</button>)}{comment.userId === user?.uid ? <><button onClick={() => { const next = window.prompt("Edit comment", comment.text); if (next) void editPostComment(comment.id, next); }}>Edit</button><button onClick={() => void deletePostComment(comment.id, post.id)}>Delete</button></> : null}{post.userId === user?.uid ? <button onClick={() => void togglePinnedComment(comment.id, Boolean(comment.pinned))}>{comment.pinned ? "Unpin" : "Pin"}</button> : null}</div></div></div>;
+  return <div className="mt-4 space-y-3 border-t pt-4"><div className="flex justify-end"><select value={sort} onChange={(event) => setSort(event.target.value as "top" | "newest")} className="rounded-md border bg-background px-2 py-1 text-xs"><option value="top">Top comments</option><option value="newest">Newest</option></select></div>{replyTo ? <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-xs"><span>Replying to {replyTo.author.name}</span><button onClick={() => setReplyTo(null)}>Cancel</button></div> : null}<form onSubmit={submit} className="flex gap-2"><input value={text} onChange={(event) => setText(event.target.value)} maxLength={500} placeholder="Write a comment…" className="h-10 flex-1 rounded-full border bg-background px-4 text-sm" /><Button size="icon" type="submit" disabled={sending || !text.trim()} aria-label="Send comment"><Send className="h-4 w-4" /></Button></form>{roots.map((comment) => <div key={comment.id} className="space-y-2">{commentRow(comment)}{comments.filter((reply) => reply.parentCommentId === comment.id).reverse().map((reply) => commentRow(reply, true))}</div>)}</div>;
 }
 
-interface Post {
-  id: string;
-  content: string;
-  mediaUrl?: string;
-  mediaType?: string;
-  author: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarUrl?: string;
-  };
-  likes: string[];
-  comments: number;
-  reposts: number;
-  shares: number;
-  saves: string[];
-  createdAt: string;
-  currentUserLiked: boolean;
-  currentUserSaved: boolean;
+function RichCaption({ text }: { text: string }) {
+  return <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 sm:text-base">{text.split(/(https?:\/\/\S+|#[a-z0-9_]+|@[a-z0-9_]+)/gi).map((part, index) => part.startsWith("http") ? <a key={index} href={part} target="_blank" rel="noreferrer" className="text-primary hover:underline">{part}</a> : part.startsWith("#") ? <Link key={index} href={`/topics/${part.slice(1)}`} className="text-primary hover:underline">{part}</Link> : <span key={index}>{part}</span>)}</p>;
 }
 
-interface FeedResponse {
-  posts: Post[];
-  nextCursor?: string;
-  hasMore: boolean;
+function PostMedia({ post }: { post: FeedPost }) {
+  const items = post.mediaItems?.length ? post.mediaItems : post.mediaUrl ? [{ url: post.mediaUrl, type: post.mediaType }] : [];
+  const dataSaver = typeof window !== "undefined" && localStorage.getItem("kinet-data-saver") === "true";
+  if (dataSaver && items.length) return <div className="mt-3 rounded-2xl border bg-muted p-6 text-center"><p className="text-sm font-medium">Media hidden in low-data mode</p><Button className="mt-2" size="sm" variant="outline" onClick={() => { localStorage.setItem("kinet-data-saver", "false"); window.location.reload(); }}>Load media</Button></div>;
+  const [index, setIndex] = useState(0); const [revealed, setRevealed] = useState(false); const item = items[index]; if (post.sensitive && !revealed) return <div className="mt-3 rounded-2xl border bg-muted p-8 text-center"><p className="font-semibold">{post.contentWarning || "Sensitive content"}</p><p className="mt-1 text-sm text-muted-foreground">This post may contain content some people prefer not to see.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => setRevealed(true)}>Show post</Button></div>; if (!item) return null;
+  return <div className="relative mt-3 overflow-hidden rounded-2xl bg-black">{item.type === "video" ? <video src={item.url} controls playsInline preload="metadata" className="max-h-[620px] w-full object-contain" /> : <img src={item.url} alt={post.accessibilityLabel || `Post by ${post.author.name}`} loading="lazy" className="max-h-[620px] w-full object-cover" />}{items.length > 1 ? <><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-xs text-white">{index + 1}/{items.length}</span><button aria-label="Previous media" disabled={index === 0} onClick={() => setIndex((value) => value - 1)} className="absolute left-2 top-1/2 rounded-full bg-black/60 p-2 text-white disabled:hidden"><ChevronLeft className="h-5 w-5" /></button><button aria-label="Next media" disabled={index === items.length - 1} onClick={() => setIndex((value) => value + 1)} className="absolute right-2 top-1/2 rounded-full bg-black/60 p-2 text-white disabled:hidden"><ChevronRight className="h-5 w-5" /></button></> : null}</div>;
 }
 
-async function fetchFeed({
-  pageParam = null,
-  signal,
-}: {
-  pageParam: string | null;
-  signal?: AbortSignal;
-}): Promise<FeedResponse> {
-  const url = new URL("/api/feed", window.location.origin);
-  if (pageParam) {
-    url.searchParams.set("cursor", pageParam);
-  }
-
-  const response = await fetchWithAuth(url.toString(), { signal });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch feed");
-  }
-
-  return response.json();
+function FeedPostCard({ post, userId }: { post: FeedPost; userId: string }) {
+  const [commentsOpen, setCommentsOpen] = useState(false); const [liked, setLiked] = useState(post.likes.includes(userId)); const [saved, setSaved] = useState(post.saves.includes(userId)); const [likeCount, setLikeCount] = useState(post.likes.length); const [shared, setShared] = useState(false); const [quoteOpen, setQuoteOpen] = useState(false); const [quote, setQuote] = useState("");
+  const [hidden, setHidden] = useState(() => typeof window !== "undefined" && JSON.parse(localStorage.getItem("kinet-hidden-feed-posts") || "[]").includes(post.id)); const followingAuthor = false; const onHide = () => { const current = JSON.parse(localStorage.getItem("kinet-hidden-feed-posts") || "[]") as string[]; localStorage.setItem("kinet-hidden-feed-posts", JSON.stringify(Array.from(new Set([...current, post.id])))); setHidden(true); };
+  useEffect(() => { setLiked(post.likes.includes(userId)); setLikeCount(post.likes.length); setSaved(post.saves.includes(userId)); }, [post.likes, post.saves, userId]);
+  const like = () => { const previous = liked; setLiked(!previous); setLikeCount((count) => count + (previous ? -1 : 1)); void togglePostLike(post.id, previous).catch(() => { setLiked(previous); setLikeCount((count) => count + (previous ? 1 : -1)); }); };
+  const save = () => { const previous = saved; setSaved(!previous); void toggleSavePost(post.id, previous).catch(() => setSaved(previous)); };
+  const share = async () => { const url = `${window.location.origin}/post/${post.id}`; if (navigator.share) await navigator.share({ title: `${post.author.name} on Kinet`, text: post.caption, url }); else await navigator.clipboard.writeText(url); await recordPostShare(post.id); setShared(true); window.setTimeout(() => setShared(false), 1500); };
+  const pollTotal = post.poll?.options.reduce((sum, option) => sum + option.votes.length, 0) || 0;
+  if (hidden) return null;
+  return <Card className="overflow-hidden"><CardContent className="p-4 sm:p-5"><div className="flex gap-3"><Link href={`/profile/${post.userId}`}><Avatar><AvatarImage src={post.author.avatar} alt={`${post.author.name} profile photo`} /><AvatarFallback>{post.author.name.slice(0, 1)}</AvatarFallback></Avatar></Link><div className="min-w-0 flex-1"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><Link href={`/profile/${post.userId}`} className="font-semibold hover:underline">{post.author.name}</Link><span className="ml-2 text-sm text-muted-foreground">{post.author.username} · {formatTimeAgo(post.createdAt)}</span></div><button onClick={onHide} className="text-xs text-muted-foreground hover:text-foreground">Not interested</button></div>{modeReason(followingAuthor, post)}{post.postType === "qa" && post.questionPrompt ? <p className="mt-3 rounded-xl bg-primary/10 p-3 font-medium">Q: {post.questionPrompt}</p> : null}<RichCaption text={post.caption} /><PostMedia post={post} />{post.poll?.options.length ? <div className="mt-4 space-y-2">{post.poll.options.map((option, optionIndex) => { const selected = option.votes.includes(userId); const percent = pollTotal ? Math.round(option.votes.length / pollTotal * 100) : 0; return <button key={optionIndex} onClick={() => void togglePollVote(post.id, optionIndex)} className={`relative flex w-full overflow-hidden rounded-xl border p-3 text-left text-sm ${selected ? "border-primary" : ""}`}><span className="absolute inset-y-0 left-0 bg-primary/15" style={{ width: `${percent}%` }} /><span className="relative flex-1">{option.label}</span><span className="relative">{percent}%</span></button>; })}<p className="text-xs text-muted-foreground">{pollTotal} vote{pollTotal === 1 ? "" : "s"}</p></div> : null}<div className="mt-3 flex items-center justify-between"><button onClick={like} className={liked ? "p-2 text-red-500" : "p-2 text-muted-foreground"}><Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />{likeCount}</button><button onClick={() => setCommentsOpen((value) => !value)} className="flex gap-1 p-2 text-muted-foreground"><MessageCircle className="h-5 w-5" />{post.commentsCount}</button><button onClick={() => void repostPost(post.id)} className="flex gap-1 p-2 text-muted-foreground"><Repeat2 className="h-5 w-5" />{post.shares}</button><button onClick={() => setQuoteOpen((value) => !value)} className="p-2 text-muted-foreground"><Copy className="h-5 w-5" /></button><button onClick={() => void share()} className="p-2 text-muted-foreground">{shared ? <Check className="h-5 w-5 text-green-600" /> : <Share2 className="h-5 w-5" />}</button><button onClick={save} className={saved ? "p-2 text-primary" : "p-2 text-muted-foreground"}><Bookmark className={`h-5 w-5 ${saved ? "fill-current" : ""}`} /></button></div>{quoteOpen ? <div className="mt-3 flex gap-2"><input value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="Add your thoughts…" className="h-10 flex-1 rounded-full border px-4 text-sm" /><Button size="sm" disabled={!quote.trim()} onClick={() => void quotePost(post.id, quote).then(() => { setQuote(""); setQuoteOpen(false); })}>Quote</Button></div> : null}{commentsOpen ? <Comments post={post} /> : null}</div></div></CardContent></Card>;
+  return <Card className="overflow-hidden"><CardContent className="p-4 sm:p-5"><div className="flex gap-3"><Link href={`/profile/${post.userId}`}><Avatar><AvatarImage src={post.author.avatar} alt={`${post.author.name} profile photo`} /><AvatarFallback>{post.author.name.slice(0, 1)}</AvatarFallback></Avatar></Link><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2"><Link href={`/profile/${post.userId}`} className="font-semibold hover:underline">{post.author.name}</Link><span className="text-sm text-muted-foreground">{post.author.username}</span><span className="text-xs text-muted-foreground">· {formatTimeAgo(post.createdAt)}</span></div>{post.originalPostId ? <p className="mt-1 text-xs text-primary"><Repeat2 className="mr-1 inline h-3 w-3" />Reposted</p> : null}<p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 sm:text-base">{post.caption}</p>{post.mediaUrl ? post.mediaType === "video" ? <video src={post.mediaUrl} controls playsInline preload="metadata" className="mt-3 max-h-[620px] w-full rounded-2xl bg-black object-contain" /> : <img src={post.mediaUrl} alt={post.accessibilityLabel || `Post by ${post.author.name}`} loading="lazy" className="mt-3 max-h-[620px] w-full rounded-2xl object-cover" /> : null}<div className="mt-3 flex items-center justify-between"><button onClick={like} aria-label={liked ? "Unlike post" : "Like post"} className={`flex items-center gap-1.5 rounded-full p-2 text-sm ${liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}><Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />{likeCount}</button><button onClick={() => setCommentsOpen((value) => !value)} className="flex items-center gap-1.5 rounded-full p-2 text-sm text-muted-foreground hover:text-primary"><MessageCircle className="h-5 w-5" />{post.commentsCount}</button><button onClick={() => void repostPost(post.id)} className="flex items-center gap-1.5 rounded-full p-2 text-sm text-muted-foreground hover:text-green-600"><Repeat2 className="h-5 w-5" />{post.shares}</button><button onClick={() => setQuoteOpen((value) => !value)} aria-label="Quote post" className="rounded-full p-2 text-muted-foreground hover:text-primary"><Copy className="h-5 w-5" /></button><button onClick={() => void share()} aria-label="Share post" className="rounded-full p-2 text-muted-foreground hover:text-primary">{shared ? <Check className="h-5 w-5 text-green-600" /> : <Share2 className="h-5 w-5" />}</button><button onClick={save} aria-label={saved ? "Remove bookmark" : "Save post"} className={`rounded-full p-2 ${saved ? "text-primary" : "text-muted-foreground hover:text-primary"}`}><Bookmark className={`h-5 w-5 ${saved ? "fill-current" : ""}`} /></button></div>{quoteOpen ? <div className="mt-3 flex gap-2"><input value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="Add your thoughts…" className="h-10 flex-1 rounded-full border bg-background px-4 text-sm" /><Button size="sm" disabled={!quote.trim()} onClick={() => void quotePost(post.id, quote).then(() => { setQuote(""); setQuoteOpen(false); })}>Quote</Button></div> : null}{commentsOpen ? <Comments post={post} /> : null}</div></div></CardContent></Card>;
 }
 
 export default function FeedClient() {
-  const { user } = useAuthContext();
-  const [newPostContent, setNewPostContent] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    refetch,
-  } = useInfiniteQuery({
-    queryKey: ["feed"],
-    queryFn: fetchFeed,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialPageParam: null,
-  });
-
-  const posts = data?.pages.flatMap((page) => page.posts) ?? [];
-
-  const handleCreatePost = async () => {
-    if (!newPostContent.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetchWithAuth("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newPostContent }),
-      });
-
-      if (!response.ok) throw new Error("Failed to create post");
-
-      setNewPostContent("");
-      refetch();
-    } catch (error) {
-      console.error("Error creating post:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleLike = async (postId: string, hasLiked: boolean) => {
-    // Optimistic update
-    // Implementation would update the cache immediately
-    try {
-      await fetchWithAuth("/api/posts/like", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, action: hasLiked ? "unlike" : "like" }),
-      });
-      refetch();
-    } catch (error) {
-      console.error("Error toggling like:", error);
-    }
-  };
-
-  const handleSave = async (postId: string, isSaved: boolean) => {
-    try {
-      await fetchWithAuth("/api/posts/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, action: isSaved ? "unsave" : "save" }),
-      });
-      refetch();
-    } catch (error) {
-      console.error("Error toggling save:", error);
-    }
-  };
-
-  const handleRepost = async (postId: string) => {
-    try {
-      await fetchWithAuth("/api/posts/repost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId }),
-      });
-      refetch();
-    } catch (error) {
-      console.error("Error reposting:", error);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-cyan-400" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Sidebar - Navigation */}
-        <aside className="hidden lg:block lg:col-span-3">
-          <Card className="sticky top-6 border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <nav className="space-y-2">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-white hover:bg-cyan-500/10"
-                >
-                  <TrendingUp className="h-5 w-5 text-cyan-400" />
-                  <span className="font-semibold">Home</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-gray-300 hover:bg-cyan-500/10 hover:text-white"
-                >
-                  <Users className="h-5 w-5" />
-                  <span>Profile</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-gray-300 hover:bg-cyan-500/10 hover:text-white"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span>Messages</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-gray-300 hover:bg-cyan-500/10 hover:text-white"
-                >
-                  <Bookmark className="h-5 w-5" />
-                  <span>Bookmarks</span>
-                </Button>
-              </nav>
-            </CardContent>
-          </Card>
-        </aside>
-
-        {/* Center Column - Feed */}
-        <main className="col-span-1 lg:col-span-6">
-          {/* Post Creation */}
-          <Card className="mb-6 border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex gap-3">
-                <Avatar className="h-10 w-10">
-                  {user?.photoURL ? (
-                    <Image
-                      src={user.photoURL}
-                      alt={user.displayName || "User"}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-400 to-blue-600 text-white">
-                      {user?.displayName?.charAt(0).toUpperCase() || "U"}
-                    </div>
-                  )}
-                </Avatar>
-                <div className="flex-1">
-                  <Textarea
-                    placeholder="What's happening?"
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    className="min-h-[80px] resize-none border-cyan-500/20 bg-white/5 text-white placeholder:text-gray-400 focus:border-cyan-400"
-                  />
-                  <div className="mt-3 flex items-center justify-between">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-cyan-400 hover:text-cyan-300"
-                    >
-                      <ImagePlus className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      onClick={handleCreatePost}
-                      disabled={!newPostContent.trim() || isSubmitting}
-                      className="bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700"
-                    >
-                      {isSubmitting ? "Posting..." : "Post"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Posts Feed */}
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <Card
-                key={post.id}
-                className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 backdrop-blur-sm transition-all hover:border-cyan-400/40"
-              >
-                <CardContent className="p-4">
-                  <div className="flex gap-3">
-                    <Avatar className="h-10 w-10">
-                      {post.author.avatarUrl ? (
-                        <Image
-                          src={post.author.avatarUrl}
-                          alt={post.author.displayName}
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-400 to-blue-600 text-white">
-                          {post.author.displayName[0]}
-                        </div>
-                      )}
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">
-                          {post.author.displayName}
-                        </span>
-                        <span className="text-sm text-gray-400">
-                          @{post.author.username}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          · {formatDistanceToNow(new Date(post.createdAt))}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-gray-200">{post.content}</p>
-                      {post.mediaUrl && (
-                        <div className="mt-3 overflow-hidden rounded-lg">
-                          <Image
-                            src={post.mediaUrl}
-                            alt="Post media"
-                            width={600}
-                            height={400}
-                            className="w-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="mt-3 flex items-center gap-6">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleLike(post.id, post.currentUserLiked)}
-                          className={`gap-2 ${
-                            post.currentUserLiked
-                              ? "text-red-400"
-                              : "text-gray-400 hover:text-red-400"
-                          }`}
-                        >
-                          <Heart
-                            className={`h-5 w-5 ${
-                              post.currentUserLiked ? "fill-current" : ""
-                            }`}
-                          />
-                          <span className="text-sm">{post.likes.length}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-2 text-gray-400 hover:text-cyan-400"
-                        >
-                          <MessageCircle className="h-5 w-5" />
-                          <span className="text-sm">{post.comments}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRepost(post.id)}
-                          className="gap-2 text-gray-400 hover:text-green-400"
-                        >
-                          <Repeat2 className="h-5 w-5" />
-                          <span className="text-sm">{post.reposts}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-2 text-gray-400 hover:text-cyan-400"
-                        >
-                          <Share2 className="h-5 w-5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleSave(post.id, post.currentUserSaved)}
-                          className={`gap-2 ${
-                            post.currentUserSaved
-                              ? "text-cyan-400"
-                              : "text-gray-400 hover:text-cyan-400"
-                          }`}
-                        >
-                          <Bookmark
-                            className={`h-5 w-5 ${
-                              post.currentUserSaved ? "fill-current" : ""
-                            }`}
-                          />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {hasNextPage && (
-              <div className="flex justify-center py-4">
-                <Button
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                  variant="outline"
-                  className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
-                >
-                  {isFetchingNextPage ? "Loading..." : "Load More"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </main>
-
-        {/* Right Sidebar - Trending & Suggestions */}
-        <aside className="hidden lg:block lg:col-span-3">
-          <div className="sticky top-6 space-y-4">
-            {/* Trending */}
-            <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <h3 className="mb-4 flex items-center gap-2 font-semibold text-white">
-                  <TrendingUp className="h-5 w-5 text-cyan-400" />
-                  Trending
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    { tag: "#TechInnovation", posts: "12.5K" },
-                    { tag: "#CreativeArts", posts: "8.3K" },
-                    { tag: "#FitnessMotivation", posts: "15.2K" },
-                    { tag: "#WebDevelopment", posts: "6.7K" },
-                    { tag: "#DesignThinking", posts: "4.2K" },
-                  ].map((trend) => (
-                    <div
-                      key={trend.tag}
-                      className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-cyan-500/10"
-                    >
-                      <p className="text-sm font-medium text-cyan-400">
-                        {trend.tag}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {trend.posts} posts
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Who to Follow */}
-            <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <h3 className="mb-4 flex items-center gap-2 font-semibold text-white">
-                  <Users className="h-5 w-5 text-cyan-400" />
-                  Who to Follow
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    { name: "Tech Daily", username: "@techdaily" },
-                    { name: "Design Hub", username: "@designhub" },
-                    { name: "Code Masters", username: "@codemasters" },
-                  ].map((user) => (
-                    <div
-                      key={user.username}
-                      className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-cyan-500/10"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {user.name}
-                        </p>
-                        <p className="text-xs text-gray-400">{user.username}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
-                      >
-                        Follow
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
+  const { user } = useAuthContext(); const [posts, setPosts] = useState<FeedPost[]>([]); const [following, setFollowing] = useState<string[]>([]); const [mode, setMode] = useState<FeedMode>("for_you"); const [visibleCount, setVisibleCount] = useState(10); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [caption, setCaption] = useState(""); const [file, setFile] = useState<File | null>(null); const [posting, setPosting] = useState(false); const loadMoreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (!user) return; void getCurrentUserProfile().then((profile) => setFollowing(Array.isArray(profile?.following) ? profile.following as string[] : [])); return subscribeToFeed((items) => { setPosts(items); setLoading(false); setError(""); }, (cause) => { setError(cause.message); setLoading(false); }); }, [user]);
+  useEffect(() => { try { const cached = JSON.parse(localStorage.getItem("kinet-feed-cache") || "[]") as FeedPost[]; if (cached.length) { setPosts((current) => current.length ? current : cached); setLoading(false); } } catch { /* ignore damaged cache */ } }, []);
+  useEffect(() => { if (posts.length) localStorage.setItem("kinet-feed-cache", JSON.stringify(posts.slice(0, 30))); }, [posts]);
+  useEffect(() => { const node = loadMoreRef.current; if (!node) return; const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setVisibleCount((count) => Math.min(count + 10, posts.length)); }, { rootMargin: "300px" }); observer.observe(node); return () => observer.disconnect(); }, [posts.length]);
+  useEffect(() => { const savedPosition = Number(sessionStorage.getItem("kinet-feed-scroll") || 0); requestAnimationFrame(() => window.scrollTo({ top: savedPosition })); const remember = () => sessionStorage.setItem("kinet-feed-scroll", String(window.scrollY)); window.addEventListener("scroll", remember, { passive: true }); return () => window.removeEventListener("scroll", remember); }, []);
+  const filtered = useMemo(() => { const items = mode === "following" ? posts.filter((post) => following.includes(post.userId) || post.userId === user?.uid) : [...posts]; return mode === "latest" ? items.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)) : items; }, [following, mode, posts, user?.uid]);
+  const submit = async () => { if ((!caption.trim() && !file) || posting) return; setPosting(true); try { await createPost({ caption, file, contentType: "post" }); setCaption(""); setFile(null); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create post."); } finally { setPosting(false); } };
+  if (loading) return <div className="mx-auto max-w-2xl space-y-4 px-4 py-8">{[1,2,3].map((item) => <div key={item} className="h-56 animate-pulse rounded-3xl bg-muted" />)}</div>;
+  return <main className="mx-auto max-w-2xl space-y-5 px-3 py-6 sm:px-4"><div className="sticky top-0 z-20 -mx-3 flex items-center gap-2 overflow-x-auto border-b bg-background/90 px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4">{([{ id: "for_you", label: "For You" }, { id: "following", label: "Following" }, { id: "latest", label: "Latest" }] as const).map((tab) => <Button key={tab.id} size="sm" variant={mode === tab.id ? "default" : "ghost"} onClick={() => { setMode(tab.id); setVisibleCount(10); }}>{tab.label}</Button>)}<Button size="sm" variant="ghost" className="ml-auto" onClick={() => window.location.reload()}><RefreshCw className="mr-1 h-4 w-4" />Refresh</Button></div><Card><CardContent className="p-4"><div className="flex gap-3"><Avatar><AvatarImage src={user?.photoURL || ""} alt="Your profile photo" /><AvatarFallback>{user?.displayName?.slice(0,1) || "U"}</AvatarFallback></Avatar><div className="flex-1"><Textarea value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={2000} placeholder="What’s happening?" className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0" /><div className="flex items-center justify-between border-t pt-3"><label className="cursor-pointer rounded-full p-2 text-primary hover:bg-muted"><ImagePlus className="h-5 w-5" /><input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>{file ? <span className="max-w-40 truncate text-xs text-muted-foreground">{file.name}</span> : null}<Button onClick={() => void submit()} disabled={posting || (!caption.trim() && !file)}>{posting ? "Posting…" : "Post"}</Button></div></div></div></CardContent></Card>{error ? <Card className="border-destructive/40"><CardContent className="flex items-center justify-between p-4"><p className="text-sm text-destructive">{error}</p><Button size="sm" variant="outline" onClick={() => window.location.reload()}>Retry</Button></CardContent></Card> : null}{!filtered.length ? <Card><CardContent className="py-14 text-center"><p className="font-semibold">{mode === "following" ? "Follow people to build your feed" : "No posts yet"}</p><p className="mt-1 text-sm text-muted-foreground">New posts will appear here in real time.</p></CardContent></Card> : filtered.slice(0, visibleCount).map((post) => <FeedPostCard key={post.id} post={post} userId={user?.uid || ""} />)}<div ref={loadMoreRef} className="h-8 text-center text-xs text-muted-foreground">{visibleCount < filtered.length ? "Loading more…" : filtered.length ? "You’re all caught up" : ""}</div></main>;
 }

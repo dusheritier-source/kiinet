@@ -20,7 +20,7 @@ export interface ReportRecord {
   id: string;
   reporterId: string;
   targetId: string;
-  targetType: "user" | "post" | "comment";
+  targetType: "user" | "post" | "comment" | "message" | "conversation";
   reason: string;
   details: string;
   status?: "open" | "resolved" | "dismissed";
@@ -35,7 +35,7 @@ type ListenerCleanup = () => void;
 
 export async function reportEntity(input: {
   targetId: string;
-  targetType: "user" | "post" | "comment";
+  targetType: "user" | "post" | "comment" | "message" | "conversation";
   reason: string;
   details?: string;
 }) {
@@ -201,6 +201,7 @@ export async function reviewReport(reportId: string, status: "resolved" | "dismi
     throw new Error("You must be signed in.");
   }
 
+  const reportSnapshot = await getDoc(doc(db, "reports", reportId));
   await setDoc(
     doc(db, "reports", reportId),
     {
@@ -218,6 +219,7 @@ export async function reviewReport(reportId: string, status: "resolved" | "dismi
     targetId: reportId,
     summary: `${status === "resolved" ? "Resolved" : "Dismissed"} report ${reportId}.`,
   });
+  if (reportSnapshot.exists()) await createNotification({ type: "report_update", recipientId: String(reportSnapshot.data().reporterId ?? ""), actorId: auth.currentUser.uid, actorName: "Kinet Safety", actorAvatar: "", message: `Your report was ${status}.${resolutionNote.trim() ? ` ${resolutionNote.trim()}` : ""}`, targetUrl: "/notifications" });
 }
 
 export async function escalateReport(reportId: string, escalationReason: string) {

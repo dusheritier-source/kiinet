@@ -8,12 +8,14 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
 
 import { uploadToFirebaseStorage } from "@/lib/storage";
 import { auth, db } from "@/lib/firebase";
+import { createNotification } from "@/lib/notifications";
 
 export interface StoryItem {
   id: string;
@@ -152,4 +154,20 @@ export async function markStorySeen(storyId: string) {
     },
     { merge: true }
   );
+}
+
+export async function reactToStory(storyId: string, emoji: string) {
+  if (!auth.currentUser || !db) throw new Error("You must be signed in.");
+  const firestore = db;
+  const story = await runTransaction(firestore, async (transaction) => {
+    const storyRef = doc(firestore, "stories", storyId);
+    const snapshot = await transaction.get(storyRef);
+    if (!snapshot.exists()) throw new Error("Story not found.");
+    const data = snapshot.data() as Record<string, unknown>;
+    const reactions = (data.reactions as Record<string, string[]> | undefined) ?? {};
+    const users = Array.isArray(reactions[emoji]) ? reactions[emoji] : [];
+    transaction.update(storyRef, { reactions: { ...reactions, [emoji]: Array.from(new Set([...users, auth.currentUser!.uid])) } });
+    return data;
+  });
+  await createNotification({ type: "story_reaction", recipientId: String(story.userId ?? ""), actorId: auth.currentUser.uid, actorName: auth.currentUser.displayName || "Someone", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} reacted ${emoji} to your story.`, storyId, thumbnailUrl: String(story.mediaUrl ?? "") });
 }

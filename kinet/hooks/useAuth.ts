@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import { onAuthChange } from "@/lib/firebase-auth";
 
 interface AuthUser {
   uid: string;
@@ -9,37 +10,40 @@ interface AuthUser {
   photoURL?: string | null;
 }
 
-interface AuthStoreState {
+interface AuthState {
   user: AuthUser | null;
   loading: boolean;
 }
 
-const localUser: AuthUser = {
-  uid: "local-user",
-  displayName: "Local User",
-  email: "local@kinet.app",
-  photoURL: null,
-};
-
-let authStore: AuthStoreState = {
-  user: localUser,
-  loading: false,
-};
-
-const subscribers = new Set<() => void>();
-
-function emitAuthChange() {
-  subscribers.forEach((listener) => listener());
-}
-
 export function useAuth() {
-  return useSyncExternalStore(
-    (listener) => {
-      subscribers.add(listener);
-      return () => subscribers.delete(listener);
-    },
-    () => authStore,
-    () => authStore
-  );
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+  });
+
+  useEffect(() => {
+    const unsubscribe = onAuthChange((firebaseUser) => {
+      if (firebaseUser) {
+        setState({
+          user: {
+            uid: firebaseUser.uid,
+            displayName: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL,
+          },
+          loading: false,
+        });
+      } else {
+        setState({
+          user: null,
+          loading: false,
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return state;
 }
 

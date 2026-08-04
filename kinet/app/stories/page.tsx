@@ -9,7 +9,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createOrGetConversation, sendConversationMessage } from "@/lib/messaging";
-import { createStory, formatStoryTime, getActiveStories, markStorySeen, type StoryItem } from "@/lib/stories";
+import { createStory, formatStoryTime, getActiveStories, markStorySeen, reactToStory, type StoryItem } from "@/lib/stories";
 
 const STORY_DURATION_MS = 5000;
 
@@ -215,6 +215,7 @@ function StoriesPageContent() {
                     </p>
                     {user && activeStory.userId !== user.uid ? (
                       <div className="mt-3 flex gap-2">
+                        <div className="flex gap-1">{["❤️", "😂", "🔥"].map((emoji) => <button key={emoji} type="button" onClick={() => void reactToStory(activeStory.id, emoji)} className="rounded-full bg-white/15 px-2 text-lg hover:bg-white/25" aria-label={`React ${emoji}`}>{emoji}</button>)}</div>
                         <input
                           value={replyText}
                           onChange={(event) => setReplyText(event.target.value)}
@@ -228,7 +229,12 @@ function StoriesPageContent() {
                             const conversationId = await createOrGetConversation(activeStory.userId);
                             await sendConversationMessage(
                               conversationId,
-                              `Story reply: ${replyText || activeStory.caption || "Reacted to your story."}`
+                              `Story reply: ${replyText || activeStory.caption || "Reacted to your story."}`,
+                              null,
+                              undefined,
+                              undefined,
+                              undefined,
+                              { notificationType: "story_reply", storyId: activeStory.id }
                             );
                             setReplyText("");
                           }}

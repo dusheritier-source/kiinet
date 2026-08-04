@@ -19,16 +19,38 @@ export interface UserSettings {
   emailDigestFrequency: "off" | "daily" | "weekly";
   pushNotificationsEnabled: boolean;
   pushPermission: "default" | "granted" | "denied";
+  notificationAudience: "everyone" | "following" | "no_one";
+  notificationChannels: { inApp: boolean; push: boolean; email: boolean };
+  quietHours: { enabled: boolean; start: string; end: string };
+  notificationPreview: "full" | "sender_only" | "hidden";
+  notificationSound: boolean;
+  notificationVibration: boolean;
   notificationPreferences: {
     likes: boolean;
     comments: boolean;
+    replies: boolean;
+    mentions: boolean;
+    tags: boolean;
     follows: boolean;
+    followRequests: boolean;
     messages: boolean;
+    groupMessages: boolean;
+    storyActivity: boolean;
+    live: boolean;
+    creatorUpdates: boolean;
     reposts: boolean;
     reports: boolean;
+    recommendations: boolean;
   };
   followedTopics: string[];
   pinnedPosts: string[];
+  messagePrivacy: "everyone" | "following" | "no_one";
+  showActivityStatus: boolean;
+  showFollowerCounts: boolean;
+  allowProfileSharing: boolean;
+  shareProfileViews: boolean;
+  mentionPrivacy: "everyone" | "following" | "no_one";
+  storyReplyAudience: "everyone" | "following" | "no_one";
 }
 
 const defaultSettings: UserSettings = {
@@ -37,16 +59,38 @@ const defaultSettings: UserSettings = {
   emailDigestFrequency: "off",
   pushNotificationsEnabled: false,
   pushPermission: "default",
+  notificationAudience: "everyone",
+  notificationChannels: { inApp: true, push: true, email: false },
+  quietHours: { enabled: false, start: "22:00", end: "07:00" },
+  notificationPreview: "full",
+  notificationSound: true,
+  notificationVibration: true,
   notificationPreferences: {
     likes: true,
     comments: true,
+    replies: true,
+    mentions: true,
+    tags: true,
     follows: true,
+    followRequests: true,
     messages: true,
+    groupMessages: true,
+    storyActivity: true,
+    live: true,
+    creatorUpdates: true,
     reposts: true,
     reports: true,
+    recommendations: true,
   },
   followedTopics: [],
   pinnedPosts: [],
+  messagePrivacy: "everyone",
+  showActivityStatus: true,
+  showFollowerCounts: true,
+  allowProfileSharing: true,
+  shareProfileViews: true,
+  mentionPrivacy: "everyone",
+  storyReplyAudience: "everyone",
 };
 
 export async function getCurrentUserSettings(): Promise<UserSettings> {
@@ -60,6 +104,8 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
     const settings = (data.settings as Record<string, unknown> | undefined) ?? {};
     const notificationPreferences =
       (settings.notificationPreferences as Record<string, unknown> | undefined) ?? {};
+    const channels = (settings.notificationChannels as Record<string, unknown> | undefined) ?? {};
+    const quietHours = (settings.quietHours as Record<string, unknown> | undefined) ?? {};
 
     return {
       availabilityStatus:
@@ -76,16 +122,41 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
         settings.pushPermission === "granted" || settings.pushPermission === "denied"
           ? settings.pushPermission
           : "default",
+      notificationAudience: settings.notificationAudience === "following" || settings.notificationAudience === "no_one" ? settings.notificationAudience : "everyone",
+      notificationChannels: { inApp: channels.inApp !== false, push: channels.push !== false, email: channels.email === true },
+      quietHours: { enabled: quietHours.enabled === true, start: String(quietHours.start ?? "22:00"), end: String(quietHours.end ?? "07:00") },
+      notificationPreview: settings.notificationPreview === "sender_only" || settings.notificationPreview === "hidden" ? settings.notificationPreview : "full",
+      notificationSound: settings.notificationSound !== false,
+      notificationVibration: settings.notificationVibration !== false,
       notificationPreferences: {
         likes: notificationPreferences.likes !== false,
         comments: notificationPreferences.comments !== false,
+        replies: notificationPreferences.replies !== false,
+        mentions: notificationPreferences.mentions !== false,
+        tags: notificationPreferences.tags !== false,
         follows: notificationPreferences.follows !== false,
+        followRequests: notificationPreferences.followRequests !== false,
         messages: notificationPreferences.messages !== false,
+        groupMessages: notificationPreferences.groupMessages !== false,
+        storyActivity: notificationPreferences.storyActivity !== false,
+        live: notificationPreferences.live !== false,
+        creatorUpdates: notificationPreferences.creatorUpdates !== false,
         reposts: notificationPreferences.reposts !== false,
         reports: notificationPreferences.reports !== false,
+        recommendations: notificationPreferences.recommendations !== false,
       },
       followedTopics: Array.isArray(data.followedTopics) ? (data.followedTopics as string[]) : [],
       pinnedPosts: Array.isArray(data.pinnedPosts) ? (data.pinnedPosts as string[]) : [],
+      messagePrivacy:
+        settings.messagePrivacy === "following" || settings.messagePrivacy === "no_one"
+          ? settings.messagePrivacy
+          : "everyone",
+      showActivityStatus: settings.showActivityStatus !== false,
+      showFollowerCounts: settings.showFollowerCounts !== false,
+      allowProfileSharing: settings.allowProfileSharing !== false,
+      shareProfileViews: settings.shareProfileViews !== false,
+      mentionPrivacy: settings.mentionPrivacy === "following" || settings.mentionPrivacy === "no_one" ? settings.mentionPrivacy : "everyone",
+      storyReplyAudience: settings.storyReplyAudience === "following" || settings.storyReplyAudience === "no_one" ? settings.storyReplyAudience : "everyone",
     };
   } catch (error) {
     if (isTransientFirestoreError(error)) {
@@ -113,6 +184,19 @@ export async function updateCurrentUserSettings(input: Partial<UserSettings>) {
           ? { pushNotificationsEnabled: input.pushNotificationsEnabled }
           : {}),
         ...(input.pushPermission ? { pushPermission: input.pushPermission } : {}),
+        ...(input.notificationAudience ? { notificationAudience: input.notificationAudience } : {}),
+        ...(input.notificationChannels ? { notificationChannels: input.notificationChannels } : {}),
+        ...(input.quietHours ? { quietHours: input.quietHours } : {}),
+        ...(input.notificationPreview ? { notificationPreview: input.notificationPreview } : {}),
+        ...(typeof input.notificationSound === "boolean" ? { notificationSound: input.notificationSound } : {}),
+        ...(typeof input.notificationVibration === "boolean" ? { notificationVibration: input.notificationVibration } : {}),
+        ...(input.messagePrivacy ? { messagePrivacy: input.messagePrivacy } : {}),
+        ...(typeof input.showActivityStatus === "boolean" ? { showActivityStatus: input.showActivityStatus } : {}),
+        ...(typeof input.showFollowerCounts === "boolean" ? { showFollowerCounts: input.showFollowerCounts } : {}),
+        ...(typeof input.allowProfileSharing === "boolean" ? { allowProfileSharing: input.allowProfileSharing } : {}),
+        ...(typeof input.shareProfileViews === "boolean" ? { shareProfileViews: input.shareProfileViews } : {}),
+        ...(input.mentionPrivacy ? { mentionPrivacy: input.mentionPrivacy } : {}),
+        ...(input.storyReplyAudience ? { storyReplyAudience: input.storyReplyAudience } : {}),
         ...(input.notificationPreferences
           ? { notificationPreferences: input.notificationPreferences }
           : {}),

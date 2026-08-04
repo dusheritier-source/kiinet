@@ -29,6 +29,7 @@ export interface FeedPost {
   caption: string;
   mediaUrl: string;
   mediaType: "image" | "video";
+  mediaItems?: Array<{ url: string; type: "image" | "video"; path?: string }>;
   contentType: "post" | "reel";
   postType?: "standard" | "poll" | "qa";
   sport: string;
@@ -41,6 +42,8 @@ export interface FeedPost {
   views?: number;
   completedViews?: number;
   mentionUserIds?: string[];
+  pinned?: boolean;
+  editedAt?: { seconds?: number } | null;
   collaborators?: Array<{
     uid: string;
     name: string;
@@ -55,6 +58,8 @@ export interface FeedPost {
   autoCaption?: string | null;
   translatedCaption?: string | null;
   accessibilityLabel?: string | null;
+  sensitive?: boolean;
+  contentWarning?: string | null;
   aiHighlightAnalysis?: string | null;
   voiceoverScript?: string | null;
   thumbnailHint?: string | null;
@@ -89,6 +94,8 @@ export interface PostComment {
   parentCommentId?: string | null;
   reactions?: Record<string, string[]>;
   mentionUserIds?: string[];
+  pinned?: boolean;
+  editedAt?: { seconds?: number } | null;
   createdAt?: { seconds?: number; nanoseconds?: number } | null;
   author: {
     name: string;
@@ -101,6 +108,7 @@ interface CreatePostInput {
   caption: string;
   sport?: string;
   file?: File | null;
+  files?: File[];
   contentType?: "post" | "reel";
   postType?: "standard" | "poll" | "qa";
   questionPrompt?: string;
@@ -115,6 +123,8 @@ interface CreatePostInput {
   autoCaption?: string;
   translatedCaption?: string;
   accessibilityLabel?: string;
+  sensitive?: boolean;
+  contentWarning?: string;
   aiHighlightAnalysis?: string;
   voiceoverScript?: string;
   thumbnailHint?: string;
@@ -241,6 +251,7 @@ function mapPost(id: string, data: Record<string, unknown>): FeedPost {
     caption: String(data.caption ?? ""),
     mediaUrl: String(data.mediaUrl ?? ""),
     mediaType: data.mediaType === "video" ? "video" : "image",
+    mediaItems: Array.isArray(data.mediaItems) ? (data.mediaItems as Array<Record<string, unknown>>).map((item) => ({ url: String(item.url ?? ""), type: (item.type === "video" ? "video" : "image") as "image" | "video", path: item.path ? String(item.path) : undefined })).filter((item) => item.url) : [],
     contentType: data.contentType === "reel" ? "reel" : "post",
     postType:
       data.postType === "poll" || data.postType === "qa" ? data.postType : "standard",
@@ -255,6 +266,8 @@ function mapPost(id: string, data: Record<string, unknown>): FeedPost {
     views: Number(data.views ?? 0),
     completedViews: Number(data.completedViews ?? 0),
     mentionUserIds: Array.isArray(data.mentionUserIds) ? (data.mentionUserIds as string[]) : [],
+    pinned: data.pinned === true,
+    editedAt: (data.editedAt as { seconds?: number } | null | undefined) ?? null,
     collaborators: Array.isArray(data.collaborators)
       ? (data.collaborators as Array<Record<string, unknown>>).map((collaborator) => ({
           uid: String(collaborator.uid ?? ""),
@@ -275,6 +288,8 @@ function mapPost(id: string, data: Record<string, unknown>): FeedPost {
     autoCaption: data.autoCaption ? String(data.autoCaption) : null,
     translatedCaption: data.translatedCaption ? String(data.translatedCaption) : null,
     accessibilityLabel: data.accessibilityLabel ? String(data.accessibilityLabel) : null,
+    sensitive: data.sensitive === true,
+    contentWarning: data.contentWarning ? String(data.contentWarning) : null,
     aiHighlightAnalysis: data.aiHighlightAnalysis ? String(data.aiHighlightAnalysis) : null,
     voiceoverScript: data.voiceoverScript ? String(data.voiceoverScript) : null,
     thumbnailHint: data.thumbnailHint ? String(data.thumbnailHint) : null,
@@ -328,6 +343,8 @@ function mapComment(id: string, data: Record<string, unknown>): PostComment {
           )
         : {},
     mentionUserIds: Array.isArray(data.mentionUserIds) ? (data.mentionUserIds as string[]) : [],
+    pinned: data.pinned === true,
+    editedAt: (data.editedAt as { seconds?: number } | null | undefined) ?? null,
     createdAt:
       (data.createdAt as { seconds?: number; nanoseconds?: number } | null | undefined) ?? null,
     author: {
@@ -341,7 +358,7 @@ function mapComment(id: string, data: Record<string, unknown>): PostComment {
 async function getCurrentAuthorProfile() {
   assertFirebaseReady();
 
-  const user = auth.currentUser;
+  const user = auth.currentUser!;
   const profileSnapshot = await getDoc(doc(db!, "users", user.uid));
   const profile = profileSnapshot.exists()
     ? (profileSnapshot.data() as Record<string, unknown>)
@@ -398,6 +415,7 @@ export async function createPost({
   caption,
   sport,
   file,
+  files = [],
   contentType = "post",
   postType = "standard",
   questionPrompt = "",
@@ -412,6 +430,8 @@ export async function createPost({
   autoCaption = "",
   translatedCaption = "",
   accessibilityLabel = "",
+  sensitive = false,
+  contentWarning = "",
   aiHighlightAnalysis = "",
   voiceoverScript = "",
   thumbnailHint = "",
@@ -426,13 +446,10 @@ export async function createPost({
   const user = auth!.currentUser;
   const { author } = await getCurrentAuthorProfile();
 
-  const mediaType = file?.type.startsWith("video/") ? "video" : "image";
-  const uploadedMedia = file
-    ? await uploadToFirebaseStorage(
-        file,
-        `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`
-      )
-    : null;
+  const selectedFiles = (files.length ? files : file ? [file] : []).slice(0, 10);
+  const uploadedItems = await Promise.all(selectedFiles.map(async (selectedFile) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; }));
+  const uploadedMedia = uploadedItems[0] ?? null;
+  const mediaType = uploadedMedia?.type ?? "image";
   const mediaUrl = uploadedMedia?.url ?? "";
   const trimmedCaption = caption.trim();
   const mentionUserIds = await resolveMentionedUserIds(
@@ -449,14 +466,15 @@ export async function createPost({
     throw new Error("Polls need at least two options.");
   }
 
-  await addDoc(collection(db!, "posts"), {
+  const postRef = await addDoc(collection(db!, "posts"), {
     userId: user!.uid,
     caption: trimmedCaption,
     mediaUrl,
     mediaType,
+    mediaItems: uploadedItems,
     contentType,
     postType,
-    sport: sport.trim() || "",
+    sport: sport?.trim() || "",
     likes: [],
     commentsCount: 0,
     shares: 0,
@@ -478,6 +496,8 @@ export async function createPost({
     autoCaption: autoCaption.trim() || null,
     translatedCaption: translatedCaption.trim() || null,
     accessibilityLabel: accessibilityLabel.trim() || null,
+    sensitive,
+    contentWarning: sensitive ? contentWarning.trim().slice(0, 120) || "Sensitive content" : null,
     aiHighlightAnalysis: aiHighlightAnalysis.trim() || null,
     voiceoverScript: voiceoverScript.trim() || null,
     thumbnailHint: thumbnailHint.trim() || null,
@@ -509,6 +529,8 @@ export async function createPost({
           actorName: author.name,
           actorAvatar: author.avatar,
           message: `${author.name} mentioned you in a post.`,
+          postId: postRef.id,
+          thumbnailUrl: mediaUrl || undefined,
         })
       )
   );
@@ -518,15 +540,21 @@ export async function createPost({
       .filter((collaborator) => collaborator.uid !== user!.uid)
       .map((collaborator) =>
         createNotification({
-          type: "mention",
+          type: "collaboration_invite",
           recipientId: collaborator.uid,
           actorId: user!.uid,
           actorName: author.name,
           actorAvatar: author.avatar,
           message: `${author.name} tagged you as a collaborator on a post.`,
+          postId: postRef.id,
+          thumbnailUrl: mediaUrl || undefined,
         })
       )
   );
+
+  const creatorSnapshot = await getDoc(doc(db!, "users", user!.uid));
+  const followers = creatorSnapshot.exists() && Array.isArray(creatorSnapshot.data().followers) ? creatorSnapshot.data().followers as string[] : [];
+  await Promise.all(followers.slice(0, 100).map((recipientId) => createNotification({ type: "creator_update", recipientId, actorId: user!.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} shared a new ${contentType === "reel" ? "video" : "post"}.`, postId: postRef.id, thumbnailUrl: mediaUrl || undefined }).catch(() => undefined)));
 
   await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1);
 }
@@ -596,6 +624,7 @@ export async function togglePostLike(postId: string, hasLiked: boolean) {
       actorAvatar: auth.currentUser.photoURL || "",
       message: `${auth.currentUser.displayName || "Someone"} liked your post.`,
       postId,
+      thumbnailUrl: typeof post.mediaUrl === "string" ? post.mediaUrl : undefined,
     });
   }
 }
@@ -747,7 +776,7 @@ export async function addPostComment(postId: string, text: string, parentComment
   const postSnapshot = await getDoc(doc(db, "posts", postId));
   const post = postSnapshot.exists() ? (postSnapshot.data() as Record<string, unknown>) : null;
 
-  await addDoc(collection(db, "comments"), {
+  const commentRef = await addDoc(collection(db, "comments"), {
     postId,
     userId: auth.currentUser.uid,
     text: trimmedText,
@@ -775,6 +804,8 @@ export async function addPostComment(postId: string, text: string, parentComment
       actorAvatar: author.avatar,
       message: `${author.name} commented on your post.`,
       postId,
+      commentId: commentRef.id,
+      thumbnailUrl: typeof post.mediaUrl === "string" ? post.mediaUrl : undefined,
     });
   }
 
@@ -791,9 +822,14 @@ export async function addPostComment(postId: string, text: string, parentComment
           actorAvatar: author.avatar,
           message: `${author.name} mentioned you in a comment.`,
           postId,
+          commentId: commentRef.id,
         })
       )
   );
+  if (parentCommentId) {
+    const parentSnapshot = await getDoc(doc(db, "comments", parentCommentId));
+    if (parentSnapshot.exists()) await createNotification({ type: "comment_reply", recipientId: String(parentSnapshot.data().userId ?? ""), actorId: auth.currentUser.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} replied to your comment.`, postId, commentId: commentRef.id });
+  }
 }
 
 export async function toggleCommentReaction(commentId: string, emoji: string) {
@@ -823,27 +859,50 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
     },
     { merge: true }
   );
+  if (!currentUsers.includes(auth.currentUser.uid)) {
+    await createNotification({ type: "comment_reaction", recipientId: String(comment.userId ?? ""), actorId: auth.currentUser.uid, actorName: auth.currentUser.displayName || "Someone", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} reacted ${emoji} to your comment.`, postId: String(comment.postId ?? ""), commentId });
+  }
 }
 
-function scorePosts(posts: FeedPost[], following: string[], preferredSport: string) {
-  return [...posts].sort((a, b) => {
-    const aScore =
-      (following.includes(a.userId) ? 4 : 0) +
-      (preferredSport && a.sport.toLowerCase() === preferredSport.toLowerCase() ? 2 : 0) +
-      (a.contentType === "reel" ? 1 : 0);
-    const bScore =
-      (following.includes(b.userId) ? 4 : 0) +
-      (preferredSport && b.sport.toLowerCase() === preferredSport.toLowerCase() ? 2 : 0) +
-      (b.contentType === "reel" ? 1 : 0);
+export async function editPostComment(commentId: string, text: string) { if (!auth.currentUser || !db || !text.trim()) return; await updateDoc(doc(db, "comments", commentId), { text: text.trim().slice(0, 500), editedAt: serverTimestamp() }); }
+export async function deletePostComment(commentId: string, postId: string) { if (!auth.currentUser || !db) return; await deleteDoc(doc(db, "comments", commentId)); await updateDoc(doc(db, "posts", postId), { commentsCount: increment(-1) }); }
+export async function togglePinnedComment(commentId: string, pinned: boolean) { if (!auth.currentUser || !db) return; await updateDoc(doc(db, "comments", commentId), { pinned: !pinned }); }
 
-    if (aScore !== bScore) {
-      return bScore - aScore;
-    }
+export async function quotePost(postId: string, caption: string) {
+  if (!auth?.currentUser || !db) throw new Error("You must be signed in to quote a post.");
+  const snapshot = await getDoc(doc(db, "posts", postId));
+  if (!snapshot.exists()) throw new Error("Post not found.");
+  const original = mapPost(snapshot.id, snapshot.data() as Record<string, unknown>);
+  const { author } = await getCurrentAuthorProfile();
+  await addDoc(collection(db, "posts"), { userId: auth.currentUser.uid, caption: caption.trim(), mediaUrl: original.mediaUrl, mediaType: original.mediaType, contentType: "post", postType: "standard", sport: "", likes: [], commentsCount: 0, shares: 0, saves: [], hashtags: extractHashtags(caption), views: 0, completedViews: 0, author, originalPostId: postId, createdAt: serverTimestamp() });
+  await updateDoc(doc(db, "posts", postId), { shares: increment(1) });
+  await incrementUserCounter(auth.currentUser.uid, "postsCount", 1);
+  await createNotification({ type: "repost", recipientId: original.userId, actorId: auth.currentUser.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} quoted your post.`, postId });
+}
 
-    const aTime = a.createdAt?.seconds ?? 0;
-    const bTime = b.createdAt?.seconds ?? 0;
-    return bTime - aTime;
+export async function recordPostShare(postId: string) {
+  if (!db) return;
+  await updateDoc(doc(db, "posts", postId), { shares: increment(1) });
+}
+
+function scorePosts(posts: FeedPost[], following: string[], _legacyPreference: string) {
+  const now = Date.now() / 1000;
+  const scored = [...posts].sort((a, b) => {
+    const score = (post: FeedPost) => {
+      const ageHours = Math.max(0, (now - (post.createdAt?.seconds ?? now)) / 3600);
+      const recency = Math.max(0, 5 - ageHours / 12);
+      const engagement = Math.log2(1 + post.likes.length + post.commentsCount * 2 + post.shares * 2);
+      return recency + engagement + (following.includes(post.userId) ? 3 : 0);
+    };
+    return score(b) - score(a);
   });
+  for (let index = 1; index < scored.length - 1; index += 1) {
+    if (scored[index].userId === scored[index - 1].userId) {
+      const alternative = scored.findIndex((post, candidate) => candidate > index && post.userId !== scored[index - 1].userId);
+      if (alternative > index) [scored[index], scored[alternative]] = [scored[alternative], scored[index]];
+    }
+  }
+  return scored;
 }
 
 function isVisiblePost(post: FeedPost) {
@@ -874,6 +933,23 @@ function canAccessPost(
   return premiumGroupIds.includes(post.premiumGroupId || "") || auth?.currentUser?.uid === post.userId;
 }
 
+function matchesFeedPreferences(post: FeedPost, profile?: Record<string, unknown> | null) {
+  const preferences = (profile?.feedPreferences as Record<string, unknown> | undefined) ?? {};
+  const mutedUsers = Array.isArray(preferences.mutedUserIds) ? preferences.mutedUserIds as string[] : [];
+  const mutedWords = Array.isArray(preferences.mutedWords) ? preferences.mutedWords as string[] : [];
+  const mutedTopics = Array.isArray(preferences.mutedTopics) ? preferences.mutedTopics as string[] : [];
+  const snoozed = (preferences.snoozedUsers as Record<string, number> | undefined) ?? {};
+  const text = post.caption.toLowerCase();
+  if (mutedUsers.some((value) => value === post.userId || value === post.author.username.replace(/^@/, "").toLowerCase())) return false;
+  if ((snoozed[post.userId] ?? 0) > Date.now()) return false;
+  if (mutedWords.some((word) => word && text.includes(word.toLowerCase()))) return false;
+  if (post.hashtags.some((tag) => mutedTopics.includes(tag.toLowerCase()))) return false;
+  if (preferences.contentFilter === "media" && !post.mediaUrl && !post.mediaItems?.length) return false;
+  if (preferences.contentFilter === "text" && (post.mediaUrl || post.mediaItems?.length)) return false;
+  if (preferences.sensitiveContent === "hide" && post.sensitive) return false;
+  return true;
+}
+
 export function subscribeToFeed(
   callback: (posts: FeedPost[]) => void,
   onError?: (error: Error) => void
@@ -887,7 +963,7 @@ export function subscribeToFeed(
     collection(db, "posts"),
     where("contentType", "==", "post"),
     orderBy("createdAt", "desc"),
-    limit(24)
+    limit(60)
   );
 
   let stopped = false;
@@ -910,6 +986,7 @@ export function subscribeToFeed(
                   post.contentType === "post" &&
                   !blockedUsers.includes(post.userId) &&
                   isVisiblePost(post) &&
+                  matchesFeedPreferences(post, profile?.profile) &&
                   canAccessPost(post, profile)
               ),
               following,
@@ -1103,12 +1180,13 @@ export async function getPostsByIds(postIds: string[]) {
     return [];
   }
 
+  const database = db;
   const profile = await getCachedViewerProfile();
   const blockedUsers = profile?.blockedUsers ?? [];
 
   const snapshots = await Promise.all(
     postIds.map(async (postId) => {
-      const snapshot = await getDoc(doc(db, "posts", postId));
+      const snapshot = await getDoc(doc(database, "posts", postId));
       if (!snapshot.exists()) {
         return null;
       }

@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
 
@@ -6,23 +6,17 @@ export async function recordProfileVisit(targetUid: string) {
   if (!auth?.currentUser || !db || auth.currentUser.uid === targetUid) {
     return;
   }
-
-  const snapshot = await getDoc(doc(db, "users", targetUid));
-  const data = snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : {};
-  const analytics = (data.analytics as Record<string, unknown> | undefined) ?? {};
-  const seenVisitors = Array.isArray(analytics.seenVisitors) ? (analytics.seenVisitors as string[]) : [];
-  const uniqueVisitors = Array.from(new Set([...seenVisitors, auth.currentUser.uid]));
+  const visitorSnapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
+  const visitorSettings = visitorSnapshot.exists() ? (visitorSnapshot.data().settings as Record<string, unknown> | undefined) : undefined;
+  if (visitorSettings?.shareProfileViews === false) return;
 
   await setDoc(
-    doc(db, "users", targetUid),
+    doc(db, "profileVisits", `${targetUid}_${auth.currentUser.uid}`),
     {
-      analytics: {
-        ...analytics,
-        seenVisitors: uniqueVisitors,
-        profileVisitors: uniqueVisitors.length,
-        lastVisitedAt: serverTimestamp(),
-      },
-      updatedAt: serverTimestamp(),
+      targetUid,
+      visitorUid: auth.currentUser.uid,
+      visitCount: increment(1),
+      lastVisitedAt: serverTimestamp(),
     },
     { merge: true }
   );

@@ -5,6 +5,9 @@ export async function POST(request: Request) {
     token?: string;
     title?: string;
     body?: string;
+    link?: string;
+    icon?: string;
+    tag?: string;
   };
 
   if (!body.token?.trim()) {
@@ -27,6 +30,9 @@ export async function POST(request: Request) {
       token: body.token.trim(),
       title: body.title?.trim() || "Kinet",
       body: body.body?.trim() || "You have a new alert.",
+      link: body.link?.trim() || "/notifications",
+      icon: body.icon?.trim() || "/icon.svg",
+      tag: body.tag?.trim() || "kinet-notification",
     }),
   });
 

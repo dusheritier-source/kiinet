@@ -1,57 +1,26 @@
-import AWS from "aws-sdk";
+"use client";
 
-// Cloudflare R2 client configuration (S3-compatible)
-const r2Client = new AWS.S3({
-  endpoint: process.env.R2_ENDPOINT,
-  accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  s3ForcePathStyle: true,
-});
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 
-const R2_BUCKET = process.env.R2_BUCKET_NAME!;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL!;
-
-export function generateFileName(originalName: string, userId: string): string {
-  const timestamp = Date.now();
-  const randomString = Math.random().toString(36).substring(2, 15);
+export function generateFileName(originalName: string, userId: string) {
   const extension = originalName.split(".").pop() || "bin";
-  return `${userId}/${timestamp}-${randomString}.${extension}`;
+  return `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 }
 
-export async function uploadToR2(
-  buffer: Buffer,
-  fileName: string,
-  contentType: string,
-  folder: string = "posts"
-): Promise<string> {
-  const key = `${folder}/${fileName}`;
-
-  const params = {
-    Bucket: R2_BUCKET,
-    Key: key,
-    Body: buffer,
-    ContentType: contentType,
-    ACL: "public-read",
-  };
-
-  await r2Client.upload(params).promise();
-
-  return `${R2_PUBLIC_URL}/${key}`;
+export async function uploadToFirebaseStorage(file: File, folder: string) {
+  if (!storage) throw new Error("Firebase Storage is not configured.");
+  const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+  const path = `${folder}/${Date.now()}-${safeName}`;
+  const reference = ref(storage, path);
+  await uploadBytes(reference, file, { contentType: file.type || "application/octet-stream" });
+  return { url: await getDownloadURL(reference), path };
 }
 
-export async function deleteFromR2(fileName: string, folder: string = "posts"): Promise<void> {
-  const key = `${folder}/${fileName}`;
-  const params = {
-    Bucket: R2_BUCKET,
-    Key: key,
-  };
-
-  await r2Client.deleteObject(params).promise();
+export async function uploadToR2(file: File, folder: string) {
+  return uploadToFirebaseStorage(file, folder);
 }
 
-// Alias for compatibility with code expecting Firebase Storage naming
-export const uploadToFirebaseStorage = uploadToR2;
 export const writeAuditLog = async (action: string, userId: string, details: Record<string, unknown>) => {
-  // Placeholder - implement based on your audit logging needs
   console.log(`Audit: ${action} by ${userId}`, details);
 };

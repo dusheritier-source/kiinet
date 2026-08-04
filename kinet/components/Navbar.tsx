@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
-import { subscribeToNotifications, type AppNotification } from "@/lib/notifications";
+import { markNotificationDelivered, subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
 import { isCurrentUserAdmin } from "@/lib/moderation";
 import { useAuthContext } from "@/components/AuthProvider";
@@ -26,6 +26,7 @@ export default function Navbar() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
   const previousNotificationIds = useRef<string[]>([]);
+  const deliveredNotificationIds = useRef<Set<string>>(new Set());
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
@@ -59,6 +60,7 @@ export default function Navbar() {
     notifications
       .filter((notification) => !previousIds.has(notification.id))
       .filter((notification) => !notification.readBy?.includes(user.uid))
+      .filter((notification) => !(pathname === "/messages" && notification.conversationId && new URLSearchParams(window.location.search).get("conversation") === notification.conversationId))
       .slice(0, 3)
       .forEach((notification) => {
         new Notification("Kinet", {
@@ -67,7 +69,12 @@ export default function Navbar() {
       });
 
     previousNotificationIds.current = notifications.map((notification) => notification.id);
-  }, [notifications, pushEnabled, user]);
+  }, [notifications, pathname, pushEnabled, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    notifications.filter((item) => !deliveredNotificationIds.current.has(item.id) && item.deliveryStatus === "queued").forEach((item) => { deliveredNotificationIds.current.add(item.id); void markNotificationDelivered(item.id); });
+  }, [notifications, user]);
 
   const unreadCount = user
     ? notifications.filter((notification) => !notification.readBy?.includes(user.uid)).length

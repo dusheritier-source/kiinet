@@ -9,6 +9,10 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
+
+    function isAdmin() {
+      return isSignedIn() && (request.auth.token.admin == true || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true);
+    }
     
     function getRequestTime() {
       return request.time;
@@ -18,7 +22,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId)
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'updatedAt'])
+          && request.resource.data.followers.removeAll([request.auth.uid]) == resource.data.get('followers', []).removeAll([request.auth.uid]))
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['following', 'updatedAt'])
+          && request.resource.data.following.removeAll([request.auth.uid]) == resource.data.get('following', []).removeAll([request.auth.uid]));
       allow delete: if false;
     }
 
@@ -34,7 +44,18 @@ service cloud.firestore {
     match /managedDevices/{docId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+          && request.resource.data.likes.removeAll([request.auth.uid]) == resource.data.get('likes', []).removeAll([request.auth.uid]))
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saves'])
+          && request.resource.data.saves.removeAll([request.auth.uid]) == resource.data.get('saves', []).removeAll([request.auth.uid]))
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shares'])
+          && request.resource.data.shares == resource.data.get('shares', 0) + 1)
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount'])
+          && request.resource.data.commentsCount >= 0
+          && (request.resource.data.commentsCount == resource.data.get('commentsCount', 0) + 1
+            || request.resource.data.commentsCount == resource.data.get('commentsCount', 0) - 1))
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']));
       allow delete: if false;
     }
 
@@ -149,9 +170,13 @@ service cloud.firestore {
     // Comments - authenticated users can read/write
     match /comments/{commentId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.authorId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
+          && get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.userId == request.auth.uid));
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.userId == request.auth.uid);
     }
 
     // Likes - authenticated users can read/write their own likes
@@ -173,8 +198,8 @@ service cloud.firestore {
     // Notifications - users can read/write their own notifications
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.actorId == request.auth.uid || (request.resource.data.recipientId == request.auth.uid && request.resource.data.type in ['security_alert', 'account_warning', 'report']));
+      allow update: if isSignedIn() && (resource.data.recipientId == request.auth.uid || (resource.data.actorId == request.auth.uid && request.resource.data.recipientId == resource.data.recipientId && request.resource.data.idempotencyKey == resource.data.idempotencyKey && request.resource.data.readBy == resource.data.readBy));
       allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
     }
 
@@ -184,28 +209,162 @@ service cloud.firestore {
         return isSignedIn()
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
       }
+      function otherMember(conversationId) {
+        let members = get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        return members[0] == request.auth.uid ? members[1] : members[0];
+      }
 
       allow read: if isConversationMember(resource.data.conversationId);
-      allow create: if request.resource.data.senderId == request.auth.uid
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.readBy == [request.auth.uid]
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 10000
+        && request.resource.data.keys().hasOnly([
+          'conversationId', 'senderId', 'text', 'attachmentUrl',
+          'attachmentType', 'attachmentName', 'attachmentSize', 'replyTo',
+          'reactions', 'pinnedBy', 'savedBy', 'hiddenFor', 'expiresAt', 'readBy', 'createdAt'
+        ])
+        && (get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data.get('requestStatus', 'accepted') == 'accepted'
+          || get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data.get('requestedBy', request.auth.uid) == request.auth.uid)
+        && (get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data.get('kind', 'direct') == 'group'
+          || (!(otherMember(request.resource.data.conversationId) in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('blockedUsers', []))
+            && !(request.auth.uid in get(/databases/$(database)/documents/users/$(otherMember(request.resource.data.conversationId))).data.get('blockedUsers', []))))
         && isConversationMember(request.resource.data.conversationId);
       // A sender can edit or delete their message; the recipient can only add a read receipt.
       allow update: if isConversationMember(resource.data.conversationId)
         && (
           (resource.data.senderId == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['text', 'attachmentUrl', 'attachmentType', 'deleted', 'deletedAt', 'editedAt']))
+              .hasOnly(['text', 'attachmentUrl', 'attachmentType', 'attachmentName', 'attachmentSize', 'deleted', 'deletedAt', 'editedAt']))
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
             && request.auth.uid in request.resource.data.readBy)
+          || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['reactions', 'pinnedBy', 'savedBy', 'hiddenFor'])
         );
       allow delete: if false;
     }
 
+    match /followRequests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.requesterId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.requesterId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.requesterId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+    }
+
+    match /profileHighlights/{highlightId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /profileVisits/{visitId} {
+      allow create: if isSignedIn() && request.resource.data.visitorUid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.visitorUid == request.auth.uid
+        && request.resource.data.targetUid == resource.data.targetUid
+        && request.resource.data.visitorUid == resource.data.visitorUid;
+      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+    }
+
+    // Private search history, saved searches and alert preferences.
+    match /searchPreferences/{userId} {
+      allow read, delete: if isOwner(userId) && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(userId)
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+
     // Conversations - users can read/write their own conversations
     match /conversations/{conversationId} {
+      function requestedUser() {
+        return request.resource.data.participantIds[0] == request.auth.uid
+          ? request.resource.data.participantIds[1]
+          : request.resource.data.participantIds[0];
+      }
       allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
-      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn()
+        && request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() >= 2
+        && request.resource.data.participantIds.size() <= 100
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantProfiles is list
+        && request.resource.data.participantProfiles.size() == request.resource.data.participantIds.size()
+        && request.resource.data.unreadBy == []
+        && request.resource.data.typingBy == []
+        && request.resource.data.mutedBy == []
+        && request.resource.data.archivedBy == []
+        && request.resource.data.pinnedBy == []
+        && request.resource.data.hiddenBy == []
+        && request.resource.data.leftBy == []
+        && request.resource.data.requestedBy == request.auth.uid
+        && ((request.resource.data.kind == 'direct'
+            && request.resource.data.participantIds.size() == 2
+            && request.resource.data.requestStatus == 'pending'
+            && request.resource.data.adminIds == []
+            && !(requestedUser() in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('blockedUsers', []))
+            && !(request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('blockedUsers', []))
+            && get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'no_one'
+            && (get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'following'
+              || request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('followers', [])))
+          || (request.resource.data.kind == 'group'
+            && request.resource.data.participantIds.size() >= 3
+            && request.resource.data.requestStatus == 'accepted'
+            && request.resource.data.adminIds == [request.auth.uid]
+            && request.resource.data.createdBy == request.auth.uid))
+        && request.resource.data.keys().hasOnly([
+          'key', 'participantIds', 'participantProfiles', 'lastMessage',
+          'lastSenderId', 'unreadBy', 'typingBy', 'mutedBy', 'archivedBy',
+          'pinnedBy', 'hiddenBy', 'requestStatus', 'requestedBy', 'kind',
+          'groupName', 'groupPhotoURL', 'adminIds', 'createdBy', 'leftBy', 'updatedAt'
+        ]);
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participantIds
+        && request.resource.data.participantIds == resource.data.participantIds
+        && request.resource.data.participantProfiles == resource.data.participantProfiles
+        && request.resource.data.key == resource.data.key
+        && request.resource.data.unreadBy.hasOnly(resource.data.participantIds)
+        && request.resource.data.typingBy.hasOnly(resource.data.participantIds)
+        && request.resource.data.mutedBy.hasOnly(resource.data.participantIds)
+        && request.resource.data.archivedBy.hasOnly(resource.data.participantIds)
+        && request.resource.data.get('pinnedBy', []).hasOnly(resource.data.participantIds)
+        && request.resource.data.get('hiddenBy', []).hasOnly(resource.data.participantIds)
+        && request.resource.data.get('leftBy', []).hasOnly(resource.data.participantIds)
+        && request.resource.data.get('requestStatus', 'accepted') in ['pending', 'accepted', 'declined']
+        && request.resource.data.get('requestedBy', request.auth.uid) in resource.data.participantIds
+        && (request.resource.data.get('requestStatus', 'accepted') == resource.data.get('requestStatus', 'accepted')
+          || request.auth.uid != resource.data.get('requestedBy', request.auth.uid))
+        && (request.resource.data.lastSenderId == null
+          || request.resource.data.lastSenderId in resource.data.participantIds)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage', 'lastSenderId', 'unreadBy', 'typingBy',
+          'mutedBy', 'archivedBy', 'pinnedBy', 'hiddenBy', 'leftBy', 'requestStatus', 'updatedAt'
+        ]);
       allow delete: if false;
+    }
+
+    match /calls/{callId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn()
+        && request.resource.data.callerId == request.auth.uid
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.size() == 2
+        && request.resource.data.type in ['audio', 'video']
+        && request.resource.data.status == 'preparing';
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participantIds
+        && request.resource.data.participantIds == resource.data.participantIds
+        && request.resource.data.callerId == resource.data.callerId
+        && request.resource.data.status in ['preparing', 'ringing', 'active', 'declined', 'missed', 'ended'];
+      allow delete: if false;
+
+      match /{candidateCollection}/{candidateId} {
+        allow read, create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/calls/$(callId)).data.participantIds
+          && candidateCollection in ['callerCandidates', 'calleeCandidates'];
+        allow update, delete: if false;
+      }
     }
 
     // Teams - authenticated users can read, team owners can write
@@ -276,6 +435,20 @@ service cloud.firestore {
     match /notificationSettings/{userId} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId);
+    }
+
+    match /notificationEvents/{eventId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if false;
+    }
+
+    match /notificationTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /notificationBroadcasts/{broadcastId} {
+      allow read, write: if isAdmin();
     }
 
     // Blocked users - users can read/write their own blocked list
@@ -380,11 +553,19 @@ service cloud.firestore {
       allow delete: if isSignedIn();
     }
 
-    // Notifications (legacy) - users can read their own notifications
+    // Notifications (legacy schema compatibility) - only the recipient can mutate.
     match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+      allow create: if isSignedIn() && (request.resource.data.actorId == request.auth.uid || (request.resource.data.recipientId == request.auth.uid && request.resource.data.type in ['security_alert', 'account_warning', 'report']));
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.recipientId == request.auth.uid || (resource.data.actorId == request.auth.uid && request.resource.data.recipientId == resource.data.recipientId && request.resource.data.idempotencyKey == resource.data.idempotencyKey && request.resource.data.readBy == resource.data.readBy));
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+    }
+
+    // Push tokens are private and can only be managed by their owner.
+    match /pushDevices/{deviceId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 

@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -13,6 +14,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
+import { createNotification } from "@/lib/notifications";
 
 type ListenerCleanup = () => void;
 
@@ -144,7 +146,7 @@ export async function createLiveRoom(input: {
   paidTicketLabel?: string;
 }) {
   const user = requireUser();
-  await addDoc(collection(db!, "liveRooms"), {
+  const roomRef = await addDoc(collection(db!, "liveRooms"), {
     hostId: user.uid,
     title: input.title.trim(),
     teamId: input.teamId?.trim() || null,
@@ -154,6 +156,9 @@ export async function createLiveRoom(input: {
     status: "live",
     createdAt: serverTimestamp(),
   });
+  const hostSnapshot = await getDoc(doc(db!, "users", user.uid));
+  const followers = hostSnapshot.exists() && Array.isArray(hostSnapshot.data().followers) ? hostSnapshot.data().followers as string[] : [];
+  await Promise.all(followers.slice(0, 100).map((recipientId) => createNotification({ type: "live", recipientId, actorId: user.uid, actorName: user.displayName || "Someone", actorAvatar: user.photoURL || "", message: `${user.displayName || "Someone"} started a live stream: ${input.title.trim()}`, targetUrl: `/live?room=${roomRef.id}` }).catch(() => undefined)));
 }
 
 export async function getLiveRooms() {

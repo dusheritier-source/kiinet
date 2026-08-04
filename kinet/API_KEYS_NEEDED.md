@@ -13,6 +13,8 @@ Your Firebase project is configured with the following credentials in `.env.loca
 - `NEXT_PUBLIC_FIREBASE_APP_ID` - Firebase app ID
 - `NEXT_PUBLIC_FIREBASE_DATABASE_URL` - Firebase Realtime Database URL
 - `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` - Firebase analytics measurement ID
+- `NEXT_PUBLIC_FIREBASE_VAPID_KEY` - Firebase Cloud Messaging Web Push certificate key
+- `PUSH_DELIVERY_WEBHOOK_URL` - trusted server/Cloud Function endpoint that sends registered FCM tokens through Firebase Admin
 
 ### Server-side (for Firebase Admin SDK)
 To enable server-side Firebase Admin authentication, add these to your `.env.local`:

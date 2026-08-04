@@ -16,6 +16,7 @@ import {
 
 import { auth, db } from "@/lib/firebase";
 import { writeAuditLog } from "@/lib/admin";
+import { createNotification } from "@/lib/notifications";
 
 export interface RecruitTarget {
   id: string;
@@ -409,6 +410,7 @@ export async function reviewVerificationRequest(
     summary: `${status === "approved" ? "Approved" : "Rejected"} verification request ${requestId}.`,
     metadata: { userId },
   });
+  await createNotification({ type: "verification_update", recipientId: userId, actorId: auth.currentUser.uid, actorName: "Kinet verification", actorAvatar: "", message: status === "approved" ? "Your account verification was approved." : `Your verification request was not approved${reviewNote.trim() ? `: ${reviewNote.trim()}` : "."}`, targetUrl: "/verify" });
 }
 
 export async function submitVerificationAppeal(input: { requestId: string; message: string }) {
