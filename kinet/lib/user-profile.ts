@@ -116,7 +116,15 @@ async function ensureUsernameAvailable(username: string, currentUid?: string) {
     throw new Error("Username is required.");
   }
 
-  const snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+  let snapshot;
+  try {
+    snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+  } catch (error) {
+    // A profile update should not be blocked only because Firestore's read
+    // channel is temporarily offline. Security rules remain the final guard.
+    if (isTransientFirestoreError(error)) return;
+    throw error;
+  }
   const taken = snapshot.docs.some((docSnapshot: { id: string; data: () => Record<string, unknown> }) => {
     const data = docSnapshot.data() as Record<string, unknown>;
     return (
@@ -262,10 +270,15 @@ export async function updateCurrentUserProfile(input: {
   let photoURL = user.photoURL ?? "";
   let coverPhotoURL = "";
 
-  const currentProfileSnapshot = await getDoc(doc(db, "users", user.uid));
-  const currentProfile = currentProfileSnapshot.exists()
-    ? (currentProfileSnapshot.data() as Record<string, unknown>)
-    : null;
+  let currentProfile: Record<string, unknown> | null = null;
+  try {
+    const currentProfileSnapshot = await getDoc(doc(db, "users", user.uid));
+    currentProfile = currentProfileSnapshot.exists()
+      ? (currentProfileSnapshot.data() as Record<string, unknown>)
+      : null;
+  } catch (error) {
+    if (!isTransientFirestoreError(error)) throw error;
+  }
   coverPhotoURL = String(currentProfile?.coverPhotoURL ?? "");
   const normalizedUsername = normalizeUsername(input.username ?? String(currentProfile?.username ?? ""), user.uid);
 
