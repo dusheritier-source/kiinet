@@ -43,7 +43,12 @@ const app = isFirebaseConfigured
 export const auth = getAuth(app!);
 function initializeClientFirestore() {
   if (!app) return null;
-  try { return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      experimentalAutoDetectLongPolling: true,
+    });
+  }
   catch { return getFirestore(app); }
 }
 export const db = initializeClientFirestore();

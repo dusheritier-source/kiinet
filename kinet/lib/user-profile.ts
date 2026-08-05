@@ -11,6 +11,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, isTransientFirestoreError, storage } from "@/lib/firebase";
@@ -118,7 +119,7 @@ async function ensureUsernameAvailable(username: string, currentUid?: string) {
 
   let snapshot;
   try {
-    snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+    snapshot = await getDocs(query(collection(db, "users"), where("username", "==", normalized), limit(2)));
   } catch (error) {
     // A profile update should not be blocked only because Firestore's read
     // channel is temporarily offline. Security rules remain the final guard.
@@ -355,7 +356,20 @@ export async function updateCurrentUserProfile(input: {
     { merge: true }
   );
 
-  await profileDocumentUpdate;
+  let saveTimeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      profileDocumentUpdate,
+      new Promise<never>((_, reject) => {
+        saveTimeout = setTimeout(
+          () => reject(new Error("Profile save timed out. Check your connection and try again.")),
+          15_000
+        );
+      }),
+    ]);
+  } finally {
+    if (saveTimeout) clearTimeout(saveTimeout);
+  }
   void updateFirebaseProfile(user as never, {
       displayName: input.displayName.trim(),
       photoURL: photoURL || null,
@@ -472,11 +486,13 @@ export async function searchProfiles(searchTerm: string) {
     return [];
   }
 
+  const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
   const [snapshot, currentUserSnapshot] = await Promise.all([
-    getDocs(query(collection(db, "users"), limit(50))),
+    normalized
+      ? getDocs(collection(db, "users"))
+      : getDocs(query(collection(db, "users"), limit(100))),
     auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
   ]);
-  const normalized = searchTerm.trim().toLowerCase();
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;

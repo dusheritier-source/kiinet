@@ -371,9 +371,7 @@ function UploadPageContent() {
                         </div>
                       )}
                       {contentType === "reel" && (overlayText || sticker) ? <div className={`pointer-events-none absolute inset-x-4 z-10 text-center text-white drop-shadow-lg ${overlayPosition === "top" ? "top-16" : overlayPosition === "center" ? "top-1/2 -translate-y-1/2" : "bottom-8"}`}><span className="rounded-xl bg-black/35 px-3 py-1 text-xl font-bold">{sticker ? `${sticker} ` : ""}{overlayText}</span></div> : null}
-                      <label htmlFor="file-upload" className="absolute left-4 top-4">
-                        <Button type="button" size="sm">Add media</Button>
-                      </label>
+                      <label htmlFor="file-upload" className="absolute left-4 top-4 inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Add media</label>
                     </div>
 
                     <div className="mt-4 flex items-center gap-3">
@@ -386,7 +384,7 @@ function UploadPageContent() {
                           )}
                         </>
                       ) : (
-                        <label htmlFor="file-upload"><Button type="button">Choose file</Button></label>
+                        <label htmlFor="file-upload" className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Choose file</label>
                       )}
                     </div>
                     {contentType === "reel" ? <label className="mt-4 block rounded-xl border border-dashed p-3 text-sm font-medium">Reel cover image <span className="font-normal text-muted-foreground">(optional)</span><input type="file" accept="image/*" disabled={submitting} className="mt-2 block w-full text-xs" onChange={(event) => { const selected = event.target.files?.[0] ?? null; if (selected && selected.size > 5 * 1024 * 1024) { setError("Cover images must be smaller than 5 MB."); event.target.value = ""; return; } setCoverFile(selected); }} />{coverFile ? <span className="mt-2 block truncate text-xs text-primary">Selected: {coverFile.name}</span> : null}</label> : null}

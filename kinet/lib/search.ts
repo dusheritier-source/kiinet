@@ -46,7 +46,7 @@ export function universalSearch(searchTerm: string): Promise<UniversalSearchResu
 async function runUniversalSearch(searchTerm: string): Promise<UniversalSearchResults> {
   const normalized = searchTerm.trim().replace(/^[@#]/, "").toLowerCase();
   const [searchedPeople, suggestedPeople, allContent, viewerSnapshot, commentsSnapshot] = await Promise.all([
-    searchProfiles(""),
+    searchProfiles(normalized),
     normalized ? Promise.resolve([]) : getSuggestedProfiles(20),
     searchPosts(""),
     db && auth.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),

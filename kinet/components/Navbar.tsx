@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
+import { Bell, Clapperboard, CirclePlay, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
 import { markNotificationDelivered, subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
 import { isCurrentUserAdmin } from "@/lib/moderation";
@@ -14,6 +14,8 @@ import { subscribeToConversations, type ConversationSummary } from "@/lib/messag
 const primaryNav = [
   { href: "/feed", label: "Feed", icon: Home },
   { href: "/search", label: "Search", icon: Search },
+  { href: "/stories", label: "Stories", icon: CirclePlay },
+  { href: "/reels", label: "Reels", icon: Clapperboard },
   { href: "/notifications", label: "Alerts", icon: Bell, isAlert: true },
   { href: "/profile", label: "Profile" },
   { href: "/messages", label: "Messages" },
@@ -168,7 +170,7 @@ export default function Navbar() {
                   </div>
                 </details>
               </div>
-              <div className="hidden items-center gap-1 xl:flex">
+              <div className="hidden items-center gap-1 lg:flex">
                 {primaryNav.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -190,20 +192,20 @@ export default function Navbar() {
                 </Button>
               </div>
               {isCurrentUserAdmin() ? (
-                <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
+                <Button variant="ghost" size="sm" asChild className="hidden xl:inline-flex">
                   <Link href="/admin">
                     <Shield className="mr-2 h-4 w-4" />
                     Admin
                   </Link>
                 </Button>
               ) : null}
-              <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
+              <Button variant="ghost" size="sm" asChild className="hidden xl:inline-flex">
                 <Link href="/settings">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" className="hidden lg:inline-flex" asChild>
+              <Button variant="outline" size="sm" className="hidden xl:inline-flex" asChild>
                 <Link href="/feed">
                   Continue
                   <LogOut className="ml-2 h-4 w-4" />
