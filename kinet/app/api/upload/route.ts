@@ -1,64 +1,31 @@
 import { NextResponse } from "next/server";
+
 import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
-import { uploadToR2, generateFileName } from "@/lib/storage";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
+const allowedTypes = /^(image|video|audio)\//;
+
 export async function POST(request: Request) {
   try {
-    const firebaseUser = await getFirebaseUserFromRequest(request);
-
-    if (!firebaseUser?.uid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const type = formData.get("type") as string || "post";
-
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    }
-
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm"];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Invalid file type. Allowed: JPEG, PNG, GIF, WebP, MP4, WebM" },
-        { status: 400 }
-      );
-    }
-
-    // Validate file size (max 50MB)
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: "File too large. Maximum size is 50MB" },
-        { status: 400 }
-      );
-    }
-
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Generate unique filename
-    const fileName = generateFileName(file.name, firebaseUser.uid);
-    const folder = type === "avatar" ? "avatars" : type === "reel" ? "reels" : "posts";
-
-    // Upload to R2
-    const publicUrl = await uploadToR2(buffer, fileName, file.type, folder);
-
-    return NextResponse.json({
-      url: publicUrl,
-      fileName,
-      type: file.type.startsWith("image/") ? "image" : "video",
-    });
+    const user = await getFirebaseUserFromRequest(request);
+    if (!user?.uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const input = await request.json() as { name?: string; contentType?: string; folder?: string; size?: number };
+    const contentType = String(input.contentType ?? "");
+    const size = Number(input.size ?? 0);
+    if (!allowedTypes.test(contentType)) return NextResponse.json({ error: "Unsupported media type." }, { status: 400 });
+    if (!size || size > 50 * 1024 * 1024) return NextResponse.json({ error: "Files must be smaller than 50 MB." }, { status: 400 });
+    const safeFolder = String(input.folder ?? "posts").replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "posts";
+    const safeName = String(input.name ?? "upload.bin").replace(/[^a-z0-9._-]/gi, "-");
+    const path = `${safeFolder}/${user.uid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin.storage.from(bucket).createSignedUploadUrl(path);
+    if (error || !data?.token) throw new Error(error?.message || "Could not create a Supabase upload token.");
+    const { data: publicData } = admin.storage.from(bucket).getPublicUrl(path);
+    return NextResponse.json({ bucket, path, token: data.token, publicUrl: publicData.publicUrl });
   } catch (error) {
-    console.error("Error uploading file:", error);
-    return NextResponse.json(
-      { error: "Failed to upload file" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not prepare upload." }, { status: 500 });
   }
 }

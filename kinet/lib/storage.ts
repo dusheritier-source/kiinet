@@ -1,7 +1,8 @@
 "use client";
 
 import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { auth, storage } from "@/lib/firebase";
+import { uploadFileWithToken } from "@/lib/supabase-storage";
 
 export function generateFileName(originalName: string, userId: string) {
   const extension = originalName.split(".").pop() || "bin";
@@ -9,6 +10,9 @@ export function generateFileName(originalName: string, userId: string) {
 }
 
 export async function uploadToFirebaseStorage(file: File, folder: string, onProgress?: (progress: number) => void, signal?: AbortSignal) {
+  if (process.env.NEXT_PUBLIC_SUPABASE_STORAGE_ENABLED === "true") {
+    return uploadToSupabase(file, folder, onProgress, signal);
+  }
   if (!storage) throw new Error("Firebase Storage is not configured.");
   if (signal?.aborted) throw new Error("Upload canceled.");
   const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
@@ -72,8 +76,25 @@ export async function uploadToFirebaseStorage(file: File, folder: string, onProg
   }
 }
 
-export async function uploadToR2(file: File, folder: string) {
-  return uploadToFirebaseStorage(file, folder);
+export async function uploadToSupabase(file: File, folder: string, onProgress?: (progress: number) => void, signal?: AbortSignal) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in again before uploading.");
+  const token = await user.getIdToken();
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name: file.name, contentType: file.type, size: file.size, folder: folder.replace(/^Kinet\//, "") }),
+    signal,
+  });
+  const prepared = await response.json() as { bucket?: string; path?: string; token?: string; publicUrl?: string; error?: string };
+  if (!response.ok || !prepared.bucket || !prepared.path || !prepared.token || !prepared.publicUrl) throw new Error(prepared.error || "Supabase could not prepare the upload.");
+  if (signal?.aborted) throw new Error("Upload canceled.");
+  onProgress?.(5);
+  const result = await uploadFileWithToken(prepared.bucket, prepared.path, prepared.token, file);
+  if (result.error) throw new Error(result.error.message || "Supabase upload failed.");
+  if (signal?.aborted) throw new Error("Upload canceled.");
+  onProgress?.(100);
+  return { url: prepared.publicUrl, path: prepared.path };
 }
 
 export const writeAuditLog = async (action: string, userId: string, details: Record<string, unknown>) => {

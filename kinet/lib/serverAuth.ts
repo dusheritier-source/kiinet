@@ -1,5 +1,16 @@
-export async function verifyFirebaseIdToken(_idToken: string) {
-  return null;
+export async function verifyFirebaseIdToken(idToken: string) {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  if (!apiKey) return null;
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const data = await response.json() as { users?: Array<{ localId?: string; email?: string }> };
+  const account = data.users?.[0];
+  return account?.localId ? { uid: account.localId, email: account.email ?? null } : null;
 }
 
 export async function getFirebaseUserFromRequest(request: Request) {

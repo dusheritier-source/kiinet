@@ -77,4 +77,11 @@ export function getPublicUrl(bucket: string, path: string) {
   )}`;
 }
 
+export async function uploadFileWithToken(bucket: string, path: string, token: string, file: File) {
+  return client.storage.from(bucket).uploadToSignedUrl(path, token, file, {
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600",
+  });
+}
+
 export default client;
