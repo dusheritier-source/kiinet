@@ -28,11 +28,12 @@ export async function POST(request: Request) {
   if (!data || data.userId !== user.uid) return NextResponse.json({ error: "Invalid post data." }, { status: 400 });
 
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6";
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE";
   const id = crypto.randomUUID().replace(/-/g, "");
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value, key)]));
-  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/posts?documentId=${id}`, {
+  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/posts?documentId=${id}&key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: authorization },
+    headers: { "Content-Type": "application/json", Authorization: authorization, "x-goog-api-key": apiKey },
     body: JSON.stringify({ fields }),
     cache: "no-store",
   });
