@@ -79,7 +79,9 @@ export async function uploadToFirebaseStorage(file: File, folder: string, onProg
 export async function uploadToSupabase(file: File, folder: string, onProgress?: (progress: number) => void, signal?: AbortSignal) {
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in again before uploading.");
-  const token = await user.getIdToken();
+  // Force-refresh before requesting a signed upload URL so a stale browser
+  // session cannot make an otherwise signed-in user appear unauthorized.
+  const token = await user.getIdToken(true);
   const response = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
