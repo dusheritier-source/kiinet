@@ -601,11 +601,15 @@ export async function createPost({
     createdAt: serverTimestamp(),
   });
 
-  await Promise.all(
-    mentionUserIds
-      .filter((mentionedUserId) => mentionedUserId !== user!.uid)
-      .map((mentionedUserId) =>
-        createNotification({
+  // The post is published once Firestore creates it. Notifications and profile
+  // counters are best-effort follow-up work and must not keep the upload screen
+  // stuck on "Publishing...".
+  void (async () => {
+    await Promise.all(
+      mentionUserIds
+        .filter((mentionedUserId) => mentionedUserId !== user!.uid)
+        .map((mentionedUserId) =>
+          createNotification({
           type: "mention",
           recipientId: mentionedUserId,
           actorId: user!.uid,
@@ -614,15 +618,15 @@ export async function createPost({
           message: `${author.name} mentioned you in a post.`,
           postId: postRef.id,
           thumbnailUrl: mediaUrl || undefined,
-        }).catch(() => undefined)
-      )
-  );
+          }).catch(() => undefined)
+        )
+    );
 
-  await Promise.all(
-    collaboratorRecords
-      .filter((collaborator) => collaborator.uid !== user!.uid)
-      .map((collaborator) =>
-        createNotification({
+    await Promise.all(
+      collaboratorRecords
+        .filter((collaborator) => collaborator.uid !== user!.uid)
+        .map((collaborator) =>
+          createNotification({
           type: "collaboration_invite",
           recipientId: collaborator.uid,
           actorId: user!.uid,
@@ -631,15 +635,17 @@ export async function createPost({
           message: `${author.name} tagged you as a collaborator on a post.`,
           postId: postRef.id,
           thumbnailUrl: mediaUrl || undefined,
-        }).catch(() => undefined)
-      )
-  );
+          }).catch(() => undefined)
+        )
+    );
 
-  const creatorSnapshot = await getDoc(doc(db!, "users", user!.uid));
-  const followers = creatorSnapshot.exists() && Array.isArray(creatorSnapshot.data().followers) ? creatorSnapshot.data().followers as string[] : [];
-  await Promise.all(followers.slice(0, 100).map((recipientId) => createNotification({ type: "creator_update", recipientId, actorId: user!.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} shared a new ${contentType === "reel" ? "video" : "post"}.`, postId: postRef.id, thumbnailUrl: mediaUrl || undefined }).catch(() => undefined)));
+    const creatorSnapshot = await getDoc(doc(db!, "users", user!.uid));
+    const followers = creatorSnapshot.exists() && Array.isArray(creatorSnapshot.data().followers) ? creatorSnapshot.data().followers as string[] : [];
+    await Promise.all(followers.slice(0, 100).map((recipientId) => createNotification({ type: "creator_update", recipientId, actorId: user!.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} shared a new ${contentType === "reel" ? "video" : "post"}.`, postId: postRef.id, thumbnailUrl: mediaUrl || undefined }).catch(() => undefined)));
 
-  await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1).catch(() => undefined);
+    await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1).catch(() => undefined);
+  })().catch((error) => console.warn("Post follow-up tasks failed:", error));
+
   return postRef.id;
 }
 
