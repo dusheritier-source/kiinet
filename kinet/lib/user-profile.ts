@@ -150,11 +150,21 @@ function normalizeExternalUrl(value: string) {
   catch { return ""; }
 }
 
-async function uploadProfileImage(file: File, path: string) {
+async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover") {
   if (!storage) throw new Error("Image storage is unavailable.");
-  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
+  let uploadFile = file;
+  if (file.type.startsWith("image/") && file.size > 350 * 1024) {
+    const { default: imageCompression } = await import("browser-image-compression");
+    uploadFile = await imageCompression(file, {
+      maxSizeMB: kind === "avatar" ? 0.35 : 0.8,
+      maxWidthOrHeight: kind === "avatar" ? 720 : 1600,
+      useWebWorker: true,
+      initialQuality: 0.84,
+    });
+  }
+  const extension = uploadFile.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
   const reference = ref(storage, `${path}/${Date.now()}.${extension}`);
-  await uploadBytes(reference, file, { contentType: file.type || "image/jpeg" });
+  await uploadBytes(reference, uploadFile, { contentType: uploadFile.type || "image/jpeg" });
   return getDownloadURL(reference);
 }
 
@@ -246,6 +256,7 @@ export async function updateCurrentUserProfile(input: {
   avatarFile?: File | null;
   coverPhotoFile?: File | null;
   profileTheme?: string;
+  existingProfile?: Record<string, unknown> | null;
   stats?: {
     pointsPerGame?: number;
     assistsPerGame?: number;
@@ -270,22 +281,24 @@ export async function updateCurrentUserProfile(input: {
   let photoURL = user.photoURL ?? "";
   let coverPhotoURL = "";
 
-  let currentProfile: Record<string, unknown> | null = null;
-  try {
-    const currentProfileSnapshot = await getDoc(doc(db, "users", user.uid));
-    currentProfile = currentProfileSnapshot.exists()
-      ? (currentProfileSnapshot.data() as Record<string, unknown>)
-      : null;
-  } catch (error) {
-    if (!isTransientFirestoreError(error)) throw error;
+  let currentProfile: Record<string, unknown> | null = input.existingProfile ?? null;
+  if (!input.existingProfile) {
+    try {
+      const currentProfileSnapshot = await getDoc(doc(db, "users", user.uid));
+      currentProfile = currentProfileSnapshot.exists()
+        ? (currentProfileSnapshot.data() as Record<string, unknown>)
+        : null;
+    } catch (error) {
+      if (!isTransientFirestoreError(error)) throw error;
+    }
   }
   coverPhotoURL = String(currentProfile?.coverPhotoURL ?? "");
   const normalizedUsername = normalizeUsername(input.username ?? String(currentProfile?.username ?? ""), user.uid);
 
   const usernameChanged = normalizedUsername !== String(currentProfile?.username ?? "").trim().toLowerCase();
   const [nextPhotoURL, nextCoverPhotoURL] = await Promise.all([
-    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`) : Promise.resolve(photoURL),
-    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`) : Promise.resolve(coverPhotoURL),
+    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`, "avatar") : Promise.resolve(photoURL),
+    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`, "cover") : Promise.resolve(coverPhotoURL),
     usernameChanged ? ensureUsernameAvailable(normalizedUsername, user.uid) : Promise.resolve(),
   ]);
   photoURL = nextPhotoURL;
@@ -342,13 +355,11 @@ export async function updateCurrentUserProfile(input: {
     { merge: true }
   );
 
-  await Promise.all([
-    updateFirebaseProfile(user as never, {
+  await profileDocumentUpdate;
+  void updateFirebaseProfile(user as never, {
       displayName: input.displayName.trim(),
       photoURL: photoURL || null,
-    } as never),
-    profileDocumentUpdate,
-  ]);
+    } as never).catch(() => undefined);
 }
 
 export async function getCurrentUserProfile() {
