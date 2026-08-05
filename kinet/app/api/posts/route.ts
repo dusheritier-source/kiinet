@@ -4,6 +4,18 @@ import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
 
 type FirestoreValue = Record<string, unknown>;
 
+function getTokenProject(authorization: string) {
+  try {
+    const token = authorization.replace(/^Bearer\s+/i, "");
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { aud?: unknown };
+    return typeof decoded.aud === "string" && /^[a-z0-9-]+$/i.test(decoded.aud) ? decoded.aud : null;
+  } catch {
+    return null;
+  }
+}
+
 function toFirestoreValue(value: unknown, key = ""): FirestoreValue {
   if (value === null || value === undefined) return { nullValue: null };
   if (key === "createdAt" || key === "scheduledFor") {
@@ -27,7 +39,11 @@ export async function POST(request: Request) {
   const data = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!data || data.userId !== user.uid) return NextResponse.json({ error: "Invalid post data." }, { status: 400 });
 
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6";
+  // A Firebase ID token can only access the Firestore project named by its
+  // audience. Deriving this after token verification avoids stale/mismatched
+  // Vercel project variables producing PERMISSION_DENIED.
+  const projectId = getTokenProject(authorization);
+  if (!projectId) return NextResponse.json({ error: "Invalid Firebase project token." }, { status: 401 });
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE";
   const id = crypto.randomUUID().replace(/-/g, "");
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value, key)]));
