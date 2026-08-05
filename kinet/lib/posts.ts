@@ -535,7 +535,7 @@ export async function createPost({
     throw new Error("Polls need at least two options.");
   }
 
-  const postRef = await addDoc(collection(db!, "posts"), {
+  const postRef = await publishPostRecord({
     userId: user!.uid,
     caption: trimmedCaption,
     mediaUrl,
@@ -598,7 +598,7 @@ export async function createPost({
         : null,
     author,
     storagePath: uploadedMedia?.path ?? "",
-    createdAt: serverTimestamp(),
+    createdAt: new Date().toISOString(),
   });
 
   // The post is published once Firestore creates it. Notifications and profile
@@ -647,6 +647,19 @@ export async function createPost({
   })().catch((error) => console.warn("Post follow-up tasks failed:", error));
 
   return postRef.id;
+}
+
+async function publishPostRecord(data: Record<string, unknown>) {
+  const currentUser = auth?.currentUser;
+  if (!currentUser) throw new Error("Sign in again before publishing.");
+  const response = await fetch("/api/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await currentUser.getIdToken(true)}` },
+    body: JSON.stringify(data),
+  });
+  const result = await response.json().catch(() => ({})) as { id?: string; error?: string };
+  if (!response.ok || !result.id) throw new Error(result.error || "The post could not be published.");
+  return { id: result.id };
 }
 
 export async function updatePost(postId: string, input: { caption: string; sport: string }) {
