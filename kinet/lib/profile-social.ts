@@ -7,6 +7,12 @@ import { getUserProfileById, searchProfiles, type SearchProfile } from "@/lib/us
 
 export interface FollowRequest { id: string; requesterId: string; recipientId: string; status: "pending" | "accepted" | "rejected"; createdAt?: { seconds?: number } | null; requester?: SearchProfile | null }
 
+export async function hasPendingFollowRequest(targetUid: string) {
+  if (!db || !auth.currentUser || auth.currentUser.uid === targetUid) return false;
+  const snapshot = await getDoc(doc(db, "followRequests", `${auth.currentUser.uid}_${targetUid}`));
+  return snapshot.exists() && snapshot.data().status === "pending";
+}
+
 export function subscribeToFollowRequests(callback: (requests: FollowRequest[]) => void) {
   if (!db || !auth.currentUser) { callback([]); return () => undefined; }
   return onSnapshot(query(collection(db, "followRequests"), where("recipientId", "==", auth.currentUser.uid)), async (snapshot) => {

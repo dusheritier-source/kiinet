@@ -63,6 +63,20 @@ export interface FeedPost {
   aiHighlightAnalysis?: string | null;
   voiceoverScript?: string | null;
   thumbnailHint?: string | null;
+  thumbnailUrl?: string | null;
+  musicUrl?: string | null;
+  musicTitle?: string | null;
+  originalVolume?: number;
+  musicVolume?: number;
+  playbackRate?: number;
+  visualFilter?: "none" | "warm" | "cool" | "mono" | "vivid";
+  rotation?: 0 | 90 | 180 | 270;
+  overlayText?: string | null;
+  overlayPosition?: "top" | "center" | "bottom";
+  sticker?: string | null;
+  commentsEnabled?: boolean;
+  allowRemix?: boolean;
+  commentKeywords?: string[];
   clipStartSec?: number | null;
   clipEndSec?: number | null;
   watermarkEnabled?: boolean;
@@ -83,6 +97,7 @@ export interface FeedPost {
     avatar: string;
     verified: boolean;
     role?: string | null;
+    location?: string | null;
   };
 }
 
@@ -133,6 +148,23 @@ interface CreatePostInput {
   watermarkEnabled?: boolean;
   downloadProtected?: boolean;
   rightClickProtected?: boolean;
+  coverFile?: File | null;
+  onUploadProgress?: (progress: number) => void;
+  signal?: AbortSignal;
+  musicFile?: File | null;
+  musicSourceUrl?: string;
+  musicTitle?: string;
+  originalVolume?: number;
+  musicVolume?: number;
+  playbackRate?: number;
+  visualFilter?: "none" | "warm" | "cool" | "mono" | "vivid";
+  rotation?: 0 | 90 | 180 | 270;
+  overlayText?: string;
+  overlayPosition?: "top" | "center" | "bottom";
+  sticker?: string;
+  commentsEnabled?: boolean;
+  allowRemix?: boolean;
+  commentKeywords?: string[];
 }
 
 type ListenerCleanup = () => void;
@@ -293,6 +325,20 @@ function mapPost(id: string, data: Record<string, unknown>): FeedPost {
     aiHighlightAnalysis: data.aiHighlightAnalysis ? String(data.aiHighlightAnalysis) : null,
     voiceoverScript: data.voiceoverScript ? String(data.voiceoverScript) : null,
     thumbnailHint: data.thumbnailHint ? String(data.thumbnailHint) : null,
+    thumbnailUrl: data.thumbnailUrl ? String(data.thumbnailUrl) : null,
+    musicUrl: data.musicUrl ? String(data.musicUrl) : null,
+    musicTitle: data.musicTitle ? String(data.musicTitle) : null,
+    originalVolume: Number(data.originalVolume ?? 1),
+    musicVolume: Number(data.musicVolume ?? 0.7),
+    playbackRate: Number(data.playbackRate ?? 1),
+    visualFilter: data.visualFilter === "warm" || data.visualFilter === "cool" || data.visualFilter === "mono" || data.visualFilter === "vivid" ? data.visualFilter : "none",
+    rotation: data.rotation === 90 || data.rotation === 180 || data.rotation === 270 ? data.rotation : 0,
+    overlayText: data.overlayText ? String(data.overlayText) : null,
+    overlayPosition: data.overlayPosition === "top" || data.overlayPosition === "center" ? data.overlayPosition : "bottom",
+    sticker: data.sticker ? String(data.sticker) : null,
+    commentsEnabled: data.commentsEnabled !== false,
+    allowRemix: data.allowRemix !== false,
+    commentKeywords: Array.isArray(data.commentKeywords) ? data.commentKeywords as string[] : [],
     clipStartSec: typeof data.clipStartSec === "number" ? data.clipStartSec : null,
     clipEndSec: typeof data.clipEndSec === "number" ? data.clipEndSec : null,
     watermarkEnabled: data.watermarkEnabled === true,
@@ -320,6 +366,7 @@ function mapPost(id: string, data: Record<string, unknown>): FeedPost {
       avatar: String(author.avatar ?? ""),
       verified: Boolean(author.verified),
       role: author.role ? String(author.role) : null,
+      location: author.location ? String(author.location) : null,
     },
   };
 }
@@ -373,6 +420,7 @@ async function getCurrentAuthorProfile() {
       avatar: user.photoURL || String(profile?.photoURL ?? ""),
       verified: Boolean(profile?.verified),
       role: role.type ? String(role.type) : null,
+      location: profile?.location ? String(profile.location) : null,
     },
     defaultSport: role.sport ? String(role.sport) : "",
     following: Array.isArray(profile?.following) ? (profile?.following as string[]) : [],
@@ -440,6 +488,23 @@ export async function createPost({
   watermarkEnabled = false,
   downloadProtected = false,
   rightClickProtected = false,
+  coverFile = null,
+  onUploadProgress,
+  signal,
+  musicFile = null,
+  musicSourceUrl = "",
+  musicTitle = "",
+  originalVolume = 1,
+  musicVolume = 0.7,
+  playbackRate = 1,
+  visualFilter = "none",
+  rotation = 0,
+  overlayText = "",
+  overlayPosition = "bottom",
+  sticker = "",
+  commentsEnabled = true,
+  allowRemix = true,
+  commentKeywords = [],
 }: CreatePostInput) {
   assertFirebaseReady();
 
@@ -447,7 +512,11 @@ export async function createPost({
   const { author } = await getCurrentAuthorProfile();
 
   const selectedFiles = (files.length ? files : file ? [file] : []).slice(0, 10);
-  const uploadedItems = await Promise.all(selectedFiles.map(async (selectedFile) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; }));
+  const [uploadedItems, uploadedCover, uploadedMusic] = await Promise.all([
+    Promise.all(selectedFiles.map(async (selectedFile, index) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`, index === 0 ? onUploadProgress : undefined, signal); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; })),
+    coverFile ? uploadToFirebaseStorage(coverFile, `Kinet/reel-covers/${user!.uid}`, undefined, signal) : Promise.resolve(null),
+    musicFile ? uploadToFirebaseStorage(musicFile, `Kinet/reel-audio/${user!.uid}`, undefined, signal) : Promise.resolve(null),
+  ]);
   const uploadedMedia = uploadedItems[0] ?? null;
   const mediaType = uploadedMedia?.type ?? "image";
   const mediaUrl = uploadedMedia?.url ?? "";
@@ -501,6 +570,20 @@ export async function createPost({
     aiHighlightAnalysis: aiHighlightAnalysis.trim() || null,
     voiceoverScript: voiceoverScript.trim() || null,
     thumbnailHint: thumbnailHint.trim() || null,
+    thumbnailUrl: uploadedCover?.url || null,
+    musicUrl: uploadedMusic?.url || musicSourceUrl || null,
+    musicTitle: uploadedMusic || musicSourceUrl ? musicTitle.trim().slice(0, 80) || musicFile?.name || "Original audio" : null,
+    originalVolume: Math.max(0, Math.min(1, originalVolume)),
+    musicVolume: Math.max(0, Math.min(1, musicVolume)),
+    playbackRate: [0.5, 0.75, 1, 1.25, 1.5, 2].includes(playbackRate) ? playbackRate : 1,
+    visualFilter,
+    rotation,
+    overlayText: overlayText.trim().slice(0, 120) || null,
+    overlayPosition,
+    sticker: sticker.slice(0, 8) || null,
+    commentsEnabled,
+    allowRemix,
+    commentKeywords: commentKeywords.map((word) => word.trim().toLowerCase()).filter(Boolean).slice(0, 30),
     clipStartSec: typeof clipStartSec === "number" ? clipStartSec : null,
     clipEndSec: typeof clipEndSec === "number" ? clipEndSec : null,
     watermarkEnabled,
@@ -531,7 +614,7 @@ export async function createPost({
           message: `${author.name} mentioned you in a post.`,
           postId: postRef.id,
           thumbnailUrl: mediaUrl || undefined,
-        })
+        }).catch(() => undefined)
       )
   );
 
@@ -548,7 +631,7 @@ export async function createPost({
           message: `${author.name} tagged you as a collaborator on a post.`,
           postId: postRef.id,
           thumbnailUrl: mediaUrl || undefined,
-        })
+        }).catch(() => undefined)
       )
   );
 
@@ -556,7 +639,8 @@ export async function createPost({
   const followers = creatorSnapshot.exists() && Array.isArray(creatorSnapshot.data().followers) ? creatorSnapshot.data().followers as string[] : [];
   await Promise.all(followers.slice(0, 100).map((recipientId) => createNotification({ type: "creator_update", recipientId, actorId: user!.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} shared a new ${contentType === "reel" ? "video" : "post"}.`, postId: postRef.id, thumbnailUrl: mediaUrl || undefined }).catch(() => undefined)));
 
-  await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1);
+  await incrementUserCounter(user!.uid, contentType === "reel" ? "reelsCount" : "postsCount", 1).catch(() => undefined);
+  return postRef.id;
 }
 
 export async function updatePost(postId: string, input: { caption: string; sport: string }) {
@@ -775,6 +859,9 @@ export async function addPostComment(postId: string, text: string, parentComment
   const { author } = await getCurrentAuthorProfile();
   const postSnapshot = await getDoc(doc(db, "posts", postId));
   const post = postSnapshot.exists() ? (postSnapshot.data() as Record<string, unknown>) : null;
+  if (post?.commentsEnabled === false) throw new Error("Comments are turned off for this reel.");
+  const blockedCommentWords = Array.isArray(post?.commentKeywords) ? post.commentKeywords as string[] : [];
+  if (blockedCommentWords.some((word) => trimmedText.toLowerCase().includes(word.toLowerCase()))) throw new Error("This comment contains a word blocked by the creator.");
 
   const commentRef = await addDoc(collection(db, "comments"), {
     postId,
@@ -864,6 +951,12 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
   }
 }
 
+export async function getPostById(postId: string) {
+  if (!db) return null;
+  const snapshot = await getDoc(doc(db, "posts", postId));
+  return snapshot.exists() ? mapPost(snapshot.id, snapshot.data() as Record<string, unknown>) : null;
+}
+
 export async function editPostComment(commentId: string, text: string) { if (!auth.currentUser || !db || !text.trim()) return; await updateDoc(doc(db, "comments", commentId), { text: text.trim().slice(0, 500), editedAt: serverTimestamp() }); }
 export async function deletePostComment(commentId: string, postId: string) { if (!auth.currentUser || !db) return; await deleteDoc(doc(db, "comments", commentId)); await updateDoc(doc(db, "posts", postId), { commentsCount: increment(-1) }); }
 export async function togglePinnedComment(commentId: string, pinned: boolean) { if (!auth.currentUser || !db) return; await updateDoc(doc(db, "comments", commentId), { pinned: !pinned }); }
@@ -891,8 +984,9 @@ function scorePosts(posts: FeedPost[], following: string[], _legacyPreference: s
     const score = (post: FeedPost) => {
       const ageHours = Math.max(0, (now - (post.createdAt?.seconds ?? now)) / 3600);
       const recency = Math.max(0, 5 - ageHours / 12);
-      const engagement = Math.log2(1 + post.likes.length + post.commentsCount * 2 + post.shares * 2);
-      return recency + engagement + (following.includes(post.userId) ? 3 : 0);
+      const engagement = Math.log2(1 + post.likes.length + post.commentsCount * 2 + post.shares * 3 + post.saves.length * 2);
+      const completionRate = (post.completedViews ?? 0) / Math.max(1, post.views ?? 0);
+      return recency + engagement + completionRate * 5 + (following.includes(post.userId) ? 3 : 0);
     };
     return score(b) - score(a);
   });

@@ -9,7 +9,7 @@ import DefaultAvatar from "@/components/DefaultAvatar";
 import { Button } from "@/components/ui/button";
 import { universalSearch, type SearchCategory, type UniversalSearchResults } from "@/lib/search";
 import { auth } from "@/lib/firebase";
-import { toggleFollowUser, type SearchProfile } from "@/lib/user-profile";
+import { searchProfiles, toggleFollowUser, type SearchProfile } from "@/lib/user-profile";
 import { clearSearchHistory, recordSearch, removeSavedSearch, saveSearch, subscribeSearchPreferences, toggleSearchAlert, type SavedSearch, type SearchPreferences } from "@/lib/search-preferences";
 
 const emptyResults: UniversalSearchResults = { people: [], posts: [], videos: [], groups: [], messages: [] };
@@ -76,6 +76,13 @@ function SearchContent() {
       router.replace(`/search${params.size ? `?${params}` : ""}`, { scroll: false });
       setLoading(true); setError(""); setVisibleCount(12);
       const sequence = ++requestSequence.current;
+      // People are a single lightweight query. Show them as soon as they arrive
+      // instead of holding them behind posts, comments, groups, and messages.
+      void searchProfiles(term).then((people) => {
+        if (sequence === requestSequence.current) {
+          setResults((current) => ({ ...current, people }));
+        }
+      });
       void universalSearch(term).then((next) => { if (sequence === requestSequence.current) setResults(next); }).catch((cause) => { if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : "Search failed."); }).finally(() => { if (sequence === requestSequence.current) setLoading(false); });
     }, 250);
     return () => window.clearTimeout(timer);

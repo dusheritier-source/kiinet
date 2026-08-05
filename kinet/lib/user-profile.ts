@@ -282,26 +282,16 @@ export async function updateCurrentUserProfile(input: {
   coverPhotoURL = String(currentProfile?.coverPhotoURL ?? "");
   const normalizedUsername = normalizeUsername(input.username ?? String(currentProfile?.username ?? ""), user.uid);
 
-  await ensureUsernameAvailable(normalizedUsername, user.uid);
+  const usernameChanged = normalizedUsername !== String(currentProfile?.username ?? "").trim().toLowerCase();
+  const [nextPhotoURL, nextCoverPhotoURL] = await Promise.all([
+    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`) : Promise.resolve(photoURL),
+    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`) : Promise.resolve(coverPhotoURL),
+    usernameChanged ? ensureUsernameAvailable(normalizedUsername, user.uid) : Promise.resolve(),
+  ]);
+  photoURL = nextPhotoURL;
+  coverPhotoURL = nextCoverPhotoURL;
 
-  if (input.avatarFile) {
-    const oldPhotoURL = photoURL;
-    photoURL = await uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`);
-    if (input.temporaryAvatarDays) {
-      await setDoc(doc(db, "users", user.uid), { previousPhotoURL: oldPhotoURL || null, temporaryAvatarExpiresAt: new Date(Date.now() + input.temporaryAvatarDays * 86_400_000) }, { merge: true });
-    }
-  }
-
-  if (input.coverPhotoFile) {
-    coverPhotoURL = await uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`);
-  }
-
-  await updateFirebaseProfile(user as never, {
-    displayName: input.displayName.trim(),
-    photoURL: photoURL || null,
-  } as never);
-
-  await setDoc(
+  const profileDocumentUpdate = setDoc(
     doc(db, "users", user.uid),
     {
       displayName: input.displayName.trim(),
@@ -351,6 +341,14 @@ export async function updateCurrentUserProfile(input: {
     },
     { merge: true }
   );
+
+  await Promise.all([
+    updateFirebaseProfile(user as never, {
+      displayName: input.displayName.trim(),
+      photoURL: photoURL || null,
+    } as never),
+    profileDocumentUpdate,
+  ]);
 }
 
 export async function getCurrentUserProfile() {
@@ -408,7 +406,10 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
     const targetBefore = await getDoc(doc(db, "users", targetUid));
     const targetSettings = targetBefore.exists() ? ((targetBefore.data().settings as Record<string, unknown> | undefined) ?? {}) : {};
     if (targetSettings.privateAccount === true || targetSettings.profileVisibility === "private") {
-      await setDoc(doc(db, "followRequests", `${currentUid}_${targetUid}`), { requesterId: currentUid, recipientId: targetUid, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      const requestRef = doc(db, "followRequests", `${currentUid}_${targetUid}`);
+      const existingRequest = await getDoc(requestRef);
+      if (existingRequest.exists() && existingRequest.data().status === "pending") return "requested" as const;
+      await setDoc(requestRef, { requesterId: currentUid, recipientId: targetUid, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
       await createNotification({ type: "follow_request", recipientId: targetUid, actorId: currentUid, actorName: auth.currentUser.displayName || "Kinet User", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} requested to follow you.` });
       return "requested" as const;
     }
@@ -460,11 +461,11 @@ export async function searchProfiles(searchTerm: string) {
     return [];
   }
 
-  const snapshot = await getDocs(query(collection(db, "users"), limit(50)));
+  const [snapshot, currentUserSnapshot] = await Promise.all([
+    getDocs(query(collection(db, "users"), limit(50))),
+    auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
+  ]);
   const normalized = searchTerm.trim().toLowerCase();
-  const currentUserSnapshot = auth?.currentUser
-    ? await getDoc(doc(db, "users", auth.currentUser.uid))
-    : null;
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;
@@ -473,10 +474,11 @@ export async function searchProfiles(searchTerm: string) {
     : [];
 
   const visibleProfiles = snapshot.docs
-    .map(
-      (docSnapshot: { data: () => Record<string, unknown> }) =>
-        docSnapshot.data() as unknown as SearchProfile
-    )
+    .map((docSnapshot) => ({
+      ...docSnapshot.data(),
+      // Older profiles may not contain uid. The document ID is authoritative.
+      uid: docSnapshot.id,
+    }) as SearchProfile)
     .filter((profile: SearchProfile) => !blockedUsers.includes(profile.uid))
     .filter((profile: SearchProfile) => {
       const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;

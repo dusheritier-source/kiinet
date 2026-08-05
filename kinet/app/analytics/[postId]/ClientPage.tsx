@@ -57,6 +57,20 @@ function PostAnalyticsPageContent() {
               <p className="text-sm text-muted-foreground">Reposts</p>
               <p className="text-2xl font-bold">{post.shares}</p>
             </div>
+            {post.type === "reel" ? <>
+              <div className="rounded-xl bg-muted p-4">
+                <p className="text-sm text-muted-foreground">Completed plays</p>
+                <p className="text-2xl font-bold">{post.completedViews}</p>
+              </div>
+              <div className="rounded-xl bg-muted p-4">
+                <p className="text-sm text-muted-foreground">Completion rate</p>
+                <p className="text-2xl font-bold">{post.completionRate}%</p>
+              </div>
+              <div className="rounded-xl bg-muted p-4">
+                <p className="text-sm text-muted-foreground">Engagement rate</p>
+                <p className="text-2xl font-bold">{post.engagementRate}%</p>
+              </div>
+            </> : null}
             <div className="rounded-xl bg-muted p-4">
               <p className="text-sm text-muted-foreground">Hashtag count</p>
               <p className="text-2xl font-bold">{post.hashtagCount}</p>

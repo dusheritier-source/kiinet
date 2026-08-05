@@ -12,18 +12,28 @@ export function subscribeToProfileHighlights(userId: string, callback: (items: P
 }
 
 export async function getProfileStories(userId: string) {
-  if (!db) return [];
+  if (!db || !auth.currentUser || auth.currentUser.uid !== userId) return [];
   const snapshot = await getDocs(query(collection(db, "stories"), where("userId", "==", userId)));
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as StoryItem)).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
 }
 
-export async function createProfileHighlight(title: string, stories: StoryItem[], currentCount: number) {
+export async function createProfileHighlight(title: string, stories: StoryItem[], currentCount: number, coverUrl?: string) {
   if (!db || !auth.currentUser || !stories.length) throw new Error("Select at least one story.");
-  await addDoc(collection(db, "profileHighlights"), { userId: auth.currentUser.uid, title: title.trim().slice(0, 30) || "Highlight", coverUrl: stories[0].mediaUrl, storyIds: stories.map((story) => story.id).slice(0, 100), order: currentCount, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  await addDoc(collection(db, "profileHighlights"), { userId: auth.currentUser.uid, title: title.trim().slice(0, 30) || "Highlight", coverUrl: coverUrl || stories[0].mediaUrl, storyIds: stories.map((story) => story.id).slice(0, 100), order: currentCount, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 
 export async function renameProfileHighlight(id: string, title: string) {
   if (!db || !auth.currentUser) return; await setDoc(doc(db, "profileHighlights", id), { title: title.trim().slice(0, 30), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function updateProfileHighlightStories(id: string, storyIds: string[], coverUrl?: string) {
+  if (!db || !auth.currentUser || !storyIds.length) throw new Error("A highlight needs at least one story.");
+  await setDoc(doc(db, "profileHighlights", id), { storyIds: Array.from(new Set(storyIds)).slice(0, 100), ...(coverUrl ? { coverUrl } : {}), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function updateProfileHighlightCover(id: string, coverUrl: string) {
+  if (!db || !auth.currentUser || !coverUrl) return;
+  await setDoc(doc(db, "profileHighlights", id), { coverUrl, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function deleteProfileHighlight(id: string) { if (!db || !auth.currentUser) return; await deleteDoc(doc(db, "profileHighlights", id)); }

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { Bell, ChevronRight, CircleUserRound, LockKeyhole, Search, ShieldCheck, UserRoundCog } from "lucide-react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -26,6 +27,7 @@ function SettingsPageContent() {
   const [saving, setSaving] = useState(false);
   const [devices, setDevices] = useState<PushDeviceRecord[]>([]);
   const [pushStatus, setPushStatus] = useState("");
+  const [privacyStatus, setPrivacyStatus] = useState("");
 
   useEffect(() => {
     void getCurrentUserSettings().then(setSettings);
@@ -52,11 +54,23 @@ function SettingsPageContent() {
 
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-4xl py-8">
-        <Card>
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Settings and activity</h1>
+          <label className="mt-4 flex items-center gap-3 rounded-xl bg-muted px-4 py-3">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <input aria-label="Search settings" placeholder="Search settings" className="w-full bg-transparent text-sm outline-none" />
+          </label>
+        </div>
+        <Link href="/security" className="mb-6 flex items-center gap-3 rounded-2xl border p-4 hover:bg-muted/40">
+          <span className="rounded-full bg-primary/10 p-2 text-primary"><CircleUserRound className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold">Accounts Center</span><span className="block text-xs text-muted-foreground">Password, security and account information</span></span>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Card className="overflow-hidden rounded-2xl">
           <CardHeader>
-            <CardTitle>Settings</CardTitle>
-            <CardDescription>Manage notification preferences, profile availability, and the vibe of your public presence.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><UserRoundCog className="h-5 w-5" />How others can interact with you</CardTitle>
+            <CardDescription>Control your privacy, messages, mentions, stories and notifications.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-6" onSubmit={handleSubmit}>
@@ -86,13 +100,38 @@ function SettingsPageContent() {
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-semibold">Profile privacy & audience</h3>
+                <h3 className="flex items-center gap-2 font-semibold"><LockKeyhole className="h-4 w-4" />Account privacy</h3>
+                <div className="rounded-2xl border p-4">
+                  <label className="flex cursor-pointer items-center justify-between gap-4">
+                    <span><span className="block font-medium">Private account</span><span className="mt-1 block text-xs text-muted-foreground">When your account is private, only people you approve can see your posts, reels, stories, followers and following.</span></span>
+                    <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${settings.privateAccount ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                      <input
+                        type="checkbox"
+                        className="peer sr-only"
+                        checked={settings.privateAccount}
+                        onChange={(event) => {
+                          const privateAccount = event.target.checked;
+                          const previous = settings.privateAccount;
+                          setSettings({ ...settings, privateAccount });
+                          setPrivacyStatus("Saving…");
+                          void updateCurrentUserSettings({ privateAccount })
+                            .then(() => setPrivacyStatus(privateAccount ? "Your account is now private." : "Your account is now public."))
+                            .catch(() => { setSettings((current) => current ? { ...current, privateAccount: previous } : current); setPrivacyStatus("Could not change account privacy."); });
+                        }}
+                      />
+                      <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.privateAccount ? "translate-x-6" : "translate-x-1"}`} />
+                    </span>
+                  </label>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4" /><span>{settings.privateAccount ? "Private · follow requests require your approval" : "Public · anyone can see your content"}</span></div>
+                  {privacyStatus ? <p role="status" className="mt-2 text-xs font-medium text-primary">{privacyStatus}</p> : null}
+                </div>
+                <h3 className="pt-2 font-semibold">Interactions</h3>
                 <div className="grid gap-3 sm:grid-cols-2">{([['showActivityStatus', 'Show activity status'], ['showFollowerCounts', 'Show follower counts'], ['allowProfileSharing', 'Allow profile sharing'], ['shareProfileViews', 'Appear in profile visitor lists']] as const).map(([key, label]) => <label key={key} className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>{label}</span><input type="checkbox" checked={settings[key]} onChange={(event) => setSettings({ ...settings, [key]: event.target.checked })} /></label>)}</div>
                 <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Who can message you<select value={settings.messagePrivacy} onChange={(event) => setSettings({ ...settings, messagePrivacy: event.target.value as UserSettings['messagePrivacy'] })} className="mt-1 h-10 w-full rounded-md border bg-background px-3"><option value="everyone">Everyone</option><option value="following">People you follow</option><option value="no_one">Nobody</option></select></label><label className="text-sm">Who can mention/tag you<select value={settings.mentionPrivacy} onChange={(event) => setSettings({ ...settings, mentionPrivacy: event.target.value as UserSettings['mentionPrivacy'] })} className="mt-1 h-10 w-full rounded-md border bg-background px-3"><option value="everyone">Everyone</option><option value="following">People you follow</option><option value="no_one">Nobody</option></select></label><label className="text-sm">Story replies<select value={settings.storyReplyAudience} onChange={(event) => setSettings({ ...settings, storyReplyAudience: event.target.value as UserSettings['storyReplyAudience'] })} className="mt-1 h-10 w-full rounded-md border bg-background px-3"><option value="everyone">Everyone</option><option value="following">People you follow</option><option value="no_one">Off</option></select></label></div>
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-semibold">Notifications</h3>
+                <h3 className="flex items-center gap-2 font-semibold"><Bell className="h-4 w-4" />Notifications</h3>
                 {Object.entries(settings.notificationPreferences).map(([key, value]) => (
                   <label key={key} className="flex items-center justify-between rounded-xl border p-3 text-sm">
                     <span className="capitalize">{key}</span>
@@ -178,15 +217,15 @@ function SettingsPageContent() {
                 </div>
               </div>
 
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="w-full rounded-xl">
                 {saving ? "Saving..." : "Save settings"}
               </Button>
-              <div className="flex flex-wrap gap-2">
-                <Link href="/platform" className="rounded-full border px-3 py-2 text-sm hover:bg-muted/40">Platform Ops</Link>
-                <Link href="/intelligence" className="rounded-full border px-3 py-2 text-sm hover:bg-muted/40">AI & Intelligence</Link>
-                <Link href="/feed/preferences" className="rounded-full border px-3 py-2 text-sm hover:bg-muted/40">Feed controls</Link>
-                <Link href="/feed/safety" className="rounded-full border px-3 py-2 text-sm hover:bg-muted/40">Feed safety</Link>
-                <Link href="/feed/creator" className="rounded-full border px-3 py-2 text-sm hover:bg-muted/40">Creator feed studio</Link>
+              <div className="grid gap-2 border-t pt-5 sm:grid-cols-2">
+                <Link href="/platform" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Accessibility and language</Link>
+                <Link href="/intelligence" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">AI features</Link>
+                <Link href="/feed/preferences" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Content preferences</Link>
+                <Link href="/feed/safety" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Hidden words and safety</Link>
+                <Link href="/feed/creator" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Creator tools</Link>
               </div>
             </form>
           </CardContent>

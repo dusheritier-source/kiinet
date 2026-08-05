@@ -14,7 +14,7 @@ import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { subscribeToUserPosts, type FeedPost } from "@/lib/posts";
 import { recordProfileVisit } from "@/lib/profile-analytics";
 import { getUserProfileById, subscribeToUserProfile, toggleFollowUser } from "@/lib/user-profile";
-import { getTaggedProfilePosts, toggleSocialList } from "@/lib/profile-social";
+import { getTaggedProfilePosts, hasPendingFollowRequest, toggleSocialList } from "@/lib/profile-social";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
 
@@ -100,19 +100,32 @@ export default function PublicProfilePageContent() {
       .catch(() => setLoading(false));
 
     void recordProfileVisit(uid);
-    void getTaggedProfilePosts(uid).then(setTaggedPosts);
     if (user) void getUserProfileById(user.uid).then((data) => setCurrentProfile(data as PublicProfile | null));
-
-    const unsubscribe = subscribeToUserPosts(uid, setPosts);
     const unsubscribeProfile = subscribeToUserProfile(uid, (data) => { if (data) setProfile(data as PublicProfile); });
-    const unsubscribeHighlights = subscribeToProfileHighlights(uid, setHighlights);
+    if (user && user.uid !== uid) void hasPendingFollowRequest(uid).then(setFollowRequested);
     return () => {
       cancelled = true;
-      unsubscribe();
       unsubscribeProfile();
-      unsubscribeHighlights();
     };
   }, [uid, user]);
+
+  const viewerCanViewContent = Boolean(profile && (user?.uid === uid || profile.settings?.privateAccount !== true || (user && profile.followers?.includes(user.uid))));
+
+  useEffect(() => {
+    if (!uid || !viewerCanViewContent) {
+      setPosts([]);
+      setTaggedPosts([]);
+      setHighlights([]);
+      return;
+    }
+    const unsubscribePosts = subscribeToUserPosts(uid, setPosts);
+    const unsubscribeHighlights = subscribeToProfileHighlights(uid, setHighlights);
+    void getTaggedProfilePosts(uid).then(setTaggedPosts);
+    return () => {
+      unsubscribePosts();
+      unsubscribeHighlights();
+    };
+  }, [uid, viewerCanViewContent]);
 
   const initials = useMemo(() => {
     const name = profile?.displayName || "User";

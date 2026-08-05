@@ -27,6 +27,9 @@ export interface CreatorAnalytics {
     caption: string;
     type: "post" | "reel";
     views: number;
+    completedViews: number;
+    completionRate: number;
+    engagementRate: number;
     likes: number;
     comments: number;
     saves: number;
@@ -192,6 +195,17 @@ export async function getCreatorAnalytics(): Promise<CreatorAnalytics | null> {
       caption: post.caption,
       type: post.contentType,
       views: post.views ?? 0,
+      completedViews: post.completedViews ?? 0,
+      completionRate: (post.views ?? 0) > 0
+        ? Math.round(((post.completedViews ?? 0) / (post.views ?? 1)) * 100)
+        : 0,
+      engagementRate: (post.views ?? 0) > 0
+        ? Math.round(
+            ((post.likes.length + post.commentsCount + post.saves.length + post.shares) /
+              (post.views ?? 1)) *
+              1000
+          ) / 10
+        : 0,
       likes: post.likes.length,
       comments: post.commentsCount,
       saves: post.saves.length,

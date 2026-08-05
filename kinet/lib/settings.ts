@@ -14,6 +14,7 @@ import {
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 
 export interface UserSettings {
+  privateAccount: boolean;
   availabilityStatus: "available" | "locked_in" | "recovering";
   headline: string;
   emailDigestFrequency: "off" | "daily" | "weekly";
@@ -54,6 +55,7 @@ export interface UserSettings {
 }
 
 const defaultSettings: UserSettings = {
+  privateAccount: false,
   availabilityStatus: "available",
   headline: "",
   emailDigestFrequency: "off",
@@ -108,6 +110,7 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
     const quietHours = (settings.quietHours as Record<string, unknown> | undefined) ?? {};
 
     return {
+      privateAccount: settings.privateAccount === true || settings.profileVisibility === "private",
       availabilityStatus:
         settings.availabilityStatus === "locked_in" || settings.availabilityStatus === "recovering"
           ? settings.availabilityStatus
@@ -175,6 +178,9 @@ export async function updateCurrentUserSettings(input: Partial<UserSettings>) {
     doc(db, "users", auth.currentUser.uid),
     {
       settings: {
+        ...(typeof input.privateAccount === "boolean"
+          ? { privateAccount: input.privateAccount, profileVisibility: input.privateAccount ? "private" : "public" }
+          : {}),
         ...(input.availabilityStatus ? { availabilityStatus: input.availabilityStatus } : {}),
         ...(typeof input.headline === "string" ? { headline: input.headline.trim() } : {}),
         ...(input.emailDigestFrequency
