@@ -921,7 +921,7 @@ function MessagesPageContent() {
                           ) : null}
                           <div className="max-w-[82%]">
                           {message.replyTo ? (
-                            <div className="mb-1 rounded-xl border-l-2 border-primary bg-muted/70 px-3 py-2 text-xs text-muted-foreground">
+                            <div className="mb-1 rounded-xl border-l-2 border-primary bg-slate-100 px-3 py-2 text-xs text-slate-900">
                               <p className="font-medium">Replying to {message.replyTo.senderId === currentUserId ? "yourself" : activeOtherUser?.displayName || "message"}</p>
                               <p className="truncate">{message.replyTo.text || "Attachment"}</p>
                             </div>
@@ -953,7 +953,7 @@ function MessagesPageContent() {
                             className={`rounded-[24px] px-4 py-3 text-sm shadow-sm ${
                               message.senderId === currentUserId
                                 ? "bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 text-white"
-                                : "border border-border/60 bg-white"
+                                : "border border-border/60 bg-white text-slate-900"
                             }`}
                           >
                             {editingMessageId === message.id ? (
