@@ -21,7 +21,7 @@ const tabs: Array<{ id: SearchCategory; label: string }> = [
 function SearchContent() {
   const searchParams = useSearchParams();
   const [term, setTerm] = useState(searchParams.get("q") ?? "");
-  const [category, setCategory] = useState<SearchCategory>((searchParams.get("type") as SearchCategory) || "all");
+  const [category, setCategory] = useState<SearchCategory>((searchParams.get("type") as SearchCategory) || "people");
   const [results, setResults] = useState(emptyResults);
   const [visibleCount, setVisibleCount] = useState(12);
   const [loading, setLoading] = useState(false);
@@ -61,7 +61,7 @@ function SearchContent() {
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams();
       if (term.trim()) params.set("q", term.trim());
-      if (category !== "all") params.set("type", category);
+      if (category !== "people") params.set("type", category);
       if (sortBy !== "relevance") params.set("sort", sortBy);
       if (dateRange !== "any") params.set("date", dateRange);
       if (verifiedOnly) params.set("verified", "1");
@@ -83,9 +83,12 @@ function SearchContent() {
       void searchProfiles(term).then((people) => {
         if (sequence === requestSequence.current) {
           setResults((current) => ({ ...current, people }));
+          if (category === "people") setLoading(false);
         }
-      });
-      void universalSearch(term).then((next) => { if (sequence === requestSequence.current) setResults(next); }).catch((cause) => { if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : "Search failed."); }).finally(() => { if (sequence === requestSequence.current) setLoading(false); });
+      }).catch((cause) => { if (sequence === requestSequence.current) { setError(cause instanceof Error ? cause.message : "Search failed."); setLoading(false); } });
+      if (category !== "people") {
+        void universalSearch(term).then((next) => { if (sequence === requestSequence.current) setResults(next); }).catch((cause) => { if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : "Search failed."); }).finally(() => { if (sequence === requestSequence.current) setLoading(false); });
+      }
     }, 250);
     return () => window.clearTimeout(timer);
   }, [category, creatorFilter, dateRange, exactPhrase, followingOnly, likedOnly, locationFilter, messageScope, savedOnly, sortBy, term, verifiedOnly]);
