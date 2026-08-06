@@ -20,6 +20,7 @@ import {
   Pencil,
   Phone,
   Pin,
+  Plus,
   Reply,
   Sparkles,
   Search,
@@ -115,6 +116,7 @@ function MessagesPageContent() {
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showComposerMenu, setShowComposerMenu] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [messagePrivacy, setMessagePrivacy] = useState<UserSettings["messagePrivacy"]>("everyone");
   const [creatingGroup, setCreatingGroup] = useState(false);
@@ -1055,49 +1057,19 @@ function MessagesPageContent() {
                     </div>
                   ) : null}
 
-                  <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-full bg-muted px-3 py-1">Send photo</span>
-                    <span className="rounded-full bg-muted px-3 py-1">Share reel</span>
-                    <span className="rounded-full bg-muted px-3 py-1">Voice soon</span>
-                  </div>
-
-                  <div className="mb-3 flex gap-2 overflow-x-auto">
-                    {smartReplies.map((reply) => <button key={reply} type="button" onClick={() => setDraft(reply)} className="whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}
-                  </div>
-
-                  <div className="mb-3 flex items-center gap-2">
-                    <Button type="button" size="sm" variant="outline" onClick={shareLocation}><MapPin className="mr-1 h-4 w-4" />Location</Button>
-                    <select value={expiresInSeconds ?? ""} onChange={(event) => setExpiresInSeconds(event.target.value ? Number(event.target.value) : null)} className="h-9 rounded-md border bg-background px-3 text-xs">
-                      <option value="">Keep message</option>
-                      <option value="300">Disappear after 5 minutes</option>
-                      <option value="3600">Disappear after 1 hour</option>
-                      <option value="86400">Disappear after 24 hours</option>
-                      <option value="604800">Disappear after 7 days</option>
-                    </select>
-                  </div>
+                  {showComposerMenu ? <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
+                      <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
+                      <button type="button" disabled className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3 opacity-60"><Circle className="h-5 w-5" />Voice soon</button>
+                      <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
+                    </div>
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
+                    <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
+                  </div> : null}
 
                   <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-sm">
-                    <label className="flex cursor-pointer items-center justify-center text-muted-foreground">
-                      <ImagePlus className="h-5 w-5" />
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt"
-                        className="hidden"
-                        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                          const file = event.target.files?.[0] ?? null;
-                          if (!file) return setAttachment(null);
-                          try {
-                            validateMessageAttachment(file);
-                            setError("");
-                            setAttachment(file);
-                          } catch (validationError) {
-                            setAttachment(null);
-                            setError(validationError instanceof Error ? validationError.message : "Invalid attachment.");
-                            event.target.value = "";
-                          }
-                        }}
-                      />
-                    </label>
+                    <button type="button" aria-label="More message actions" aria-expanded={showComposerMenu} onClick={() => setShowComposerMenu((current) => !current)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"><Plus className={`h-5 w-5 transition-transform ${showComposerMenu ? "rotate-45" : ""}`} /></button>
                     <input
                       value={draft}
                       disabled={!canSendToActiveConversation}
