@@ -1,9 +1,9 @@
 "use client";
 
 import imageCompression from "browser-image-compression";
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 
-import { auth, storage } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -36,7 +36,7 @@ export async function uploadMessageAttachment(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<UploadedMessageAttachment> {
-  if (!storage || !auth.currentUser) throw new Error("You must be signed in to upload files.");
+  if (!auth.currentUser) throw new Error("You must be signed in to upload files.");
   validateMessageAttachment(file);
 
   let uploadFile: File | Blob = file;
@@ -49,24 +49,17 @@ export async function uploadMessageAttachment(
     });
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const objectPath = `messages/${auth.currentUser.uid}/${conversationId}/${crypto.randomUUID()}-${safeName}`;
-  const uploadTask = uploadBytesResumable(ref(storage, objectPath), uploadFile, {
-    contentType: file.type,
-    customMetadata: { originalName: file.name, conversationId },
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => onProgress?.(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)),
-      reject,
-      resolve
-    );
-  });
+  const preparedFile = uploadFile instanceof File
+    ? new File([uploadFile], file.name, { type: file.type, lastModified: file.lastModified })
+    : new File([uploadFile], file.name, { type: file.type, lastModified: file.lastModified });
+  const uploaded = await uploadToFirebaseStorage(
+    preparedFile,
+    `Kinet/messages/${auth.currentUser.uid}/${conversationId}`,
+    onProgress
+  );
 
   return {
-    url: await getDownloadURL(uploadTask.snapshot.ref),
+    url: uploaded.url,
     type: file.type,
     name: file.name,
     size: file.size,

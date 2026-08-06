@@ -20,6 +20,7 @@ import {
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { uploadMessageAttachment } from "@/lib/message-attachments";
+import { getUserProfileById } from "@/lib/user-profile";
 
 export interface ConversationSummary {
   id: string;
@@ -530,9 +531,8 @@ export function subscribeToConversations(
 
   return onSnapshot(
     conversationsQuery,
-    (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
-      callback(
-        snapshot.docs.map((docSnapshot) => {
+    async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+      const mapped = snapshot.docs.map((docSnapshot) => {
           const data = docSnapshot.data();
           return {
             id: docSnapshot.id,
@@ -559,9 +559,26 @@ export function subscribeToConversations(
             updatedAt:
               (data.updatedAt as { seconds?: number; nanoseconds?: number } | null | undefined) ??
               null,
+          } satisfies ConversationSummary;
+        });
+      const participantIds = Array.from(new Set(mapped.flatMap((conversation) => conversation.participantIds)));
+      const resolvedProfiles = new Map<string, Record<string, unknown>>();
+      await Promise.all(participantIds.map(async (uid) => {
+        const profile = await getUserProfileById(uid).catch(() => null);
+        if (profile) resolvedProfiles.set(uid, profile as Record<string, unknown>);
+      }));
+      callback(mapped.map((conversation) => ({
+        ...conversation,
+        participantProfiles: conversation.participantIds.map((uid) => {
+          const stored = conversation.participantProfiles.find((profile) => profile.uid === uid);
+          const current = resolvedProfiles.get(uid);
+          return {
+            uid,
+            displayName: String(current?.displayName ?? stored?.displayName ?? "Kinet User"),
+            photoURL: String(current?.photoURL ?? stored?.photoURL ?? ""),
           };
-        }).sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0))
-      );
+        }),
+      })).sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0)));
     },
     () => {
       callback([]);
