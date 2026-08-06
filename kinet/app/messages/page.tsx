@@ -114,6 +114,7 @@ function MessagesPageContent() {
   const [forwardingMessage, setForwardingMessage] = useState<ConversationMessage | null>(null);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [messagePrivacy, setMessagePrivacy] = useState<UserSettings["messagePrivacy"]>("everyone");
   const [creatingGroup, setCreatingGroup] = useState(false);
@@ -762,48 +763,21 @@ function MessagesPageContent() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="relative flex items-center gap-2">
                     {autoTranslate ? (
                       <span className="hidden rounded-full border px-2 py-1 text-xs md:inline-flex">
                         Translate: {dmLanguage}
                       </span>
                     ) : null}
                     <CallPanel currentUserId={currentUserId} conversationId={activeConversation.id} participantIds={activeConversation.participantIds} title={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"} />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                          onClick={() =>
-                            void updateConversationState(
-                              activeConversation.id,
-                              "mutedBy",
-                              !activeConversation.mutedBy.includes(currentUserId)
-                            )
-                          }
-                    >
-                      <BellOff className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                          onClick={() =>
-                            void updateConversationState(
-                              activeConversation.id,
-                              "archivedBy",
-                              !activeConversation.archivedBy.includes(currentUserId)
-                            )
-                          }
-                    >
-                      <Archive className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Pin conversation" onClick={() => void updateConversationState(activeConversation.id, "pinnedBy", !activeConversation.pinnedBy.includes(currentUserId))}>
-                      <Pin className={`h-4 w-4 ${activeConversation.pinnedBy.includes(currentUserId) ? "fill-current text-primary" : ""}`} />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Mark unread" onClick={() => void markConversationUnread(activeConversation.id)}>
-                      <Mail className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Conversation details" onClick={() => setShowConversationInfo((current) => !current)}>
-                      <Info className="h-4 w-4" />
-                    </Button>
+                    <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
+                    {showChatMenu ? <div className="absolute right-0 top-11 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
+                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { setShowConversationInfo(true); setShowChatMenu(false); }}><Info className="h-4 w-4" />Chat details</button>
+                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "mutedBy", !activeConversation.mutedBy.includes(currentUserId)); setShowChatMenu(false); }}><BellOff className="h-4 w-4" />{activeConversation.mutedBy.includes(currentUserId) ? "Unmute" : "Mute"}</button>
+                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "archivedBy", !activeConversation.archivedBy.includes(currentUserId)); setShowChatMenu(false); }}><Archive className="h-4 w-4" />{activeConversation.archivedBy.includes(currentUserId) ? "Unarchive" : "Archive"}</button>
+                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "pinnedBy", !activeConversation.pinnedBy.includes(currentUserId)); setShowChatMenu(false); }}><Pin className="h-4 w-4" />{activeConversation.pinnedBy.includes(currentUserId) ? "Unpin chat" : "Pin chat"}</button>
+                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void markConversationUnread(activeConversation.id); setShowChatMenu(false); }}><Mail className="h-4 w-4" />Mark unread</button>
+                    </div> : null}
                   </div>
                 </div>
 
