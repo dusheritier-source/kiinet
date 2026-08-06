@@ -408,7 +408,28 @@ export async function getUserProfileById(uid: string) {
 
   try {
     const snapshot = await getDoc(doc(db, "users", uid));
-    return snapshot.exists() ? snapshot.data() : null;
+    if (snapshot.exists()) return snapshot.data();
+
+    // Older accounts can have published content without a users/{uid}
+    // document. Recover their public identity from their post author snapshot
+    // so search results always open a usable profile page.
+    const postsSnapshot = await getDocs(query(collection(db, "posts"), where("userId", "==", uid), limit(1)));
+    const post = postsSnapshot.docs[0]?.data() as Record<string, unknown> | undefined;
+    const author = (post?.author as Record<string, unknown> | undefined) ?? null;
+    if (!author) return null;
+    return {
+      uid,
+      displayName: String(author.name ?? "Kinet User"),
+      username: String(author.username ?? uid.slice(0, 8)).replace(/^@/, ""),
+      photoURL: String(author.avatar ?? ""),
+      verified: Boolean(author.verified),
+      followers: [],
+      following: [],
+      location: author.location ? String(author.location) : null,
+      role: author.role ? { type: String(author.role) } : {},
+      settings: { privateAccount: false, profileVisibility: "public" },
+      recoveredFromPost: true,
+    };
   } catch (error) {
     if (isTransientFirestoreError(error)) {
       return null;
