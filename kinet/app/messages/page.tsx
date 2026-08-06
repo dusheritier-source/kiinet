@@ -284,7 +284,7 @@ function MessagesPageContent() {
       .filter((conversation) => !conversation.hiddenBy.includes(currentUserId))
       .filter((conversation) => showRequests
         ? conversation.requestStatus === "pending" && conversation.requestedBy !== currentUserId
-        : !(conversation.requestStatus === "pending" && conversation.requestedBy !== currentUserId))
+        : true)
       .filter((conversation) =>
         showArchived
           ? conversation.archivedBy.includes(currentUserId)
@@ -701,7 +701,9 @@ function MessagesPageContent() {
                           </p>
                           <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                             <Circle className={`h-2.5 w-2.5 fill-current ${unreadCount ? "text-primary" : "text-muted-foreground/40"}`} />
-                            {unreadCount ? "New message" : "Open chat"}
+                            {conversation.requestStatus === "pending" && conversation.requestedBy !== currentUserId
+                              ? "Message request · Tap to review"
+                              : unreadCount ? "New message" : "Open chat"}
                           </div>
                           {muted ? <p className="mt-1 text-[11px] font-medium text-muted-foreground">Muted</p> : null}
                         </div>
