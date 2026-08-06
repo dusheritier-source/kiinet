@@ -465,16 +465,21 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
   // Store the relationship first. This works even for older accounts whose
   // user profile document is incomplete, and makes the button respond fast.
   const followRef = doc(db, "follows", `${currentUid}_${targetUid}`);
-  if (isFollowing) {
-    await deleteDoc(followRef);
-  } else {
-    await setDoc(followRef, { followerId: currentUid, followingId: targetUid, createdAt: serverTimestamp() });
+  try {
+    if (isFollowing) {
+      await deleteDoc(followRef);
+    } else {
+      await setDoc(followRef, { followerId: currentUid, followingId: targetUid, createdAt: serverTimestamp() });
+    }
+  } catch {
+    // Older deployed rules may not expose the follows collection yet. The
+    // owner-controlled following array below remains the reliable fallback.
   }
 
   // Denormalized profile arrays, analytics, and notifications are secondary.
   // They must not block the primary follow/unfollow interaction.
+  await setDoc(doc(db, "users", currentUid), { following: isFollowing ? arrayRemove(targetUid) : arrayUnion(targetUid), updatedAt: serverTimestamp() }, { merge: true });
   void Promise.allSettled([
-    setDoc(doc(db, "users", currentUid), { following: isFollowing ? arrayRemove(targetUid) : arrayUnion(targetUid), updatedAt: serverTimestamp() }, { merge: true }),
     setDoc(doc(db, "users", targetUid), { followers: isFollowing ? arrayRemove(currentUid) : arrayUnion(currentUid), updatedAt: serverTimestamp() }, { merge: true }),
   ]).then(async () => {
     const targetSnapshot = await getDoc(doc(db!, "users", targetUid)).catch(() => null);
@@ -507,19 +512,16 @@ export async function searchProfiles(searchTerm: string) {
   }
 
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [snapshot, currentUserSnapshot, followingSnapshot] = await Promise.all([
+  const [snapshot, currentUserSnapshot] = await Promise.all([
     normalized
       ? getDocs(collection(db, "users"))
       : getDocs(query(collection(db, "users"), limit(100))),
     auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
-    auth?.currentUser
-      ? getDocs(query(collection(db, "follows"), where("followerId", "==", auth.currentUser.uid), limit(500)))
-      : Promise.resolve(null),
   ]);
-  const followedUserIds = new Set(followingSnapshot?.docs.map((item) => String(item.data().followingId ?? "")) ?? []);
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;
+  const followedUserIds = new Set(Array.isArray(currentUserData?.following) ? currentUserData.following as string[] : []);
   const blockedUsers = Array.isArray(currentUserData?.blockedUsers)
     ? (currentUserData?.blockedUsers as string[])
     : [];

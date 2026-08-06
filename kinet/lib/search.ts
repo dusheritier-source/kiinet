@@ -26,14 +26,15 @@ const MAX_CACHE_ENTRIES = 40;
 
 export async function searchPeopleDirectory(searchTerm: string): Promise<SearchProfile[]> {
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [profiles, authoredPosts, followingSnapshot] = await Promise.all([
+  const [profiles, authoredPosts, viewerSnapshot] = await Promise.all([
     searchProfiles(searchTerm),
     searchPosts(searchTerm),
     db && auth.currentUser
-      ? getDocs(query(collection(db, "follows"), where("followerId", "==", auth.currentUser.uid), limit(500)))
+      ? getDoc(doc(db, "users", auth.currentUser.uid))
       : Promise.resolve(null),
   ]);
-  const followedUserIds = new Set(followingSnapshot?.docs.map((item) => String(item.data().followingId ?? "")) ?? []);
+  const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
+  const followedUserIds = new Set(Array.isArray(viewerData.following) ? viewerData.following as string[] : []);
   const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
   for (const post of authoredPosts) {
     if (byUserId.has(post.userId)) continue;
