@@ -7,9 +7,9 @@ import { BadgeCheck, Bell, BellOff, Bookmark, Check, Clock, Film, MessageCircle,
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { Button } from "@/components/ui/button";
-import { universalSearch, type SearchCategory, type UniversalSearchResults } from "@/lib/search";
+import { searchPeopleDirectory, universalSearch, type SearchCategory, type UniversalSearchResults } from "@/lib/search";
 import { auth } from "@/lib/firebase";
-import { searchProfiles, toggleFollowUser, type SearchProfile } from "@/lib/user-profile";
+import { toggleFollowUser, type SearchProfile } from "@/lib/user-profile";
 import { clearSearchHistory, recordSearch, removeSavedSearch, saveSearch, subscribeSearchPreferences, toggleSearchAlert, type SavedSearch, type SearchPreferences } from "@/lib/search-preferences";
 
 const emptyResults: UniversalSearchResults = { people: [], posts: [], videos: [], groups: [], messages: [] };
@@ -80,7 +80,7 @@ function SearchContent() {
       const sequence = ++requestSequence.current;
       // People are a single lightweight query. Show them as soon as they arrive
       // instead of holding them behind posts, comments, groups, and messages.
-      void searchProfiles(term).then((people) => {
+      void searchPeopleDirectory(term).then((people) => {
         if (sequence === requestSequence.current) {
           setResults((current) => ({ ...current, people }));
           if (category === "people") setLoading(false);

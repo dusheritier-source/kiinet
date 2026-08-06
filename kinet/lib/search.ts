@@ -24,6 +24,33 @@ const searchesInFlight = new Map<string, Promise<UniversalSearchResults>>();
 const SEARCH_CACHE_MS = 60_000;
 const MAX_CACHE_ENTRIES = 40;
 
+export async function searchPeopleDirectory(searchTerm: string): Promise<SearchProfile[]> {
+  const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
+  const [profiles, authoredPosts] = await Promise.all([
+    searchProfiles(searchTerm),
+    searchPosts(searchTerm),
+  ]);
+  const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
+  for (const post of authoredPosts) {
+    if (byUserId.has(post.userId)) continue;
+    const username = post.author.username.replace(/^@/, "");
+    const authorText = `${post.author.name} ${username}`.toLowerCase();
+    if (normalized && !authorText.includes(normalized)) continue;
+    byUserId.set(post.userId, {
+      uid: post.userId,
+      displayName: post.author.name || "Kinet User",
+      username: username || post.userId.slice(0, 8),
+      photoURL: post.author.avatar || "",
+      verified: post.author.verified,
+      followers: [],
+      following: [],
+      location: post.author.location || null,
+      role: post.author.role ? { type: post.author.role } : undefined,
+    });
+  }
+  return Array.from(byUserId.values());
+}
+
 export function clearUniversalSearchCache() {
   searchCache.clear();
 }
@@ -46,7 +73,7 @@ export function universalSearch(searchTerm: string): Promise<UniversalSearchResu
 async function runUniversalSearch(searchTerm: string): Promise<UniversalSearchResults> {
   const normalized = searchTerm.trim().replace(/^[@#]/, "").toLowerCase();
   const [searchedPeople, suggestedPeople, allContent, viewerSnapshot, commentsSnapshot] = await Promise.all([
-    searchProfiles(normalized),
+    searchPeopleDirectory(normalized),
     normalized ? Promise.resolve([]) : getSuggestedProfiles(20),
     searchPosts(""),
     db && auth.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
