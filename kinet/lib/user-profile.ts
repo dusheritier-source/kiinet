@@ -3,6 +3,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -461,38 +462,36 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
     }
   }
 
-  await setDoc(
-    doc(db, "users", currentUid),
-    {
-      following: isFollowing ? arrayRemove(targetUid) : arrayUnion(targetUid),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  // Store the relationship first. This works even for older accounts whose
+  // user profile document is incomplete, and makes the button respond fast.
+  const followRef = doc(db, "follows", `${currentUid}_${targetUid}`);
+  if (isFollowing) {
+    await deleteDoc(followRef);
+  } else {
+    await setDoc(followRef, { followerId: currentUid, followingId: targetUid, createdAt: serverTimestamp() });
+  }
 
-  await setDoc(
-    doc(db, "users", targetUid),
-    {
-      followers: isFollowing ? arrayRemove(currentUid) : arrayUnion(currentUid),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-
-  const targetSnapshot = await getDoc(doc(db, "users", targetUid));
-  const targetData = targetSnapshot.exists() ? (targetSnapshot.data() as Record<string, unknown>) : null;
-  const nextFollowers = Array.isArray(targetData?.followers) ? (targetData?.followers as string[]) : [];
-  await recordFollowerGrowth(targetUid, nextFollowers.length);
+  // Denormalized profile arrays, analytics, and notifications are secondary.
+  // They must not block the primary follow/unfollow interaction.
+  void Promise.allSettled([
+    setDoc(doc(db, "users", currentUid), { following: isFollowing ? arrayRemove(targetUid) : arrayUnion(targetUid), updatedAt: serverTimestamp() }, { merge: true }),
+    setDoc(doc(db, "users", targetUid), { followers: isFollowing ? arrayRemove(currentUid) : arrayUnion(currentUid), updatedAt: serverTimestamp() }, { merge: true }),
+  ]).then(async () => {
+    const targetSnapshot = await getDoc(doc(db!, "users", targetUid)).catch(() => null);
+    const targetData = targetSnapshot?.exists() ? (targetSnapshot.data() as Record<string, unknown>) : null;
+    const nextFollowers = Array.isArray(targetData?.followers) ? (targetData.followers as string[]) : [];
+    await recordFollowerGrowth(targetUid, nextFollowers.length).catch(() => undefined);
+  });
 
   if (!isFollowing) {
-    await createNotification({
+    void createNotification({
       type: "follow",
       recipientId: targetUid,
       actorId: currentUid,
       actorName: auth.currentUser.displayName || "Kinet User",
       actorAvatar: auth.currentUser.photoURL || "",
       message: `${auth.currentUser.displayName || "Someone"} followed you.`,
-    });
+    }).catch(() => undefined);
   }
   return isFollowing ? "unfollowed" as const : "following" as const;
 }
@@ -508,12 +507,16 @@ export async function searchProfiles(searchTerm: string) {
   }
 
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [snapshot, currentUserSnapshot] = await Promise.all([
+  const [snapshot, currentUserSnapshot, followingSnapshot] = await Promise.all([
     normalized
       ? getDocs(collection(db, "users"))
       : getDocs(query(collection(db, "users"), limit(100))),
     auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
+    auth?.currentUser
+      ? getDocs(query(collection(db, "follows"), where("followerId", "==", auth.currentUser.uid), limit(500)))
+      : Promise.resolve(null),
   ]);
+  const followedUserIds = new Set(followingSnapshot?.docs.map((item) => String(item.data().followingId ?? "")) ?? []);
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;
@@ -536,13 +539,14 @@ export async function searchProfiles(searchTerm: string) {
       const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
       const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
       const canSeeDetails = !isPrivate || !auth.currentUser || profile.uid === auth.currentUser.uid || (profile.followers ?? []).includes(auth.currentUser.uid);
-      return canSeeDetails ? { ...profile, privateAccount: isPrivate } : {
+      const visibleProfile = canSeeDetails ? { ...profile, privateAccount: isPrivate } : {
         ...profile,
         privateAccount: true,
         interests: [],
         location: null,
         role: profile.role ? { ...profile.role, bio: null } : profile.role,
       };
+      return { ...visibleProfile, discoveryIsFollowing: followedUserIds.has(profile.uid) };
     })
     .filter((profile: SearchProfile) => {
       if (!normalized) {

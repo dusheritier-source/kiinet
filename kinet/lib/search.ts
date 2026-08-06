@@ -26,10 +26,14 @@ const MAX_CACHE_ENTRIES = 40;
 
 export async function searchPeopleDirectory(searchTerm: string): Promise<SearchProfile[]> {
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [profiles, authoredPosts] = await Promise.all([
+  const [profiles, authoredPosts, followingSnapshot] = await Promise.all([
     searchProfiles(searchTerm),
     searchPosts(searchTerm),
+    db && auth.currentUser
+      ? getDocs(query(collection(db, "follows"), where("followerId", "==", auth.currentUser.uid), limit(500)))
+      : Promise.resolve(null),
   ]);
+  const followedUserIds = new Set(followingSnapshot?.docs.map((item) => String(item.data().followingId ?? "")) ?? []);
   const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
   for (const post of authoredPosts) {
     if (byUserId.has(post.userId)) continue;
@@ -44,11 +48,15 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
       verified: post.author.verified,
       followers: [],
       following: [],
+      discoveryIsFollowing: followedUserIds.has(post.userId),
       location: post.author.location || null,
       role: post.author.role ? { type: post.author.role } : undefined,
     });
   }
-  return Array.from(byUserId.values());
+  return Array.from(byUserId.values()).map((profile) => ({
+    ...profile,
+    discoveryIsFollowing: followedUserIds.has(profile.uid) || profile.discoveryIsFollowing,
+  }));
 }
 
 export function clearUniversalSearchCache() {
