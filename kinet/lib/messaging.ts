@@ -157,10 +157,6 @@ export async function createOrGetConversation(otherUserId: string) {
   const otherUser = otherUserSnapshot.exists()
     ? (otherUserSnapshot.data() as Record<string, unknown>)
     : null;
-  if (!otherUser) {
-    throw new Error("This older account must sign in once before it can receive messages.");
-  }
-
   const currentUserSnapshot = await getDoc(doc(db, "users", currentUserId));
   const currentUserData = currentUserSnapshot.exists() ? currentUserSnapshot.data() : {};
   const currentBlocked = Array.isArray(currentUserData.blockedUsers) ? currentUserData.blockedUsers as string[] : [];

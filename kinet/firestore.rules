@@ -301,6 +301,13 @@ service cloud.firestore {
           ? request.resource.data.participantIds[1]
           : request.resource.data.participantIds[0];
       }
+      function requestedUserCanReceive() {
+        return !exists(/databases/$(database)/documents/users/$(requestedUser()))
+          || (!(request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('blockedUsers', []))
+            && get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'no_one'
+            && (get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'following'
+              || request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('followers', [])));
+      }
       // A deterministic direct-chat lookup must be allowed to return
       // "not found" before the signed-in participant creates it.
       allow get: if isSignedIn() && (
@@ -328,10 +335,7 @@ service cloud.firestore {
             && request.resource.data.requestStatus == 'pending'
             && request.resource.data.adminIds == []
             && !(requestedUser() in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('blockedUsers', []))
-            && !(request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('blockedUsers', []))
-            && get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'no_one'
-            && (get(/databases/$(database)/documents/users/$(requestedUser())).data.get('settings', {}).get('messagePrivacy', 'everyone') != 'following'
-              || request.auth.uid in get(/databases/$(database)/documents/users/$(requestedUser())).data.get('followers', [])))
+            && requestedUserCanReceive())
           || (request.resource.data.kind == 'group'
             && request.resource.data.participantIds.size() >= 3
             && request.resource.data.requestStatus == 'accepted'
