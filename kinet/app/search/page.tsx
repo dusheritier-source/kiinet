@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { BadgeCheck, Bell, BellOff, Bookmark, Check, Clock, Film, MessageCircle, Search, Share2, Trash2, TrendingUp, Users, X } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DefaultAvatar from "@/components/DefaultAvatar";
@@ -19,7 +19,6 @@ const tabs: Array<{ id: SearchCategory; label: string }> = [
 ];
 
 function SearchContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [term, setTerm] = useState(searchParams.get("q") ?? "");
   const [category, setCategory] = useState<SearchCategory>((searchParams.get("type") as SearchCategory) || "all");
@@ -73,7 +72,10 @@ function SearchContent() {
       if (savedOnly) params.set("saved", "1");
       if (likedOnly) params.set("liked", "1");
       if (messageScope !== "all") params.set("messages", messageScope);
-      router.replace(`/search${params.size ? `?${params}` : ""}`, { scroll: false });
+      // Keep shareable search parameters without triggering a Next.js route
+      // navigation and server-component reload on every keystroke.
+      const nextUrl = `/search${params.size ? `?${params}` : ""}`;
+      window.history.replaceState(window.history.state, "", nextUrl);
       setLoading(true); setError(""); setVisibleCount(12);
       const sequence = ++requestSequence.current;
       // People are a single lightweight query. Show them as soon as they arrive
@@ -86,7 +88,7 @@ function SearchContent() {
       void universalSearch(term).then((next) => { if (sequence === requestSequence.current) setResults(next); }).catch((cause) => { if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : "Search failed."); }).finally(() => { if (sequence === requestSequence.current) setLoading(false); });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [category, creatorFilter, dateRange, exactPhrase, followingOnly, likedOnly, locationFilter, messageScope, router, savedOnly, sortBy, term, verifiedOnly]);
+  }, [category, creatorFilter, dateRange, exactPhrase, followingOnly, likedOnly, locationFilter, messageScope, savedOnly, sortBy, term, verifiedOnly]);
 
   const filteredResults = useMemo<UniversalSearchResults>(() => {
     const cutoff = dateRange === "week" ? Date.now() / 1000 - 7 * 86400 : dateRange === "month" ? Date.now() / 1000 - 30 * 86400 : 0;

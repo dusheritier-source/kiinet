@@ -11,9 +11,30 @@ import {
   updateProfile
 } from "firebase/auth";
 import { auth } from "./firebase";
+import { db } from "./firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
+
+async function ensureSearchableUserProfile(user: FirebaseUser) {
+  if (!db) return;
+  const reference = doc(db, "users", user.uid);
+  const existing = await getDoc(reference);
+  if (existing.exists()) return;
+  const displayName = user.displayName?.trim() || user.email?.split("@")[0] || "Kinet User";
+  await setDoc(reference, {
+    uid: user.uid,
+    displayName,
+    username: user.uid.slice(0, 8).toLowerCase(),
+    photoURL: user.photoURL || "",
+    verified: false,
+    followers: [],
+    following: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
 
 function friendlyAuthError(error: unknown) {
   const firebaseError = error as { code?: string; message?: string };
@@ -39,6 +60,7 @@ export const signInWithEmail = async (email: string, password: string) => {
   
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
+    void ensureSearchableUserProfile(result.user).catch((error) => console.warn("Could not create searchable user profile:", error));
     return { user: result.user, error: null };
   } catch (error: unknown) {
     return { user: null, error: friendlyAuthError(error) };
@@ -57,6 +79,7 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
     if (displayName && result.user) {
       await updateProfile(result.user, { displayName });
     }
+    void ensureSearchableUserProfile(result.user).catch((error) => console.warn("Could not create searchable user profile:", error));
     
     return { user: result.user, error: null };
   } catch (error: unknown) {
@@ -71,6 +94,7 @@ export const signInWithGoogle = async () => {
   
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    void ensureSearchableUserProfile(result.user).catch((error) => console.warn("Could not create searchable user profile:", error));
     return { user: result.user, error: null };
   } catch (error: unknown) {
     return { user: null, error: friendlyAuthError(error) };
@@ -99,5 +123,8 @@ export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => {
     callback(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, callback);
+  return onAuthStateChanged(auth, (user) => {
+    if (user) void ensureSearchableUserProfile(user).catch((error) => console.warn("Could not create searchable user profile:", error));
+    callback(user);
+  });
 };
