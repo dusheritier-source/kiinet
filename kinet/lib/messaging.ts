@@ -525,7 +525,6 @@ export function subscribeToConversations(
   const conversationsQuery = query(
     collection(db, "conversations"),
     where("participantIds", "array-contains", userId),
-    orderBy("updatedAt", "desc"),
     limit(30)
   );
 
@@ -561,7 +560,7 @@ export function subscribeToConversations(
               (data.updatedAt as { seconds?: number; nanoseconds?: number } | null | undefined) ??
               null,
           };
-        })
+        }).sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0))
       );
     },
     () => {
@@ -585,14 +584,15 @@ export function subscribeToConversationMessages(
   const messagesQuery = query(
     collection(firestore, "messages"),
     where("conversationId", "==", conversationId),
-    orderBy("createdAt", "desc"),
     limit(MESSAGE_PAGE_SIZE)
   );
 
   return onSnapshot(
     messagesQuery,
     async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
-      const nextMessages = snapshot.docs.map(mapConversationMessage).reverse();
+      const nextMessages = snapshot.docs
+        .map(mapConversationMessage)
+        .sort((first, second) => (first.createdAt?.seconds ?? 0) - (second.createdAt?.seconds ?? 0));
 
       callback(nextMessages, snapshot.docs.length === MESSAGE_PAGE_SIZE);
 
