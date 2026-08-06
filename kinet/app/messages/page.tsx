@@ -16,6 +16,7 @@ import {
   Mail,
   MapPin,
   MoreHorizontal,
+  MoreVertical,
   Pencil,
   Phone,
   Pin,
@@ -111,6 +112,7 @@ function MessagesPageContent() {
   const [messageSearch, setMessageSearch] = useState("");
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [forwardingMessage, setForwardingMessage] = useState<ConversationMessage | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [messagePrivacy, setMessagePrivacy] = useState<UserSettings["messagePrivacy"]>("everyone");
@@ -1027,36 +1029,21 @@ function MessagesPageContent() {
                           ) : null}
 
                           {!message.clientStatus ? (
-                            <div className="mt-1 flex flex-wrap gap-3 px-2 text-xs text-muted-foreground">
-                              <button type="button" onClick={() => setReplyingTo(message)}><Reply className="mr-1 inline h-3 w-3" />Reply</button>
-                              <button type="button" onClick={() => void toggleConversationMessageReaction(message.id, "❤️")}>❤️</button>
-                              <button type="button" onClick={() => void navigator.clipboard.writeText(message.text)}><Copy className="mr-1 inline h-3 w-3" />Copy</button>
-                              <button type="button" onClick={() => setForwardingMessage(message)}><Forward className="mr-1 inline h-3 w-3" />Forward</button>
-                              <button type="button" onClick={() => void toggleConversationMessageFlag(message.id, "pinnedBy")}><Pin className="mr-1 inline h-3 w-3" />{message.pinnedBy.includes(currentUserId) ? "Unpin" : "Pin"}</button>
-                              <button type="button" onClick={() => void toggleConversationMessageFlag(message.id, "savedBy")}><Bookmark className="mr-1 inline h-3 w-3" />{message.savedBy.includes(currentUserId) ? "Unsave" : "Save"}</button>
-                              <button type="button" onClick={() => setSelectedMessageIds((current) => current.includes(message.id) ? current.filter((id) => id !== message.id) : [...current, message.id])}><CheckSquare className="mr-1 inline h-3 w-3" />Select</button>
-                              <button type="button" onClick={() => void reportEntity({ targetId: message.id, targetType: "message", reason: "unsafe_message", details: message.text.slice(0, 500) }).then(() => setError("Message reported to moderation."))}>Report</button>
-                              <button type="button" onClick={() => remindAboutMessage(message)}>Remind me</button>
-                              <button type="button" onClick={() => void toggleConversationMessageFlag(message.id, "hiddenFor")}><Trash2 className="mr-1 inline h-3 w-3" />Delete for me</button>
-                            </div>
-                          ) : null}
-
-                          {message.senderId === currentUserId && !message.deleted ? (
-                            <div className="mt-1 flex gap-3 px-2 text-xs text-muted-foreground">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingMessageId(message.id);
-                                  setEditingText(message.text);
-                                }}
-                              >
-                                <Pencil className="mr-1 inline h-3 w-3" />
-                                Edit
-                              </button>
-                              <button type="button" onClick={() => void deleteConversationMessage(message.id)}>
-                                <Trash2 className="mr-1 inline h-3 w-3" />
-                                Unsend
-                              </button>
+                            <div className={`relative mt-1 flex px-1 ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}>
+                              <button type="button" aria-label="Message options" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><MoreVertical className="h-4 w-4" /></button>
+                              {openMessageMenuId === message.id ? (
+                                <div className={`absolute top-7 z-40 w-48 overflow-hidden rounded-2xl border bg-background p-1.5 text-sm shadow-xl ${message.senderId === currentUserId ? "right-0" : "left-0"}`}>
+                                  <button type="button" onClick={() => { setReplyingTo(message); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Reply className="h-4 w-4" />Reply</button>
+                                  <button type="button" onClick={() => { void toggleConversationMessageReaction(message.id, "❤️"); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><span>❤️</span>React</button>
+                                  <button type="button" onClick={() => { void navigator.clipboard.writeText(message.text); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Copy className="h-4 w-4" />Copy</button>
+                                  <button type="button" onClick={() => { setForwardingMessage(message); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Forward className="h-4 w-4" />Forward</button>
+                                  <button type="button" onClick={() => { void toggleConversationMessageFlag(message.id, "pinnedBy"); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Pin className="h-4 w-4" />{message.pinnedBy.includes(currentUserId) ? "Unpin" : "Pin"}</button>
+                                  <button type="button" onClick={() => { void toggleConversationMessageFlag(message.id, "savedBy"); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Bookmark className="h-4 w-4" />{message.savedBy.includes(currentUserId) ? "Unsave" : "Save"}</button>
+                                  <button type="button" onClick={() => { setSelectedMessageIds((current) => current.includes(message.id) ? current.filter((id) => id !== message.id) : [...current, message.id]); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><CheckSquare className="h-4 w-4" />Select</button>
+                                  <button type="button" onClick={() => { void reportEntity({ targetId: message.id, targetType: "message", reason: "unsafe_message", details: message.text.slice(0, 500) }).then(() => setError("Message reported to moderation.")); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-destructive hover:bg-destructive/10"><Info className="h-4 w-4" />Report</button>
+                                  {message.senderId === currentUserId && !message.deleted ? <div className="mt-1 border-t pt-1"><button type="button" onClick={() => { setEditingMessageId(message.id); setEditingText(message.text); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Pencil className="h-4 w-4" />Edit</button><button type="button" onClick={() => { void deleteConversationMessage(message.id); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" />Unsend</button></div> : null}
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                           </div>
