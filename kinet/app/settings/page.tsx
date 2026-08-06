@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Bell, ChevronRight, CircleUserRound, LockKeyhole, Search, ShieldCheck, UserRoundCog } from "lucide-react";
+import { Bell, ChevronRight, CircleUserRound, LockKeyhole, LogOut, Search, ShieldCheck, UserRoundCog } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -21,13 +22,17 @@ import {
 } from "@/lib/notifications";
 import { auth } from "@/lib/firebase";
 import { disableFirebasePush, enableFirebasePush, getPushCapability } from "@/lib/push-notifications";
+import { signOut } from "@/lib/firebase-auth";
 
 function SettingsPageContent() {
+  const router = useRouter();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [devices, setDevices] = useState<PushDeviceRecord[]>([]);
   const [pushStatus, setPushStatus] = useState("");
   const [privacyStatus, setPrivacyStatus] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
     void getCurrentUserSettings().then(setSettings);
@@ -226,6 +231,33 @@ function SettingsPageContent() {
                 <Link href="/feed/preferences" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Content preferences</Link>
                 <Link href="/feed/safety" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Hidden words and safety</Link>
                 <Link href="/feed/creator" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Creator tools</Link>
+              </div>
+              <div className="border-t pt-5">
+                <p className="mb-1 font-semibold">Login</p>
+                <p className="mb-3 text-sm text-muted-foreground">Sign out of this account on this device.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loggingOut}
+                  className="w-full justify-center border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={async () => {
+                    if (!window.confirm("Log out of Kinet?")) return;
+                    setLoggingOut(true);
+                    setLogoutError("");
+                    const result = await signOut();
+                    if (result.error) {
+                      setLogoutError(result.error);
+                      setLoggingOut(false);
+                      return;
+                    }
+                    router.replace("/login");
+                    router.refresh();
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {loggingOut ? "Logging out…" : "Log out"}
+                </Button>
+                {logoutError ? <p role="alert" className="mt-2 text-sm text-destructive">{logoutError}</p> : null}
               </div>
             </form>
           </CardContent>
