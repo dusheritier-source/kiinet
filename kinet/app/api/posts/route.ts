@@ -44,6 +44,15 @@ export async function POST(request: Request) {
   // Vercel project variables producing PERMISSION_DENIED.
   const projectId = getTokenProject(authorization);
   if (!projectId) return NextResponse.json({ error: "Invalid Firebase project token." }, { status: 401 });
+  const configuredProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6";
+  if (configuredProjectId !== projectId) {
+    return NextResponse.json(
+      {
+        error: `Firebase project mismatch: your login uses ${projectId}, but the feed uses ${configuredProjectId}. Set NEXT_PUBLIC_FIREBASE_PROJECT_ID to ${projectId} in Vercel and redeploy.`,
+      },
+      { status: 409 }
+    );
+  }
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE";
   const id = crypto.randomUUID().replace(/-/g, "");
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value, key)]));
