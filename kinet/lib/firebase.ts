@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "kinet-3a9b6.firebaseapp.com",
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://kinet-3a9b6-default-rtdb.firebaseio.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6",
+  projectId: (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6").trim().split(/\s+/)[0],
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "kinet-3a9b6.firebasestorage.app",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "919183651612",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:919183651612:web:58b55e27330a00abe5c0d9",

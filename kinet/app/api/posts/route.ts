@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   // Vercel project variables producing PERMISSION_DENIED.
   const projectId = getTokenProject(authorization);
   if (!projectId) return NextResponse.json({ error: "Invalid Firebase project token." }, { status: 401 });
-  const configuredProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6";
+  const configuredProjectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6").trim().split(/\s+/)[0];
   if (configuredProjectId !== projectId) {
     return NextResponse.json(
       {
