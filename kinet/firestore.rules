@@ -231,6 +231,10 @@ service cloud.firestore {
         let members = get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
         return members[0] == request.auth.uid ? members[1] : members[0];
       }
+      function otherMemberAllowsMessage(conversationId) {
+        return !exists(/databases/$(database)/documents/users/$(otherMember(conversationId)))
+          || !(request.auth.uid in get(/databases/$(database)/documents/users/$(otherMember(conversationId))).data.get('blockedUsers', []));
+      }
 
       allow read: if isConversationMember(resource.data.conversationId);
       allow create: if isSignedIn()
@@ -247,7 +251,7 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data.get('requestedBy', request.auth.uid) == request.auth.uid)
         && (get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data.get('kind', 'direct') == 'group'
           || (!(otherMember(request.resource.data.conversationId) in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('blockedUsers', []))
-            && !(request.auth.uid in get(/databases/$(database)/documents/users/$(otherMember(request.resource.data.conversationId))).data.get('blockedUsers', []))))
+            && otherMemberAllowsMessage(request.resource.data.conversationId)))
         && isConversationMember(request.resource.data.conversationId);
       // A sender can edit or delete their message; the recipient can only add a read receipt.
       allow update: if isConversationMember(resource.data.conversationId)
