@@ -301,7 +301,13 @@ service cloud.firestore {
           ? request.resource.data.participantIds[1]
           : request.resource.data.participantIds[0];
       }
-      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      // A deterministic direct-chat lookup must be allowed to return
+      // "not found" before the signed-in participant creates it.
+      allow get: if isSignedIn() && (
+        !exists(/databases/$(database)/documents/conversations/$(conversationId))
+        || request.auth.uid in resource.data.participantIds
+      );
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participantIds;
       allow create: if isSignedIn()
         && request.resource.data.participantIds is list
         && request.resource.data.participantIds.size() >= 2

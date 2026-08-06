@@ -152,14 +152,6 @@ export async function createOrGetConversation(otherUserId: string) {
     return deterministicConversation.id;
   }
 
-  const snapshot = await getDocs(
-    query(collection(db, "conversations"), where("key", "==", key), limit(1))
-  );
-  if (!snapshot.empty) {
-    await setDoc(snapshot.docs[0].ref, { hiddenBy: arrayRemove(currentUserId) }, { merge: true });
-    return snapshot.docs[0].id;
-  }
-
   const currentUserProfile = await getCurrentUserMiniProfile();
   const otherUserSnapshot = await getDoc(doc(db, "users", otherUserId));
   const otherUser = otherUserSnapshot.exists()
