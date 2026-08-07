@@ -18,6 +18,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, isTransientFirestoreError, storage } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { recordFollowerGrowth } from "@/lib/profile-analytics";
+import { uploadFile } from "@/lib/supabase-storage";
 
 export type KinetRole = "athlete" | "coach" | "scout" | "fan";
 
@@ -152,22 +153,61 @@ function normalizeExternalUrl(value: string) {
   catch { return ""; }
 }
 
-async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover") {
-  if (!storage) throw new Error("Image storage is unavailable.");
-  let uploadFile = file;
+function isStorageUploadError(error: unknown): boolean {
+  if (!error) return false;
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes("storage") || message.includes("retry") || message.includes("network") || message.includes("timed out") || message.includes("quota") || message.includes("permission");
+  }
+  if (typeof error === "object" && "code" in error) {
+    const code = String((error as { code?: string }).code ?? "").toLowerCase();
+    return ["storage/unknown", "storage/retry-limit-exceeded", "network-request-failed", "unavailable"].includes(code);
+  }
+  return false;
+}
+
+async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover", fallbackUrl = "") {
+  if (!storage) {
+    return fallbackUrl;
+  }
+
+  let uploadFileCandidate = file;
   if (file.type.startsWith("image/") && file.size > 350 * 1024) {
     const { default: imageCompression } = await import("browser-image-compression");
-    uploadFile = await imageCompression(file, {
+    uploadFileCandidate = await imageCompression(file, {
       maxSizeMB: kind === "avatar" ? 0.35 : 0.8,
       maxWidthOrHeight: kind === "avatar" ? 720 : 1600,
       useWebWorker: true,
       initialQuality: 0.84,
     });
   }
-  const extension = uploadFile.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
+
+  const extension = uploadFileCandidate.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
   const reference = ref(storage, `${path}/${Date.now()}.${extension}`);
-  await uploadBytes(reference, uploadFile, { contentType: uploadFile.type || "image/jpeg" });
-  return getDownloadURL(reference);
+
+  try {
+    await uploadBytes(reference, uploadFileCandidate, { contentType: uploadFileCandidate.type || "image/jpeg" });
+    return getDownloadURL(reference);
+  } catch (error) {
+    if (isStorageUploadError(error)) {
+      try {
+        const supabaseBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || process.env.SUPABASE_STORAGE_BUCKET || "kinet-media";
+        const supabasePath = `${path}/${Date.now()}.${extension}`;
+        const result = await uploadFile(supabaseBucket, supabasePath, uploadFileCandidate, {
+          cacheControl: "public, max-age=31536000, immutable",
+          upsert: true,
+        });
+        if (!result.error && result.publicUrl) {
+          return result.publicUrl;
+        }
+      } catch (supabaseError) {
+        console.warn("Profile image fallback to Supabase failed.", supabaseError);
+      }
+      console.warn(`Profile ${kind} upload failed, keeping the existing profile image.`, error);
+      return fallbackUrl;
+    }
+    throw error;
+  }
 }
 
 export async function saveUserProfile(input: CompleteProfileInput) {
@@ -294,13 +334,14 @@ export async function updateCurrentUserProfile(input: {
       if (!isTransientFirestoreError(error)) throw error;
     }
   }
+  photoURL = String(currentProfile?.photoURL ?? user.photoURL ?? "");
   coverPhotoURL = String(currentProfile?.coverPhotoURL ?? "");
   const normalizedUsername = normalizeUsername(input.username ?? String(currentProfile?.username ?? ""), user.uid);
 
   const usernameChanged = normalizedUsername !== String(currentProfile?.username ?? "").trim().toLowerCase();
   const [nextPhotoURL, nextCoverPhotoURL] = await Promise.all([
-    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`, "avatar") : Promise.resolve(photoURL),
-    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`, "cover") : Promise.resolve(coverPhotoURL),
+    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`, "avatar", photoURL) : Promise.resolve(photoURL),
+    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`, "cover", coverPhotoURL) : Promise.resolve(coverPhotoURL),
     usernameChanged ? ensureUsernameAvailable(normalizedUsername, user.uid) : Promise.resolve(),
   ]);
   photoURL = nextPhotoURL;
