@@ -192,7 +192,7 @@ export async function createNotification(input: {
   if (preferenceKey && preferences?.[preferenceKey] === false) {
     return;
   }
-  const audienceExemptTypes = ["message", "message_reply", "group_message", "call", "missed_call", "report", "report_update", "verification_update", "security_alert", "account_warning", "admin_announcement"];
+  const audienceExemptTypes = ["message", "message_reply", "group_message", "call", "missed_call", "report", "report_update", "verification_update", "security_alert", "account_warning", "admin_announcement", "follow", "follow_request", "follow_request_accepted"];
   if (recipientSettings?.audience === "no_one" && !audienceExemptTypes.includes(input.type)) return;
   if (recipientSettings?.audience === "following" && !recipientSettings.following.includes(input.actorId) && !audienceExemptTypes.includes(input.type)) return;
 
