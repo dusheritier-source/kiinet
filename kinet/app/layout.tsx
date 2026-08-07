@@ -11,17 +11,31 @@ import BottomNav from "@/components/BottomNav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Welcome",
+  title: {
+    default: "Kinet",
+    template: "%s | Kinet",
+  },
+  applicationName: "Kinet",
   description: "Share, discover, and connect with your community.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Welcome",
+    title: "Kinet",
   },
 };
 
 export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  userScalable: false,
   themeColor: "#22d3ee",
   colorScheme: "dark",
 };
@@ -39,7 +53,7 @@ export default function RootLayout({
             <PWARegistrar />
             <ThemeSync />
             <Navbar />
-            <main className="mx-auto min-h-screen w-full max-w-screen-2xl px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6 md:pb-6">
+            <main className="mobile-safe-shell mx-auto min-h-[100svh] w-full min-w-0 overflow-x-hidden px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6 md:pb-6">
               {children}
             </main>
             <BottomNav />

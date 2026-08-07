@@ -543,8 +543,8 @@ function MessagesPageContent() {
 
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="mobile-safe-shell mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 md:px-6 md:py-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-muted-foreground">
               {user.displayName || "Inbox"}
@@ -610,7 +610,7 @@ function MessagesPageContent() {
               </Button>
             </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2">
+          <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2">
             {directPeople.length === 0 ? (
               <div className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
                 No active chats yet.
@@ -621,7 +621,7 @@ function MessagesPageContent() {
                   key={person.conversationId}
                   type="button"
                   onClick={() => setActiveConversationId(person.conversationId)}
-                  className="flex min-w-[84px] flex-col items-center gap-2"
+                  className="flex w-[84px] shrink-0 flex-col items-center gap-2"
                 >
                   <div
                     className={`rounded-full p-[2px] ${
@@ -643,8 +643,8 @@ function MessagesPageContent() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[330px,1fr]">
-          <div className={`space-y-3 ${showConversationPane ? "hidden md:block" : ""}`}>
+        <div className="grid w-full min-w-0 gap-6 md:grid-cols-[minmax(0,330px)_minmax(0,1fr)]">
+          <div className={`w-full min-w-0 space-y-3 ${showConversationPane ? "hidden md:block" : ""}`}>
             <div className="relative">
               <Search className="absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
               <input
@@ -724,7 +724,7 @@ function MessagesPageContent() {
           </div>
 
           <div
-            className={`flex min-h-[640px] flex-col overflow-hidden rounded-[32px] border bg-background shadow-sm ${
+            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-[32px] border bg-background shadow-sm ${
               !showConversationPane ? "hidden md:flex" : ""
             }`}
           >
@@ -836,7 +836,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div className="flex items-center gap-2 border-b px-4 py-2">
+                <div className="flex min-w-0 items-center gap-2 border-b px-4 py-2">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="Search this conversation" className="h-8 flex-1 bg-transparent text-sm outline-none" />
                   {selectedMessageIds.length ? (
@@ -854,7 +854,7 @@ function MessagesPageContent() {
                 {forwardingMessage ? (
                   <div className="border-b bg-muted/30 p-3">
                     <div className="mb-2 flex items-center justify-between"><span className="text-sm font-medium">Forward to</span><button type="button" onClick={() => setForwardingMessage(null)}><X className="h-4 w-4" /></button></div>
-                    <div className="flex gap-2 overflow-x-auto">
+                    <div className="flex gap-2 overflow-x-auto overflow-y-hidden">
                       {conversations.filter((conversation) => conversation.id !== activeConversationId).map((conversation) => {
                         const recipient = conversation.participantProfiles.find((profile) => profile.uid !== currentUserId);
                         return <Button key={conversation.id} size="sm" variant="outline" onClick={() => {
@@ -866,7 +866,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div className="flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4">
+                <div className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4">
                   {hasOlderMessages ? (
                     <div className="text-center">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={olderMessagesLoading}>
@@ -887,7 +887,7 @@ function MessagesPageContent() {
                         id={`message-${message.id}`}
                         className={`flex rounded-xl transition ${message.id === highlightedMessageId ? "bg-primary/10 ring-2 ring-primary/30" : ""} ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}
                       >
-                        <div className={`flex max-w-[86%] items-end gap-2 ${message.senderId === currentUserId ? "flex-row-reverse" : ""}`}>
+                        <div className={`flex w-full max-w-[86%] items-end gap-2 ${message.senderId === currentUserId ? "flex-row-reverse" : ""}`}>
                           {message.senderId !== currentUserId ? (
                             getMessageSender(message.senderId)?.photoURL ? (
                               <img src={getMessageSender(message.senderId)!.photoURL} alt={getMessageSender(message.senderId)?.displayName || "Conversation"} className="h-7 w-7 rounded-full object-cover" />
@@ -895,7 +895,7 @@ function MessagesPageContent() {
                               <DefaultAvatar username={getMessageSender(message.senderId)?.displayName || "User"} className="h-7 w-7 rounded-full" />
                             )
                           ) : null}
-                          <div className="max-w-[82%]">
+                          <div className="min-w-0 max-w-[82%]">
                           {message.replyTo ? (
                             <div className="mb-1 rounded-xl border-l-2 border-primary bg-slate-100 px-3 py-2 text-xs text-slate-900">
                               <p className="font-medium">Replying to {message.replyTo.senderId === currentUserId ? "yourself" : activeOtherUser?.displayName || "message"}</p>
@@ -1010,7 +1010,7 @@ function MessagesPageContent() {
                             <div className={`relative mt-1 flex px-1 ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}>
                               <button type="button" aria-label="Message options" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><MoreVertical className="h-4 w-4" /></button>
                               {openMessageMenuId === message.id ? (
-                                <div className={`absolute top-7 z-40 w-48 overflow-hidden rounded-2xl border bg-background p-1.5 text-sm shadow-xl ${message.senderId === currentUserId ? "right-0" : "left-0"}`}>
+                                <div className={`absolute top-7 z-40 w-[min(88vw,12rem)] overflow-hidden rounded-2xl border bg-background p-1.5 text-sm shadow-xl ${message.senderId === currentUserId ? "right-0" : "left-0"}`}>
                                   <button type="button" onClick={() => { setReplyingTo(message); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Reply className="h-4 w-4" />Reply</button>
                                   <button type="button" onClick={() => { void toggleConversationMessageReaction(message.id, "❤️"); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><span>❤️</span>React</button>
                                   <button type="button" onClick={() => { void navigator.clipboard.writeText(message.text); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Copy className="h-4 w-4" />Copy</button>
@@ -1031,7 +1031,7 @@ function MessagesPageContent() {
                   )}
                 </div>
 
-                <form className="border-t bg-background p-4" onSubmit={handleSend}>
+                <form className="w-full min-w-0 border-t bg-background p-4" onSubmit={handleSend}>
                   {replyingTo ? (
                     <div className="mb-3 flex items-center justify-between rounded-2xl border-l-2 border-primary bg-muted px-4 py-2 text-sm">
                       <div className="min-w-0"><p className="text-xs font-medium">Replying to {replyingTo.senderId === currentUserId ? "yourself" : activeOtherUser?.displayName}</p><p className="truncate text-xs text-muted-foreground">{replyingTo.text || "Attachment"}</p></div>
@@ -1064,11 +1064,11 @@ function MessagesPageContent() {
                       <button type="button" disabled className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3 opacity-60"><Circle className="h-5 w-5" />Voice soon</button>
                       <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
                     </div>
-                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
+                    <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
                     <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
                   </div> : null}
 
-                  <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-sm">
+                  <div className="flex min-w-0 items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-sm">
                     <button type="button" aria-label="More message actions" aria-expanded={showComposerMenu} onClick={() => setShowComposerMenu((current) => !current)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"><Plus className={`h-5 w-5 transition-transform ${showComposerMenu ? "rotate-45" : ""}`} /></button>
                     <input
                       value={draft}
