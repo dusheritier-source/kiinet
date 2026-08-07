@@ -18,6 +18,7 @@ import { getCurrentUserProfile, subscribeToUserProfile, type SearchProfile } fro
 import { getProfilesByIds, getSuggestedSocialProfiles, getTaggedProfilePosts, removeFollower, respondToFollowRequest, setPrivateProfile, subscribeToFollowRequests, type FollowRequest } from "@/lib/profile-social";
 import { createProfileHighlight, deleteProfileHighlight, getProfileStories, moveProfileHighlight, renameProfileHighlight, subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
 import type { StoryItem } from "@/lib/stories";
+import { useSearchParams } from "next/navigation";
 
 interface StoredProfile {
   uid?: string;
@@ -65,6 +66,7 @@ function getProfileThemeClass(theme?: string) {
 
 function ProfilePageContent() {
   const { user } = useAuthContext();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<StoredProfile | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -91,6 +93,7 @@ function ProfilePageContent() {
     }
 
     let cancelled = false;
+    const refresh = searchParams.get("refresh") === "1";
 
     getCurrentUserProfile()
       .then((data) => {
@@ -111,7 +114,7 @@ function ProfilePageContent() {
       });
 
     const unsubscribe = subscribeToUserPosts(user.uid, setPosts);
-    const unsubscribeProfile = subscribeToUserProfile(user.uid, (data) => { if (data) setProfile(data as StoredProfile); });
+    const unsubscribeProfile = subscribeToUserProfile(user.uid, (data) => { setProfile(data as StoredProfile | null); });
     const unsubscribeHighlights = subscribeToProfileHighlights(user.uid, setHighlights);
     void getProfileStories(user.uid).then(setStoryArchive);
     return () => {
@@ -120,7 +123,7 @@ function ProfilePageContent() {
       unsubscribeProfile();
       unsubscribeHighlights();
     };
-  }, [user]);
+  }, [user, searchParams]);
 
   useEffect(() => {
     if (!user || !profile) return;

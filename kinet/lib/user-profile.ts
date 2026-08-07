@@ -443,6 +443,13 @@ export async function checkUsernameAvailability(username: string) {
   }
 }
 
+export function isMutualFollow(viewerUid: string | undefined, targetProfile: Record<string, unknown> | null): boolean {
+  if (!viewerUid || !targetProfile) return false;
+  const followers = Array.isArray(targetProfile.followers) ? (targetProfile.followers as string[]) : [];
+  const following = Array.isArray(targetProfile.following) ? (targetProfile.following as string[]) : [];
+  return followers.includes(viewerUid) && following.includes(viewerUid);
+}
+
 export async function getUserProfileById(uid: string) {
   if (!db) {
     return null;
@@ -578,18 +585,19 @@ export async function searchProfiles(searchTerm: string) {
       const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;
       return !auth.currentUser || !Array.isArray(targetBlocked) || !targetBlocked.includes(auth.currentUser.uid);
     })
+    .filter((profile: SearchProfile) => {
+      const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
+      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
+      if (!isPrivate) return true;
+      if (!auth.currentUser || profile.uid === auth.currentUser.uid) return true;
+      const followers = Array.isArray(profile.followers) ? profile.followers : [];
+      const following = Array.isArray(profile.following) ? profile.following : [];
+      return followers.includes(auth.currentUser.uid) && following.includes(auth.currentUser.uid);
+    })
     .map((profile: SearchProfile) => {
       const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
       const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
-      const canSeeDetails = !isPrivate || !auth.currentUser || profile.uid === auth.currentUser.uid || (profile.followers ?? []).includes(auth.currentUser.uid);
-      const visibleProfile = canSeeDetails ? { ...profile, privateAccount: isPrivate } : {
-        ...profile,
-        privateAccount: true,
-        interests: [],
-        location: null,
-        role: profile.role ? { ...profile.role, bio: null } : profile.role,
-      };
-      return { ...visibleProfile, discoveryIsFollowing: followedUserIds.has(profile.uid) };
+      return { ...profile, discoveryIsFollowing: followedUserIds.has(profile.uid), privateAccount: isPrivate };
     })
     .filter((profile: SearchProfile) => {
       if (!normalized) {
@@ -649,6 +657,14 @@ export async function getSuggestedProfiles(maxResults = 12) {
   return profilesSnapshot.docs
     .map((docSnapshot) => docSnapshot.data() as SearchProfile)
     .filter((profile) => profile.uid !== currentUserId && !blockedUsers.has(profile.uid))
+    .filter((profile) => {
+      const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
+      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
+      if (!isPrivate) return true;
+      const followers = Array.isArray(profile.followers) ? profile.followers : [];
+      const following = Array.isArray(profile.following) ? profile.following : [];
+      return followers.includes(currentUserId) && following.includes(currentUserId);
+    })
     .map((profile) => {
       const mutualCount = (profile.followers ?? []).filter((uid) => following.has(uid)).length;
       const sameLocation = Boolean(location) && String(profile.location ?? "").toLowerCase() === location;

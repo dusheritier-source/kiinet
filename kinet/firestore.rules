@@ -159,16 +159,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Posts - authenticated users can read/write
+    // Posts - authenticated users can read, but private account posts are restricted
     match /posts/{postId} {
-      allow read: if isSignedIn();
+      function canReadPost() {
+        if (resource.data.userId == request.auth.uid) return true;
+        let author = get(/databases/$(database)/documents/users/$(resource.data.userId));
+        let isPrivate = author.data.get('settings', {}).get('privateAccount', false) == true;
+        let isFollower = request.auth.uid in author.data.get('followers', []);
+        let isFollowedBy = request.auth.uid in author.data.get('following', []);
+        return !isPrivate || (isFollower && isFollowedBy);
+      }
+      allow read: if isSignedIn() && canReadPost();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
-          && request.resource.data.likes.removeAll([request.auth.uid]) == resource.data.get('likes', []).removeAll([request.auth.uid]))
+          && request.auth.uid in request.resource.data.likes)
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saves'])
-          && request.resource.data.saves.removeAll([request.auth.uid]) == resource.data.get('saves', []).removeAll([request.auth.uid]))
+          && request.auth.uid in request.resource.data.saves)
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shares'])
           && request.resource.data.shares == resource.data.get('shares', 0) + 1)
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
@@ -439,9 +447,17 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // Stories - authenticated users can read/write their own stories
+    // Stories - authenticated users can read, but private account stories are restricted
     match /stories/{storyId} {
-      allow read: if isSignedIn();
+      function canReadStory() {
+        if (resource.data.userId == request.auth.uid) return true;
+        let creator = get(/databases/$(database)/documents/users/$(resource.data.userId));
+        let isPrivate = creator.data.get('settings', {}).get('privateAccount', false) == true;
+        let isFollower = request.auth.uid in creator.data.get('followers', []);
+        let isFollowedBy = request.auth.uid in creator.data.get('following', []);
+        return !isPrivate || (isFollower && isFollowedBy);
+      }
+      allow read: if isSignedIn() && canReadStory();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid

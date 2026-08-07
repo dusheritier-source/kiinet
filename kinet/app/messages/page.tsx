@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   ImagePlus,
   Mail,
   MapPin,
+  Mic,
   MoreHorizontal,
   MoreVertical,
   Pencil,
@@ -25,6 +26,8 @@ import {
   Sparkles,
   Search,
   SendHorizontal,
+  Square,
+  StickyNote,
   Trash2,
   X,
   Video,
@@ -59,6 +62,11 @@ import {
 import { getPlatformPreferences, translateMessagePreview } from "@/lib/phase9";
 import { isTransientFirestoreError } from "@/lib/firebase";
 import { formatTimeAgo } from "@/lib/posts";
+import {
+  createNote,
+  type NoteItem,
+  subscribeToNotesForUsers,
+} from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { searchProfiles, type SearchProfile } from "@/lib/user-profile";
 import { setUserOffline, setUserOnline, setupPresenceListener, type UserPresence } from "@/lib/realtime-db";
@@ -125,6 +133,15 @@ function MessagesPageContent() {
   const [expiresInSeconds, setExpiresInSeconds] = useState<number | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [showSummary, setShowSummary] = useState(false);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteAudience, setNoteAudience] = useState<NoteItem["audience"]>("everyone");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -191,6 +208,26 @@ function MessagesPageContent() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    const participantIds = conversations
+      .flatMap((conversation) => conversation.participantIds)
+      .filter((uid) => uid !== user.uid);
+    const uniqueIds = Array.from(new Set(participantIds)).slice(0, 20);
+    const cleanup = subscribeToNotesForUsers(uniqueIds, user.uid, (notesMap) => {
+      setNotes(Array.from(notesMap.values()).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+    });
+    return cleanup ?? undefined;
+  }, [user, conversations]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        window.clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!user || !starterUser || starterUser === user.uid) {
       return;
     }
@@ -216,7 +253,14 @@ function MessagesPageContent() {
       .then((message) => {
         if (!message || message.conversationId !== activeConversationId) return;
         setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
-        window.setTimeout(() => document.getElementById(`message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+        window.setTimeout(() => {
+          const container = document.querySelector('[data-message-container]') as HTMLElement | null;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          } else {
+            document.getElementById(`message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "end" });
+          }
+        }, 100);
       })
       .catch(() => undefined);
   }, [activeConversationId, highlightedMessageId]);
@@ -277,6 +321,14 @@ function MessagesPageContent() {
       }
     );
   }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!activeConversationId || messagesLoading || messages.length === 0) return;
+    const container = document.querySelector('[data-message-container]') as HTMLElement | null;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [activeConversationId, messagesLoading, messages.length]);
 
   const visibleConversations = useMemo(() => {
     if (!user) {
@@ -541,6 +593,65 @@ function MessagesPageContent() {
     setError("Reminder set for one hour from now.");
   };
 
+  const handleCreateNote = async () => {
+    if (!noteText.trim()) return;
+    try {
+      await createNote(noteText, noteAudience);
+      setNoteText("");
+      setShowNoteComposer(false);
+      setNoteAudience("everyone");
+    } catch (noteError) {
+      setError(noteError instanceof Error ? noteError.message : "Could not create note.");
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    if (!activeConversationId || !canSendToActiveConversation) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
+        setAttachment(file);
+        setDraft("");
+        localStorage.removeItem(`kinet:message-draft:${activeConversationId}`);
+        stream.getTracks().forEach((track) => track.stop());
+        setIsRecording(false);
+        setRecordingSeconds(0);
+      };
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((current) => {
+          if (current >= 59) {
+            stopVoiceRecording();
+            return current;
+          }
+          return current + 1;
+        });
+      }, 1000);
+    } catch {
+      setError("Microphone access is required to send voice notes.");
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
   return (
     <ProtectedRoute>
       <div className="mobile-safe-shell mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 md:px-6 md:py-8">
@@ -599,6 +710,29 @@ function MessagesPageContent() {
         ) : null}
 
         <div className="mb-6">
+          {notes.length > 0 ? (
+            <div className="mb-4 flex gap-3 overflow-x-auto overflow-y-hidden pb-1">
+              {notes.map((note) => {
+                const noteUser = note.userId === currentUserId ? user : visibleConversations.flatMap((c) => c.participantProfiles).find((p) => p.uid === note.userId);
+                return (
+                  <div key={note.id} className="flex w-[140px] shrink-0 flex-col gap-1 rounded-2xl border bg-muted/40 p-3">
+                    <div className="flex items-center gap-2">
+                      {noteUser?.photoURL ? (
+                        <img src={noteUser.photoURL} alt="" className="h-6 w-6 rounded-full object-cover" />
+                      ) : (
+                        <DefaultAvatar username={noteUser?.displayName || "User"} className="h-6 w-6 rounded-full" />
+                      )}
+                      <span className="truncate text-xs font-medium">{noteUser?.displayName || "User"}</span>
+                    </div>
+                    <p className="text-sm leading-snug">{note.text}</p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {note.expiresAt?.seconds ? `${Math.max(1, Math.floor((note.expiresAt.seconds * 1000 - Date.now()) / 1000 / 60))}m left` : "24h"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold">Active people</p>
             <div className="flex gap-2">
@@ -724,7 +858,7 @@ function MessagesPageContent() {
           </div>
 
           <div
-            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-[32px] border bg-background shadow-sm ${
+            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden md:rounded-[32px] md:border md:bg-background md:shadow-sm ${
               !showConversationPane ? "hidden md:flex" : ""
             }`}
           >
@@ -739,6 +873,15 @@ function MessagesPageContent() {
                       onClick={() => setActiveConversationId(null)}
                     >
                       <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="md:hidden"
+                      onClick={() => setActiveConversationId(null)}
+                      aria-label="Quit chat"
+                    >
+                      <X className="h-5 w-5" />
                     </Button>
                     {(activeConversation.kind === "group" ? activeConversation.groupPhotoURL : activeOtherUser?.photoURL) ? (
                       <img src={activeConversation.kind === "group" ? activeConversation.groupPhotoURL! : activeOtherUser!.photoURL} alt={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"} className="h-10 w-10 rounded-full object-cover" />
@@ -866,7 +1009,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4">
+                <div className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4" data-message-container>
                   {hasOlderMessages ? (
                     <div className="text-center">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={olderMessagesLoading}>
@@ -1050,43 +1193,91 @@ function MessagesPageContent() {
                       </button>
                     </div>
                   ) : null}
-                  {uploadProgress !== null ? (
-                    <div className="mb-3">
-                      <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Uploading attachment</span><span>{uploadProgress}%</span></div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} /></div>
-                    </div>
-                  ) : null}
+                   {uploadProgress !== null ? (
+                     <div className="mb-3">
+                       <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Uploading attachment</span><span>{uploadProgress}%</span></div>
+                       <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} /></div>
+                     </div>
+                   ) : null}
+                   {isRecording ? (
+                     <div className="mb-3 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                       <span className="relative flex h-3 w-3">
+                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                         <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                       </span>
+                       <span>Recording voice note... {recordingSeconds}s</span>
+                       <Button type="button" size="sm" variant="destructive" onClick={stopVoiceRecording} className="ml-auto">Stop</Button>
+                     </div>
+                   ) : null}
 
-                  {showComposerMenu ? <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
-                      <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
-                      <button type="button" disabled className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3 opacity-60"><Circle className="h-5 w-5" />Voice soon</button>
-                      <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
-                    </div>
-                    <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
-                    <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
-                  </div> : null}
+                   {showComposerMenu ? <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
+                       <button type="button" onClick={() => { setShowNoteComposer(true); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><StickyNote className="h-5 w-5" />Note</button>
+                       <button type="button" onClick={() => { void startVoiceRecording(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Mic className="h-5 w-5" />Voice note</button>
+                       <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
+                        <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
+                      </div>
+                      <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
+                      <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
+                    </div> : null}
 
-                  <div className="flex min-w-0 items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-sm">
-                    <button type="button" aria-label="More message actions" aria-expanded={showComposerMenu} onClick={() => setShowComposerMenu((current) => !current)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"><Plus className={`h-5 w-5 transition-transform ${showComposerMenu ? "rotate-45" : ""}`} /></button>
-                    <input
-                      value={draft}
-                      disabled={!canSendToActiveConversation}
-                      onChange={async (event) => {
-                        setDraft(event.target.value);
-                        if (activeConversationId) {
-                          localStorage.setItem(`kinet:message-draft:${activeConversationId}`, event.target.value);
-                          await setConversationTyping(activeConversationId, Boolean(event.target.value.trim()));
-                        }
-                      }}
-                      placeholder={canSendToActiveConversation ? "Message..." : "Accept this request to reply"}
-                      className="h-10 w-full bg-transparent px-1 text-sm outline-none"
-                    />
-                    <Button type="submit" size="icon" className="rounded-full" disabled={!canSendToActiveConversation || sending || (!draft.trim() && !attachment)}>
-                      <SendHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
+                    {showNoteComposer ? (
+                      <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">New note</p>
+                          <button type="button" onClick={() => { setShowNoteComposer(false); setNoteText(""); }}><X className="h-4 w-4" /></button>
+                        </div>
+                        <textarea
+                          value={noteText}
+                          onChange={(event) => setNoteText(event.target.value.slice(0, 60))}
+                          placeholder="What's on your mind?"
+                          maxLength={60}
+                          rows={2}
+                          className="mt-2 w-full rounded-xl border bg-muted/40 p-3 text-sm outline-none"
+                        />
+                        <div className="mt-2 flex items-center justify-between">
+                          <select value={noteAudience} onChange={(event) => setNoteAudience(event.target.value as NoteItem["audience"])} className="h-8 rounded-md border bg-background px-2 text-xs">
+                            <option value="everyone">Everyone</option>
+                            <option value="following">Following</option>
+                            <option value="close_friends">Close friends</option>
+                          </select>
+                          <span className="text-xs text-muted-foreground">{noteText.length}/60</span>
+                        </div>
+                        <Button type="button" size="sm" className="mt-2 w-full" onClick={() => void handleCreateNote()} disabled={!noteText.trim()}>
+                          Share note
+                        </Button>
+                      </div>
+                    ) : null}
+
+                   <div className="flex min-w-0 items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-sm">
+                     <button type="button" aria-label="More message actions" aria-expanded={showComposerMenu} onClick={() => setShowComposerMenu((current) => !current)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"><Plus className={`h-5 w-5 transition-transform ${showComposerMenu ? "rotate-45" : ""}`} /></button>
+                     <input
+                       value={draft}
+                       disabled={!canSendToActiveConversation}
+                       onChange={async (event) => {
+                         setDraft(event.target.value);
+                         if (activeConversationId) {
+                           localStorage.setItem(`kinet:message-draft:${activeConversationId}`, event.target.value);
+                           await setConversationTyping(activeConversationId, Boolean(event.target.value.trim()));
+                         }
+                       }}
+                       placeholder={canSendToActiveConversation ? "Message..." : "Accept this request to reply"}
+                       className="h-10 w-full bg-transparent px-1 text-sm outline-none"
+                     />
+                     {isRecording ? (
+                       <Button type="button" size="icon" className="rounded-full bg-red-600 text-white hover:bg-red-700" onClick={stopVoiceRecording} aria-label="Stop recording">
+                         <Square className="h-4 w-4" />
+                       </Button>
+                     ) : (
+                       <Button type="button" size="icon" variant="ghost" className="rounded-full text-muted-foreground hover:bg-muted" onClick={() => { if (!isRecording) void startVoiceRecording(); }} disabled={!canSendToActiveConversation} aria-label="Voice note">
+                         <Mic className="h-4 w-4" />
+                       </Button>
+                     )}
+                     <Button type="submit" size="icon" className="rounded-full" disabled={!canSendToActiveConversation || sending || (!draft.trim() && !attachment && !isRecording)}>
+                       <SendHorizontal className="h-4 w-4" />
+                     </Button>
+                   </div>
                 </form>
               </>
             ) : (

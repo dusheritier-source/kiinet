@@ -36,8 +36,10 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
   const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
   const followedUserIds = new Set(Array.isArray(viewerData.following) ? viewerData.following as string[] : []);
   const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
+  const postAuthorIds = new Set<string>();
   for (const post of authoredPosts) {
     if (byUserId.has(post.userId)) continue;
+    postAuthorIds.add(post.userId);
     const username = post.author.username.replace(/^@/, "");
     const authorText = `${post.author.name} ${username}`.toLowerCase();
     if (normalized && !authorText.includes(normalized)) continue;
@@ -52,7 +54,23 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
       discoveryIsFollowing: followedUserIds.has(post.userId),
       location: post.author.location || null,
       role: post.author.role ? { type: post.author.role } : undefined,
+      privateAccount: false,
     });
+  }
+  if (postAuthorIds.size > 0) {
+    const authorProfiles = await Promise.all([...postAuthorIds].map(async (uid) => {
+      const snapshot = await getDoc(doc(db!, "users", uid));
+      return snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null;
+    }));
+    const privateAuthorIds = new Set<string>();
+    authorProfiles.forEach((data, index) => {
+      const uid = [...postAuthorIds][index];
+      const settings = (data?.settings ?? {}) as Record<string, unknown>;
+      if (settings.privateAccount === true && !followedUserIds.has(uid)) {
+        privateAuthorIds.add(uid);
+      }
+    });
+    privateAuthorIds.forEach((uid) => byUserId.delete(uid));
   }
   return Array.from(byUserId.values()).map((profile) => ({
     ...profile,

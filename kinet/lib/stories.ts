@@ -31,7 +31,7 @@ export interface StoryItem {
   expiresAt?: { seconds?: number; nanoseconds?: number } | null;
   authorName: string;
   authorAvatar: string;
-  audience: "everyone" | "followers" | "close_friends" | "selected";
+  audience: "everyone" | "followers" | "close_friends" | "selected" | "mutual_followers";
   allowedViewerIds: string[];
   hiddenViewerIds: string[];
   replyAudience: "everyone" | "followers" | "no_one";
@@ -62,7 +62,7 @@ function mapStory(id: string, data: Record<string, unknown>): StoryItem {
       (data.expiresAt as { seconds?: number; nanoseconds?: number } | null | undefined) ?? null,
     authorName: String(data.authorName ?? "Kinet User"),
     authorAvatar: String(data.authorAvatar ?? ""),
-    audience: data.audience === "followers" || data.audience === "close_friends" || data.audience === "selected" ? data.audience : "everyone",
+    audience: data.audience === "followers" || data.audience === "close_friends" || data.audience === "selected" || data.audience === "mutual_followers" ? data.audience : "everyone",
     allowedViewerIds: Array.isArray(data.allowedViewerIds) ? data.allowedViewerIds as string[] : [],
     hiddenViewerIds: Array.isArray(data.hiddenViewerIds) ? data.hiddenViewerIds as string[] : [],
     replyAudience: data.replyAudience === "followers" || data.replyAudience === "no_one" ? data.replyAudience : "everyone",
@@ -206,6 +206,7 @@ export async function getActiveStories() {
       if (viewerBlocked.includes(story.userId) || creatorBlocked.includes(currentUserId) || story.hiddenViewerIds.includes(currentUserId)) return [];
       if (settings.privateAccount === true && !followers.includes(currentUserId)) return [];
       if (story.audience === "followers" && !followers.includes(currentUserId)) return [];
+      if (story.audience === "mutual_followers" && (!followers.includes(currentUserId) || !following.includes(story.userId))) return [];
       if (story.audience === "close_friends" && !closeFriends.includes(currentUserId)) return [];
       if (story.audience === "selected" && !story.allowedViewerIds.includes(currentUserId)) return [];
       const profileReplyAudience = settings.storyReplyAudience === "following" ? "followers" : settings.storyReplyAudience === "no_one" ? "no_one" : "everyone";

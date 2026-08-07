@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import PWARegistrar from "@/components/PWARegistrar";
 import ThemeSync from "@/components/ThemeSync";
+import StoriesOverlay from "@/components/StoriesOverlay";
 import { AuthProvider } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import ReactQueryProvider from "@/components/ReactQueryProvider";
@@ -52,6 +53,7 @@ export default function RootLayout({
           <AuthProvider>
             <PWARegistrar />
             <ThemeSync />
+            <StoriesOverlay />
             <Navbar />
             <main className="mobile-safe-shell mx-auto min-h-[100svh] w-full min-w-0 overflow-x-hidden px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6 md:pb-6">
               {children}

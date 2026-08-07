@@ -428,6 +428,26 @@ async function getCurrentAuthorProfile() {
   };
 }
 
+async function getAuthorPrivacyMap(userIds: string[]): Promise<Map<string, boolean>> {
+  if (!db || userIds.length === 0) return new Map();
+  const snapshots = await Promise.all(userIds.map((uid) => getDoc(doc(db, "users", uid)).catch(() => null)));
+  const map = new Map<string, boolean>();
+  snapshots.forEach((snapshot, index) => {
+    if (snapshot?.exists()) {
+      const data = snapshot.data() as Record<string, unknown>;
+      const settings = (data.settings ?? {}) as Record<string, unknown>;
+      map.set(userIds[index], settings.privateAccount === true);
+    }
+  });
+  return map;
+}
+
+function canViewPrivateAuthorPost(postUserId: string, following: string[], privacyMap: Map<string, boolean>): boolean {
+  const isPrivate = privacyMap.get(postUserId) ?? false;
+  if (!isPrivate) return true;
+  return following.includes(postUserId);
+}
+
 async function getCachedViewerProfile() {
   if (!auth?.currentUser) {
     return null;
@@ -1090,6 +1110,8 @@ export function subscribeToFeed(
         const preferredSport = profile?.defaultSport ?? "";
         const following = profile?.following ?? [];
         const blockedUsers = profile?.blockedUsers ?? [];
+        const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
+        const privacyMap = await getAuthorPrivacyMap(authorIds);
 
         if (!stopped) {
           callback(
@@ -1100,7 +1122,8 @@ export function subscribeToFeed(
                   !blockedUsers.includes(post.userId) &&
                   isVisiblePost(post) &&
                   matchesFeedPreferences(post, profile?.profile) &&
-                  canAccessPost(post, profile)
+                  canAccessPost(post, profile) &&
+                  canViewPrivateAuthorPost(post.userId, following, privacyMap)
               ),
               following,
               preferredSport
@@ -1150,11 +1173,13 @@ export function subscribeToReels(
         const preferredSport = profile?.defaultSport ?? "";
         const following = profile?.following ?? [];
         const blockedUsers = profile?.blockedUsers ?? [];
+        const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
+        const privacyMap = await getAuthorPrivacyMap(authorIds);
 
         if (!stopped) {
           callback(
             scorePosts(
-              rawPosts.filter((post) => !blockedUsers.includes(post.userId) && isVisiblePost(post) && canAccessPost(post, profile)),
+              rawPosts.filter((post) => !blockedUsers.includes(post.userId) && isVisiblePost(post) && canAccessPost(post, profile) && canViewPrivateAuthorPost(post.userId, following, privacyMap)),
               following,
               preferredSport
             )
@@ -1199,11 +1224,15 @@ export function subscribeToUserPosts(
     async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       const profile = await getCachedViewerProfile();
       const blockedUsers = profile?.blockedUsers ?? [];
+      const following = profile?.following ?? [];
+      const authorIds = [...new Set(snapshot.docs.map((doc) => (doc.data() as Record<string, unknown>).userId as string))];
+      const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
       const filteredPosts = snapshot.docs
         .map((postDoc) => mapPost(postDoc.id, postDoc.data()))
         .filter((post) => !blockedUsers.includes(post.userId))
         .filter(isVisiblePost)
         .filter((post) => canAccessPost(post, profile))
+        .filter((post) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
         .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
 
       if (!stopped) {
@@ -1268,14 +1297,20 @@ export async function searchPosts(searchTerm: string) {
   const normalized = searchTerm.trim().toLowerCase();
   const profile = await getCachedViewerProfile();
   const blockedUsers = profile?.blockedUsers ?? [];
-
-  return snapshot.docs
+  const following = profile?.following ?? [];
+  const posts = snapshot.docs
     .map((docSnapshot: { id: string; data: () => Record<string, unknown> }) =>
       mapPost(docSnapshot.id, docSnapshot.data() as Record<string, unknown>)
     )
     .filter((post: FeedPost) => !blockedUsers.includes(post.userId))
     .filter(isVisiblePost)
-    .filter((post: FeedPost) => canAccessPost(post, profile))
+    .filter((post: FeedPost) => canAccessPost(post, profile));
+
+  const authorIds = [...new Set(posts.map((post) => post.userId))];
+  const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
+
+  return posts
+    .filter((post: FeedPost) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
     .filter((post: FeedPost) => {
       if (!normalized) {
         return true;
@@ -1296,6 +1331,7 @@ export async function getPostsByIds(postIds: string[]) {
   const database = db;
   const profile = await getCachedViewerProfile();
   const blockedUsers = profile?.blockedUsers ?? [];
+  const following = profile?.following ?? [];
 
   const snapshots = await Promise.all(
     postIds.map(async (postId) => {
@@ -1309,12 +1345,17 @@ export async function getPostsByIds(postIds: string[]) {
   );
 
   const order = new Map(postIds.map((id, index) => [id, index]));
-
-  return snapshots
+  const posts = snapshots
     .filter((post): post is FeedPost => Boolean(post))
     .filter((post) => !blockedUsers.includes(post.userId))
     .filter(isVisiblePost)
-    .filter((post) => canAccessPost(post, profile))
+    .filter((post) => canAccessPost(post, profile));
+
+  const authorIds = [...new Set(posts.map((post) => post.userId))];
+  const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
+
+  return posts
+    .filter((post) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 

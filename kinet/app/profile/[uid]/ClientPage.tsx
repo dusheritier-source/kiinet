@@ -109,10 +109,15 @@ export default function PublicProfilePageContent() {
     };
   }, [uid, user]);
 
-  const viewerCanViewContent = Boolean(profile && (user?.uid === uid || profile.settings?.privateAccount !== true || (user && profile.followers?.includes(user.uid))));
+  const isSelf = user?.uid === uid;
+  const isFollowing = Boolean(user && profile?.followers?.includes(user.uid));
+  const isFollowedBy = Boolean(user && profile?.following?.includes(user.uid));
+  const isPrivate = profile?.settings?.privateAccount === true;
+  const canViewContent = isSelf || !isPrivate || (isFollowing && isFollowedBy);
+  const canViewProfile = isSelf || !isPrivate || (isFollowing && isFollowedBy);
 
   useEffect(() => {
-    if (!uid || !viewerCanViewContent) {
+    if (!uid || !canViewContent) {
       setPosts([]);
       setTaggedPosts([]);
       setHighlights([]);
@@ -125,7 +130,7 @@ export default function PublicProfilePageContent() {
       unsubscribePosts();
       unsubscribeHighlights();
     };
-  }, [uid, viewerCanViewContent]);
+  }, [uid, canViewContent]);
 
   const initials = useMemo(() => {
     const name = profile?.displayName || "User";
@@ -162,13 +167,24 @@ export default function PublicProfilePageContent() {
     return <div className="mx-auto max-w-2xl py-8">Profile not found.</div>;
   }
 
-  const isSelf = user?.uid === uid;
-  const isFollowing = Boolean(user && profile.followers?.includes(user.uid));
-  const isPrivate = profile.settings?.privateAccount === true;
-  const canViewContent = isSelf || isFollowing || !isPrivate;
   const mutualCount = (profile.followers ?? []).filter((followerId) => currentProfile?.following?.includes(followerId)).length;
   const temporaryAvatarActive = Boolean(profile.temporaryAvatarExpiresAt?.seconds && profile.temporaryAvatarExpiresAt.seconds * 1000 > Date.now());
   const avatarUrl = temporaryAvatarActive ? (profile.photoURL || "") : (profile.previousPhotoURL || profile.photoURL || "");
+
+  if (!canViewProfile) {
+    return (
+      <div className="mx-auto max-w-3xl py-8">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Lock className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h2 className="mt-4 text-xl font-semibold">This account is private</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Follow this account and wait for them to follow you back to see their profile and content.</p>
+            {isFollowing && !isFollowedBy ? <p className="mt-1 text-xs text-muted-foreground">Your follow request is pending approval.</p> : null}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl py-8">
