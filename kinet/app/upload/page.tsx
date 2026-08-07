@@ -171,6 +171,12 @@ function UploadPageContent() {
           caption,
           autoCaption,
           targetLanguage: "Spanish",
+          profileContext: {
+            displayName: user?.displayName || undefined,
+            username: user?.email?.split("@")[0] || undefined,
+            contentType,
+            visibility,
+          },
         }),
       });
       const data = (await response.json()) as { result?: string; error?: string };
