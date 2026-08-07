@@ -273,6 +273,19 @@ export async function saveUserProfile(input: CompleteProfileInput) {
   );
 }
 
+function logFirestoreError(operation: string, err: unknown, extra?: Record<string, unknown>) {
+  try {
+    // eslint-disable-next-line no-console
+    console.error(`[Firestore:${operation}]`, err instanceof Error ? err.message : err, extra ?? {});
+    // If error has a code (FirebaseError), log it specifically
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (err && typeof err === "object" && (err as any).code) {
+      // eslint-disable-next-line no-console
+      console.error(`[Firestore:${operation}] code=`, (err as any).code);
+    }
+  } catch {}
+}
+
 export async function updateCurrentUserProfile(input: {
   displayName: string;
   username?: string;
@@ -570,10 +583,12 @@ export async function searchProfiles(searchTerm: string) {
   }
 
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [snapshot, currentUserSnapshot] = await Promise.all([
-    (async () => {
+  let snapshot: Awaited<ReturnType<typeof getDocs>>;
+  let currentUserSnapshot: Awaited<ReturnType<typeof getDoc>> | null = null;
+  try {
+    const pair = await (async () => {
       if (!normalized) {
-        return await getDocs(query(collection(db, "users"), limit(100)));
+        return [await getDocs(query(collection(db, "users"), limit(100))), auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
       }
 
       // Use prefix queries for username and displayName to avoid listing
@@ -586,10 +601,15 @@ export async function searchProfiles(searchTerm: string) {
       const docsMap = new Map<string, any>();
       uSnap.docs.forEach((d) => docsMap.set(d.id, d));
       nSnap.docs.forEach((d) => docsMap.set(d.id, d));
-      return { docs: Array.from(docsMap.values()) } as unknown as Awaited<ReturnType<typeof getDocs>>;
-    })(),
-    auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
-  ] as const);
+      return [{ docs: Array.from(docsMap.values()) } as unknown as Awaited<ReturnType<typeof getDocs>>, auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
+    })();
+    snapshot = pair[0];
+    currentUserSnapshot = pair[1];
+  } catch (error) {
+    logFirestoreError("searchProfiles:initialFetch", error, { searchTerm: searchTerm, uid: auth?.currentUser?.uid });
+    // If permission denied or other Firestore error, return no profiles but allow search to continue.
+    return [];
+  }
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;
@@ -663,10 +683,17 @@ export async function getSuggestedProfiles(maxResults = 12) {
   }
 
   const currentUserId = auth.currentUser.uid;
-  const [profilesSnapshot, currentUserSnapshot] = await Promise.all([
-    getDocs(query(collection(db, "users"), limit(100))),
-    getDoc(doc(db, "users", currentUserId)),
-  ]);
+  let profilesSnapshot;
+  let currentUserSnapshot;
+  try {
+    [profilesSnapshot, currentUserSnapshot] = await Promise.all([
+      getDocs(query(collection(db, "users"), limit(100))),
+      getDoc(doc(db, "users", currentUserId)),
+    ]);
+  } catch (error) {
+    logFirestoreError("getSuggestedProfiles:fetch", error, { uid: currentUserId });
+    return [];
+  }
   const currentUser = currentUserSnapshot.exists()
     ? (currentUserSnapshot.data() as SearchProfile)
     : null;
