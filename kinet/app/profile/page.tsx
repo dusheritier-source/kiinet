@@ -64,6 +64,8 @@ function getProfileThemeClass(theme?: string) {
   return "from-primary to-secondary";
 }
 
+import { Suspense } from "react";
+
 function ProfilePageContent() {
   const { user } = useAuthContext();
   const searchParams = useSearchParams();
@@ -507,7 +509,9 @@ function ProfilePageContent() {
 export default function ProfilePage() {
   return (
     <AuthProvider>
-      <ProfilePageContent />
+      <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>}>
+        <ProfilePageContent />
+      </Suspense>
     </AuthProvider>
   );
 }

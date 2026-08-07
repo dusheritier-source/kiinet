@@ -442,10 +442,10 @@ async function getAuthorPrivacyMap(userIds: string[]): Promise<Map<string, boole
   return map;
 }
 
-function canViewPrivateAuthorPost(postUserId: string, following: string[], privacyMap: Map<string, boolean>): boolean {
+function canViewPrivateAuthorPost(postUserId: string, viewerId: string, following: string[], privacyMap: Map<string, boolean>): boolean {
   const isPrivate = privacyMap.get(postUserId) ?? false;
   if (!isPrivate) return true;
-  return following.includes(postUserId);
+  return viewerId === postUserId || following.includes(postUserId);
 }
 
 async function getCachedViewerProfile() {
@@ -1123,7 +1123,7 @@ export function subscribeToFeed(
                   isVisiblePost(post) &&
                   matchesFeedPreferences(post, profile?.profile) &&
                   canAccessPost(post, profile) &&
-                  canViewPrivateAuthorPost(post.userId, following, privacyMap)
+                  canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap)
               ),
               following,
               preferredSport
@@ -1179,7 +1179,7 @@ export function subscribeToReels(
         if (!stopped) {
           callback(
             scorePosts(
-              rawPosts.filter((post) => !blockedUsers.includes(post.userId) && isVisiblePost(post) && canAccessPost(post, profile) && canViewPrivateAuthorPost(post.userId, following, privacyMap)),
+              rawPosts.filter((post) => !blockedUsers.includes(post.userId) && isVisiblePost(post) && canAccessPost(post, profile) && canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap)),
               following,
               preferredSport
             )
@@ -1232,7 +1232,7 @@ export function subscribeToUserPosts(
         .filter((post) => !blockedUsers.includes(post.userId))
         .filter(isVisiblePost)
         .filter((post) => canAccessPost(post, profile))
-        .filter((post) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
+        .filter((post) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
         .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
 
       if (!stopped) {
@@ -1270,11 +1270,15 @@ export function subscribeToTopicPosts(
     async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       const profile = await getCachedViewerProfile();
       const blockedUsers = profile?.blockedUsers ?? [];
+      const following = profile?.following ?? [];
+      const authorIds = [...new Set(snapshot.docs.map((doc) => (doc.data() as Record<string, unknown>).userId as string))];
+      const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
       const filteredPosts = snapshot.docs
         .map((postDoc) => mapPost(postDoc.id, postDoc.data()))
         .filter((post) => !blockedUsers.includes(post.userId))
         .filter(isVisiblePost)
-        .filter((post) => canAccessPost(post, profile));
+        .filter((post) => canAccessPost(post, profile))
+        .filter((post) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap));
 
       if (!stopped) {
         callback(filteredPosts);
@@ -1310,7 +1314,7 @@ export async function searchPosts(searchTerm: string) {
   const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
 
   return posts
-    .filter((post: FeedPost) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
+    .filter((post: FeedPost) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
     .filter((post: FeedPost) => {
       if (!normalized) {
         return true;
@@ -1355,7 +1359,7 @@ export async function getPostsByIds(postIds: string[]) {
   const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
 
   return posts
-    .filter((post) => canViewPrivateAuthorPost(post.userId, following, privacyMap))
+    .filter((post) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 

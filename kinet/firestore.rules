@@ -162,12 +162,10 @@ service cloud.firestore {
     // Posts - authenticated users can read, but private account posts are restricted
     match /posts/{postId} {
       function canReadPost() {
-        if (resource.data.userId == request.auth.uid) return true;
-        let author = get(/databases/$(database)/documents/users/$(resource.data.userId));
-        let isPrivate = author.data.get('settings', {}).get('privateAccount', false) == true;
-        let isFollower = request.auth.uid in author.data.get('followers', []);
-        let isFollowedBy = request.auth.uid in author.data.get('following', []);
-        return !isPrivate || (isFollower && isFollowedBy);
+        return resource.data.userId == request.auth.uid
+          || !get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('settings', {}).get('privateAccount', false)
+          || (request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('followers', [])
+            && request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('following', []));
       }
       allow read: if isSignedIn() && canReadPost();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -450,12 +448,10 @@ service cloud.firestore {
     // Stories - authenticated users can read, but private account stories are restricted
     match /stories/{storyId} {
       function canReadStory() {
-        if (resource.data.userId == request.auth.uid) return true;
-        let creator = get(/databases/$(database)/documents/users/$(resource.data.userId));
-        let isPrivate = creator.data.get('settings', {}).get('privateAccount', false) == true;
-        let isFollower = request.auth.uid in creator.data.get('followers', []);
-        let isFollowedBy = request.auth.uid in creator.data.get('following', []);
-        return !isPrivate || (isFollower && isFollowedBy);
+        return resource.data.userId == request.auth.uid
+          || !get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('settings', {}).get('privateAccount', false)
+          || (request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('followers', [])
+            && request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('following', []));
       }
       allow read: if isSignedIn() && canReadStory();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
