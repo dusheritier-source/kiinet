@@ -1,3 +1,5 @@
+"use client";
+
 import { updateProfile as updateFirebaseProfile } from "firebase/auth";
 import {
   arrayRemove,
@@ -412,10 +414,18 @@ export async function updateCurrentUserProfile(input: {
   } finally {
     if (saveTimeout) clearTimeout(saveTimeout);
   }
-  void updateFirebaseProfile(user as never, {
+  try {
+    await updateFirebaseProfile(user as never, {
       displayName: input.displayName.trim(),
       photoURL: photoURL || null,
-    } as never).catch(() => undefined);
+    } as never);
+  } catch (e) {
+    // Non-fatal: log but don't block the user-facing save.
+    // Firebase Auth updates can occasionally fail due to transient issues.
+    // Surface in console for debugging during development.
+    // eslint-disable-next-line no-console
+    console.warn("Could not update Firebase Auth profile:", e);
+  }
 }
 
 export async function getCurrentUserProfile() {
@@ -561,11 +571,25 @@ export async function searchProfiles(searchTerm: string) {
 
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
   const [snapshot, currentUserSnapshot] = await Promise.all([
-    normalized
-      ? getDocs(collection(db, "users"))
-      : getDocs(query(collection(db, "users"), limit(100))),
+    (async () => {
+      if (!normalized) {
+        return await getDocs(query(collection(db, "users"), limit(100)));
+      }
+
+      // Use prefix queries for username and displayName to avoid listing
+      // the entire users collection (which can be blocked by rules or slow).
+      const prefixEnd = normalized + "\uf8ff";
+      const usernameQuery = query(collection(db, "users"), where("username", ">=", normalized), where("username", "<=", prefixEnd), limit(50));
+      const nameQuery = query(collection(db, "users"), where("displayName", ">=", normalized), where("displayName", "<=", prefixEnd), limit(50));
+      const [uSnap, nSnap] = await Promise.all([getDocs(usernameQuery), getDocs(nameQuery)]);
+      // Merge unique docs by id so downstream code can use `snapshot.docs`
+      const docsMap = new Map<string, any>();
+      uSnap.docs.forEach((d) => docsMap.set(d.id, d));
+      nSnap.docs.forEach((d) => docsMap.set(d.id, d));
+      return { docs: Array.from(docsMap.values()) } as unknown as Awaited<ReturnType<typeof getDocs>>;
+    })(),
     auth?.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
-  ]);
+  ] as const);
   const currentUserData = currentUserSnapshot?.exists()
     ? (currentUserSnapshot.data() as Record<string, unknown>)
     : null;
