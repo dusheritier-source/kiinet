@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Mic, Send, X } from "lucide-react";
 
 interface VoiceNoteRecorderProps {
   onSend: (file: File, duration: number) => void;
   onCancel: () => void;
-  conversationId: string;
+  conversationId?: string | null;
 }
 
 type RecorderState = "idle" | "recording" | "preview" | "sending";
 
-export default function VoiceNoteRecorder({ onSend, onCancel, conversationId }: VoiceNoteRecorderProps) {
+export default function VoiceNoteRecorder({ onSend, onCancel, conversationId: _conversationId }: VoiceNoteRecorderProps) {
   const [state, setState] = useState<RecorderState>("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);

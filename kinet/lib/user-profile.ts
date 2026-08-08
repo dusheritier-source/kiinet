@@ -168,6 +168,38 @@ function isStorageUploadError(error: unknown): boolean {
   return false;
 }
 
+export async function fileToDataUrl(file: File): Promise<string> {
+  if (typeof FileReader !== "undefined") {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Unable to read the selected image."));
+      };
+      reader.onerror = () => reject(new Error("Unable to read the selected image."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type || "application/octet-stream"};base64,${buffer.toString("base64")}`;
+}
+
+export function withCacheBuster(url: string, version = Date.now()) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set("v", String(version));
+    return parsed.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}v=${version}`;
+  }
+}
+
 async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover", fallbackUrl = "") {
   if (!storage) {
     return fallbackUrl;
@@ -189,7 +221,8 @@ async function uploadProfileImage(file: File, path: string, kind: "avatar" | "co
 
   try {
     await uploadBytes(reference, uploadFileCandidate, { contentType: uploadFileCandidate.type || "image/jpeg" });
-    return getDownloadURL(reference);
+    const downloadUrl = await getDownloadURL(reference);
+    return withCacheBuster(downloadUrl);
   } catch (error) {
     if (isStorageUploadError(error)) {
       try {
@@ -200,13 +233,20 @@ async function uploadProfileImage(file: File, path: string, kind: "avatar" | "co
           upsert: true,
         });
         if (!result.error && result.publicUrl) {
-          return result.publicUrl;
+          return withCacheBuster(result.publicUrl);
         }
       } catch (supabaseError) {
         console.warn("Profile image fallback to Supabase failed.", supabaseError);
       }
-      console.warn(`Profile ${kind} upload failed, keeping the existing profile image.`, error);
-      return fallbackUrl;
+
+      try {
+        const previewUrl = await fileToDataUrl(file);
+        console.warn(`Profile ${kind} upload failed, using a local preview fallback.`, error);
+        return previewUrl;
+      } catch (previewError) {
+        console.warn(`Profile ${kind} upload failed and no local preview could be created.`, previewError);
+        return fallbackUrl;
+      }
     }
     throw error;
   }
@@ -577,33 +617,58 @@ export function subscribeToUserProfile(uid: string, callback: (profile: Record<s
   return onSnapshot(doc(db, "users", uid), (snapshot) => callback(snapshot.exists() ? snapshot.data() as Record<string, unknown> : null), () => callback(null));
 }
 
+export async function resolveUserSearchCandidates({
+  normalized,
+  fetchPrefixedUsers,
+  fetchAllUsers,
+}: {
+  normalized: string;
+  fetchPrefixedUsers: () => Promise<Array<{ id: string; data: () => Record<string, unknown> }>>;
+  fetchAllUsers: () => Promise<Array<{ id: string; data: () => Record<string, unknown> }>>;
+}) {
+  const prefixedUsers = await fetchPrefixedUsers();
+  if (prefixedUsers.length > 0 || !normalized) {
+    return prefixedUsers;
+  }
+
+  return fetchAllUsers();
+}
+
 export async function searchProfiles(searchTerm: string) {
   if (!db) {
     return [];
   }
 
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  let snapshot: Awaited<ReturnType<typeof getDocs>>;
+  let snapshotDocs: Array<{ id: string; data: () => Record<string, unknown> }> = [];
   let currentUserSnapshot: Awaited<ReturnType<typeof getDoc>> | null = null;
   try {
     const pair = await (async () => {
       if (!normalized) {
-        return [await getDocs(query(collection(db, "users"), limit(100))), auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
+        const usersSnapshot = await getDocs(query(collection(db, "users"), limit(100)));
+        return [usersSnapshot.docs, auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
       }
 
-      // Use prefix queries for username and displayName to avoid listing
-      // the entire users collection (which can be blocked by rules or slow).
-      const prefixEnd = normalized + "\uf8ff";
-      const usernameQuery = query(collection(db, "users"), where("username", ">=", normalized), where("username", "<=", prefixEnd), limit(50));
-      const nameQuery = query(collection(db, "users"), where("displayName", ">=", normalized), where("displayName", "<=", prefixEnd), limit(50));
-      const [uSnap, nSnap] = await Promise.all([getDocs(usernameQuery), getDocs(nameQuery)]);
-      // Merge unique docs by id so downstream code can use `snapshot.docs`
-      const docsMap = new Map<string, any>();
-      uSnap.docs.forEach((d) => docsMap.set(d.id, d));
-      nSnap.docs.forEach((d) => docsMap.set(d.id, d));
-      return [{ docs: Array.from(docsMap.values()) } as unknown as Awaited<ReturnType<typeof getDocs>>, auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
+      const prefixedUsers = await (async () => {
+        const prefixEnd = normalized + "\uf8ff";
+        const usernameQuery = query(collection(db, "users"), where("username", ">=", normalized), where("username", "<=", prefixEnd), limit(50));
+        const nameQuery = query(collection(db, "users"), where("displayName", ">=", normalized), where("displayName", "<=", prefixEnd), limit(50));
+        const [uSnap, nSnap] = await Promise.all([getDocs(usernameQuery), getDocs(nameQuery)]);
+        const docsMap = new Map<string, { id: string; data: () => Record<string, unknown> }>();
+        uSnap.docs.forEach((d) => docsMap.set(d.id, d));
+        nSnap.docs.forEach((d) => docsMap.set(d.id, d));
+        return Array.from(docsMap.values());
+      })();
+
+      const fullUsers = await getDocs(query(collection(db, "users"), limit(200)));
+      const candidates = await resolveUserSearchCandidates({
+        normalized,
+        fetchPrefixedUsers: async () => prefixedUsers,
+        fetchAllUsers: async () => fullUsers.docs,
+      });
+      return [candidates, auth?.currentUser ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null] as const;
     })();
-    snapshot = pair[0];
+    snapshotDocs = pair[0];
     currentUserSnapshot = pair[1];
   } catch (error) {
     logFirestoreError("searchProfiles:initialFetch", error, { searchTerm: searchTerm, uid: auth?.currentUser?.uid });
@@ -618,7 +683,7 @@ export async function searchProfiles(searchTerm: string) {
     ? (currentUserData?.blockedUsers as string[])
     : [];
 
-  const visibleProfiles = snapshot.docs
+  const visibleProfiles = snapshotDocs
     .map((docSnapshot) => ({
       ...docSnapshot.data(),
       // Older profiles may not contain uid. The document ID is authoritative.

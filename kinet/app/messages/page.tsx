@@ -432,27 +432,33 @@ function MessagesPageContent() {
   const getMessageSender = (senderId: string) =>
     activeConversation?.participantProfiles.find((profile) => profile.uid === senderId) ?? activeOtherUser;
 
-  const handleSend = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!activeConversationId || (!draft.trim() && !attachment)) {
+  const sendMessageWithAttachment = async ({
+    attachmentFile,
+    messageText,
+    optimisticId = crypto.randomUUID(),
+  }: {
+    attachmentFile: File | null;
+    messageText: string;
+    optimisticId?: string;
+  }) => {
+    if (!activeConversationId || (!messageText.trim() && !attachmentFile)) {
       return;
     }
-    if (!isOnline && attachment) {
+    if (!isOnline && attachmentFile) {
       setError("Reconnect before sending an attachment. Text messages can be queued offline.");
       return;
     }
 
-    const messageText = draft.trim();
-    const optimisticId = crypto.randomUUID();
+    const normalizedText = messageText.trim();
     const optimisticMessage: ConversationMessage = {
       id: optimisticId,
       conversationId: activeConversationId,
       senderId: currentUserId,
-      text: messageText,
+      text: normalizedText,
       attachmentUrl: null,
-      attachmentType: attachment?.type ?? null,
-      attachmentName: attachment?.name ?? null,
-      attachmentSize: attachment?.size ?? null,
+      attachmentType: attachmentFile?.type ?? null,
+      attachmentName: attachmentFile?.name ?? null,
+      attachmentSize: attachmentFile?.size ?? null,
       readBy: [currentUserId],
       createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
       clientStatus: isOnline ? "pending" : "queued",
@@ -471,18 +477,18 @@ function MessagesPageContent() {
     if (!isOnline) {
       const queueKey = `kinet:message-queue:${currentUserId}`;
       const queue = JSON.parse(localStorage.getItem(queueKey) || "[]") as QueuedMessage[];
-      localStorage.setItem(queueKey, JSON.stringify([...queue, { id: optimisticId, conversationId: activeConversationId, text: messageText, replyTo: optimisticMessage.replyTo, expiresInSeconds }]));
+      localStorage.setItem(queueKey, JSON.stringify([...queue, { id: optimisticId, conversationId: activeConversationId, text: normalizedText, replyTo: optimisticMessage.replyTo, expiresInSeconds }]));
       setReplyingTo(null);
       return;
     }
 
     setSending(true);
     try {
-      setUploadProgress(attachment ? 0 : null);
+      setUploadProgress(attachmentFile ? 0 : null);
       await sendConversationMessage(
         activeConversationId,
-        messageText,
-        attachment,
+        normalizedText,
+        attachmentFile,
         optimisticId,
         setUploadProgress,
         optimisticMessage.replyTo,
@@ -493,10 +499,10 @@ function MessagesPageContent() {
       setExpiresInSeconds(null);
       await setConversationTyping(activeConversationId, false);
     } catch (sendError) {
-      if (attachment) {
+      if (attachmentFile) {
         setMessages((current) => current.filter((message) => message.id !== optimisticId));
-        setDraft(messageText);
-        localStorage.setItem(`kinet:message-draft:${activeConversationId}`, messageText);
+        setDraft(normalizedText);
+        localStorage.setItem(`kinet:message-draft:${activeConversationId}`, normalizedText);
       } else {
         setMessages((current) => current.map((message) => message.id === optimisticId ? { ...message, clientStatus: "failed" } : message));
       }
@@ -507,6 +513,30 @@ function MessagesPageContent() {
       setSending(false);
       setUploadProgress(null);
     }
+  };
+
+  const handleSend = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await sendMessageWithAttachment({ attachmentFile: attachment, messageText: draft });
+  };
+
+  const handleVoiceNoteSend = async (file: File) => {
+    if (!activeConversationId || !canSendToActiveConversation) {
+      setError("Choose a conversation before sending a voice note.");
+      return;
+    }
+    if (!isOnline) {
+      setError("Reconnect before sending voice notes.");
+      return;
+    }
+    setShowComposerMenu(false);
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    await sendMessageWithAttachment({
+      attachmentFile: file,
+      messageText: draft.trim(),
+      optimisticId: crypto.randomUUID(),
+    });
   };
 
   const retryMessage = async (message: ConversationMessage) => {
@@ -1224,13 +1254,11 @@ function MessagesPageContent() {
                        <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
                      </div> : null}
 
-                   {isRecording ? (
+                   {isRecording && activeConversationId ? (
                      <VoiceNoteRecorder
                        conversationId={activeConversationId}
-                       onSend={(file, duration) => {
-                         setAttachment(file);
-                         setIsRecording(false);
-                         setRecordingSeconds(0);
+                       onSend={async (file) => {
+                         await handleVoiceNoteSend(file);
                        }}
                        onCancel={() => {
                          setIsRecording(false);
