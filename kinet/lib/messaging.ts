@@ -415,7 +415,7 @@ export async function sendConversationMessage(
   batch.set(
     conversationRef,
     {
-      lastMessage: trimmedText || (uploadedAttachment?.type.startsWith("image/") ? "Sent a photo" : "Sent an attachment"),
+      lastMessage: trimmedText || (uploadedAttachment?.type.startsWith("image/") ? "Sent a photo" : uploadedAttachment?.type.startsWith("audio/") ? "Sent a voice note" : "Sent an attachment"),
       lastSenderId: sender.uid,
       unreadBy: activeRecipientIds.length ? arrayUnion(...activeRecipientIds) : [],
       hiddenBy: activeRecipientIds.length ? arrayRemove(...activeRecipientIds) : [],

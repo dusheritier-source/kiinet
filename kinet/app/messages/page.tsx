@@ -72,6 +72,8 @@ import { searchProfiles, type SearchProfile } from "@/lib/user-profile";
 import { setUserOffline, setUserOnline, setupPresenceListener, type UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
 import CallPanel from "@/components/CallPanel";
+import VoiceNotePlayer from "@/components/VoiceNotePlayer";
+import VoiceNoteRecorder from "@/components/VoiceNoteRecorder";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { getCurrentUserSettings, updateCurrentUserSettings, type UserSettings } from "@/lib/settings";
 
@@ -1054,8 +1056,8 @@ function MessagesPageContent() {
                               />
                             ) : message.attachmentType?.startsWith("video/") ? (
                               <video src={message.attachmentUrl} controls preload="metadata" className="mb-2 max-h-72 rounded-3xl" />
-                            ) : message.attachmentType?.startsWith("audio/") ? (
-                              <audio src={message.attachmentUrl} controls preload="metadata" className="mb-2 max-w-full" />
+                             ) : message.attachmentType?.startsWith("audio/") ? (
+                               <VoiceNotePlayer url={message.attachmentUrl} duration={message.attachmentSize ? undefined : undefined} isOwn={message.senderId === currentUserId} />
                             ) : (
                               <a
                                 href={message.attachmentUrl}
@@ -1211,16 +1213,31 @@ function MessagesPageContent() {
                    ) : null}
 
                    {showComposerMenu ? <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
-                       <button type="button" onClick={() => { setShowNoteComposer(true); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><StickyNote className="h-5 w-5" />Note</button>
-                       <button type="button" onClick={() => { void startVoiceRecording(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Mic className="h-5 w-5" />Voice note</button>
-                       <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
-                        <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
-                      </div>
-                      <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
-                      <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
-                    </div> : null}
+                       <div className="grid grid-cols-3 gap-2 text-xs">
+                         <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
+                        <button type="button" onClick={() => { setShowNoteComposer(true); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><StickyNote className="h-5 w-5" />Note</button>
+                        <button type="button" onClick={() => { setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Mic className="h-5 w-5" />Voice note</button>
+                        <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
+                         <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
+                       </div>
+                       <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden pb-1">{smartReplies.map((reply) => <button key={reply} type="button" onClick={() => { setDraft(reply); setShowComposerMenu(false); }} className="whitespace-nowrap rounded-full border px-3 py-1.5 text-xs hover:bg-muted">{reply}</button>)}</div>
+                       <select value={expiresInSeconds ?? ""} onChange={(event) => { setExpiresInSeconds(event.target.value ? Number(event.target.value) : null); setShowComposerMenu(false); }} className="mt-3 h-9 w-full rounded-md border bg-background px-3 text-xs"><option value="">Keep message</option><option value="300">Disappear after 5 minutes</option><option value="3600">Disappear after 1 hour</option><option value="86400">Disappear after 24 hours</option><option value="604800">Disappear after 7 days</option></select>
+                     </div> : null}
+
+                   {isRecording ? (
+                     <VoiceNoteRecorder
+                       conversationId={activeConversationId}
+                       onSend={(file, duration) => {
+                         setAttachment(file);
+                         setIsRecording(false);
+                         setRecordingSeconds(0);
+                       }}
+                       onCancel={() => {
+                         setIsRecording(false);
+                         setRecordingSeconds(0);
+                       }}
+                     />
+                   ) : null}
 
                     {showNoteComposer ? (
                       <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
@@ -1265,15 +1282,15 @@ function MessagesPageContent() {
                        placeholder={canSendToActiveConversation ? "Message..." : "Accept this request to reply"}
                        className="h-10 w-full bg-transparent px-1 text-sm outline-none"
                      />
-                     {isRecording ? (
-                       <Button type="button" size="icon" className="rounded-full bg-red-600 text-white hover:bg-red-700" onClick={stopVoiceRecording} aria-label="Stop recording">
-                         <Square className="h-4 w-4" />
-                       </Button>
-                     ) : (
-                       <Button type="button" size="icon" variant="ghost" className="rounded-full text-muted-foreground hover:bg-muted" onClick={() => { if (!isRecording) void startVoiceRecording(); }} disabled={!canSendToActiveConversation} aria-label="Voice note">
-                         <Mic className="h-4 w-4" />
-                       </Button>
-                     )}
+                      {isRecording ? (
+                        <Button type="button" size="icon" className="rounded-full bg-red-600 text-white hover:bg-red-700" onClick={stopVoiceRecording} aria-label="Stop recording">
+                          <Square className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button type="button" size="icon" variant="ghost" className="rounded-full text-muted-foreground hover:bg-muted" onClick={() => { if (!isRecording) { setShowComposerMenu(false); setIsRecording(true); } }} disabled={!canSendToActiveConversation} aria-label="Voice note">
+                          <Mic className="h-4 w-4" />
+                        </Button>
+                      )}
                      <Button type="submit" size="icon" className="rounded-full" disabled={!canSendToActiveConversation || sending || (!draft.trim() && !attachment && !isRecording)}>
                        <SendHorizontal className="h-4 w-4" />
                      </Button>
