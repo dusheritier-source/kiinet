@@ -145,6 +145,7 @@ function MessagesPageContent() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -327,8 +328,8 @@ function MessagesPageContent() {
 
   useEffect(() => {
     if (!activeConversationId || messagesLoading || messages.length === 0) return;
-    const container = document.querySelector('[data-message-container]') as HTMLElement | null;
-    if (container) {
+    const container = messagesContainerRef.current ?? document.querySelector('[data-message-container]');
+    if (container instanceof HTMLElement) {
       container.scrollTop = container.scrollHeight;
     }
   }, [activeConversationId, messagesLoading, messages.length]);
