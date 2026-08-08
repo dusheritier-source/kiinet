@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -32,7 +32,7 @@ import {
   X,
   Video,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
@@ -94,6 +94,7 @@ function MessagesPageContent() {
   const { user } = useAuthContext();
   const currentUserId = user?.uid ?? "";
   const searchParams = useSearchParams();
+  const router = useRouter();
   const starterUser = searchParams.get("user");
   const starterConversation = searchParams.get("conversation");
   const highlightedMessageId = searchParams.get("message");
@@ -129,6 +130,8 @@ function MessagesPageContent() {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showComposerMenu, setShowComposerMenu] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
+  const [showNewMessagesButton, setShowNewMessagesButton] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const [messagePrivacy, setMessagePrivacy] = useState<UserSettings["messagePrivacy"]>("everyone");
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -146,6 +149,40 @@ function MessagesPageContent() {
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const isSentMessageRef = useRef(false);
+  const previousMessagesRef = useRef<ConversationMessage[]>([]);
+
+  const openConversation = useCallback((conversationId: string) => {
+    setActiveConversationId(conversationId);
+    setShowNewMessagesButton(false);
+    isSentMessageRef.current = true;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("conversation", conversationId);
+    router.push(`/messages?${nextParams.toString()}`);
+  }, [router, searchParams]);
+
+  const closeConversation = useCallback(() => {
+    setActiveConversationId(null);
+    setShowNewMessagesButton(false);
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("conversation");
+    router.replace(`/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    const routeConversation = searchParams.get("conversation");
+    if (routeConversation && routeConversation !== activeConversationId) {
+      setActiveConversationId(routeConversation);
+      setShowNewMessagesButton(false);
+      isSentMessageRef.current = true;
+      return;
+    }
+    if (!routeConversation && activeConversationId) {
+      setActiveConversationId(null);
+      setShowNewMessagesButton(false);
+    }
+  }, [searchParams, activeConversationId]);
 
   useEffect(() => {
     if (!user) {
@@ -238,7 +275,10 @@ function MessagesPageContent() {
 
     setCreating(true);
     createOrGetConversation(starterUser)
-      .then((conversationId) => setActiveConversationId(conversationId))
+      .then((conversationId) => {
+        setActiveConversationId(conversationId);
+        setShowNewMessagesButton(false);
+      })
       .catch((conversationError: unknown) => {
         if (!isTransientFirestoreError(conversationError)) {
           setError(conversationError instanceof Error ? conversationError.message : "Could not start conversation.");
@@ -258,12 +298,7 @@ function MessagesPageContent() {
         if (!message || message.conversationId !== activeConversationId) return;
         setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
         window.setTimeout(() => {
-          const container = document.querySelector('[data-message-container]') as HTMLElement | null;
-          if (container) {
-            container.scrollTop = container.scrollHeight;
-          } else {
-            document.getElementById(`message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "end" });
-          }
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
         }, 100);
       })
       .catch(() => undefined);
@@ -326,14 +361,6 @@ function MessagesPageContent() {
     );
   }, [activeConversationId]);
 
-  useEffect(() => {
-    if (!activeConversationId || messagesLoading || messages.length === 0) return;
-    const container = messagesContainerRef.current ?? document.querySelector('[data-message-container]');
-    if (container instanceof HTMLElement) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [activeConversationId, messagesLoading, messages.length]);
-
   const visibleConversations = useMemo(() => {
     if (!user) {
       return [];
@@ -380,6 +407,47 @@ function MessagesPageContent() {
     }
     setDraft(localStorage.getItem(`kinet:message-draft:${activeConversationId}`) ?? "");
   }, [activeConversationId]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const threshold = 240;
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const nearBottom = distanceFromBottom < threshold;
+      setIsNearBottom(nearBottom);
+      if (nearBottom) {
+        setShowNewMessagesButton(false);
+      }
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
+  }, [activeConversationId, messages.length]);
+
+  useEffect(() => {
+    if (!activeConversationId || messagesLoading || messages.length === 0) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const previousMessages = previousMessagesRef.current;
+    const becameNewer = messages.length > previousMessages.length;
+    previousMessagesRef.current = messages;
+
+    const shouldAutoScroll = isSentMessageRef.current || isNearBottom;
+    if (shouldAutoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      setShowNewMessagesButton(false);
+      isSentMessageRef.current = false;
+      return;
+    }
+
+    if (becameNewer) {
+      setShowNewMessagesButton(true);
+    }
+  }, [activeConversationId, messagesLoading, messages, isNearBottom]);
 
   const directPeople = useMemo(
     () =>
@@ -473,6 +541,7 @@ function MessagesPageContent() {
     };
 
     setError("");
+    isSentMessageRef.current = true;
     setMessages((current) => [...current, optimisticMessage]);
     setDraft("");
     localStorage.removeItem(`kinet:message-draft:${activeConversationId}`);
@@ -559,7 +628,7 @@ function MessagesPageContent() {
     setError("");
     try {
       const conversationId = await createOrGetConversation(profile.uid);
-      setActiveConversationId(conversationId);
+      openConversation(conversationId);
       setShowNewMessage(false);
       setPeopleSearch("");
     } catch (conversationError) {
@@ -576,7 +645,7 @@ function MessagesPageContent() {
     setError("");
     try {
       const conversationId = await createGroupConversation(groupName, selectedGroupMembers);
-      setActiveConversationId(conversationId);
+      openConversation(conversationId);
       setShowNewMessage(false);
       setCreatingGroup(false);
       setGroupName("");
@@ -766,7 +835,7 @@ function MessagesPageContent() {
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold">Active people</p>
             <div className="flex gap-2">
-              <Button variant={showRequests ? "secondary" : "ghost"} size="sm" onClick={() => { setShowRequests((current) => !current); setShowArchived(false); setActiveConversationId(null); }}>
+              <Button variant={showRequests ? "secondary" : "ghost"} size="sm" onClick={() => { setShowRequests((current) => !current); setShowArchived(false); closeConversation(); }}>
                 Requests ({conversations.filter((conversation) => conversation.requestStatus === "pending" && conversation.requestedBy !== currentUserId && !conversation.hiddenBy.includes(currentUserId)).length})
               </Button>
               <Button variant="ghost" size="sm" onClick={() => { setShowArchived((current) => !current); setShowRequests(false); }}>
@@ -784,7 +853,7 @@ function MessagesPageContent() {
                 <button
                   key={person.conversationId}
                   type="button"
-                  onClick={() => setActiveConversationId(person.conversationId)}
+                  onClick={() => openConversation(person.conversationId)}
                   className="flex w-[84px] shrink-0 flex-col items-center gap-2"
                 >
                   <div
@@ -839,7 +908,7 @@ function MessagesPageContent() {
                     <button
                       key={conversation.id}
                       type="button"
-                      onClick={() => setActiveConversationId(conversation.id)}
+                      onClick={() => openConversation(conversation.id)}
                     className={`w-full rounded-[28px] border p-3 text-left transition ${
                         activeConversationId === conversation.id ? "border-primary/20 bg-muted/80" : "border-transparent hover:bg-muted/60"
                       }`}
@@ -896,14 +965,13 @@ function MessagesPageContent() {
           >
             {activeConversation ? (
               <>
-                <div className="sticky top-0 z-20 border-b bg-background/95 px-4 py-3 backdrop-blur-sm shadow-sm">
+                <div className="sticky top-0 z-20 border-b bg-background/95 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 backdrop-blur-sm shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="md:hidden"
-                        onClick={() => setActiveConversationId(null)}
+                        onClick={closeConversation}
                       >
                         <ArrowLeft className="h-5 w-5" />
                       </Button>
@@ -953,7 +1021,7 @@ function MessagesPageContent() {
                     <span>This person wants to message you. Accept before replying.</span>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => void respondToMessageRequest(activeConversation.id, true)}>Accept</Button>
-                      <Button size="sm" variant="outline" onClick={() => void respondToMessageRequest(activeConversation.id, false).then(() => setActiveConversationId(null))}>Decline</Button>
+                      <Button size="sm" variant="outline" onClick={() => void respondToMessageRequest(activeConversation.id, false).then(() => closeConversation())}>Decline</Button>
                     </div>
                   </div>
                 ) : null}
@@ -964,16 +1032,16 @@ function MessagesPageContent() {
                     <div className="mb-4 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => void updateConversationState(activeConversation.id, "mutedBy", !activeConversation.mutedBy.includes(currentUserId))}>{activeConversation.mutedBy.includes(currentUserId) ? "Unmute" : "Mute notifications"}</Button>
                       <Button size="sm" variant="outline" onClick={() => void updateConversationState(activeConversation.id, "archivedBy", !activeConversation.archivedBy.includes(currentUserId))}>{activeConversation.archivedBy.includes(currentUserId) ? "Unarchive" : "Archive"}</Button>
-                      <Button size="sm" variant="destructive" onClick={() => void updateConversationState(activeConversation.id, "hiddenBy", true).then(() => { setActiveConversationId(null); setShowConversationInfo(false); })}><EyeOff className="mr-1 h-4 w-4" />Delete chat for me</Button>
+                      <Button size="sm" variant="destructive" onClick={() => void updateConversationState(activeConversation.id, "hiddenBy", true).then(() => { closeConversation(); setShowConversationInfo(false); })}><EyeOff className="mr-1 h-4 w-4" />Delete chat for me</Button>
                       <Button size="sm" variant="outline" onClick={() => {
                         if (!activeOtherUser) return;
                         void reportEntity({ targetId: activeConversation.id, targetType: "conversation", reason: "unsafe_message", details: `Conversation with ${activeOtherUser.uid}` }).then(() => setError("Conversation reported to moderation."));
                       }}>Report conversation</Button>
                       <Button size="sm" variant="destructive" onClick={() => {
                         if (!activeOtherUser) return;
-                        void toggleBlockedUser(activeOtherUser.uid, false).then(() => updateConversationState(activeConversation.id, "hiddenBy", true)).then(() => { setActiveConversationId(null); setError("User blocked."); });
+                        void toggleBlockedUser(activeOtherUser.uid, false).then(() => updateConversationState(activeConversation.id, "hiddenBy", true)).then(() => { closeConversation(); setError("User blocked."); });
                       }}>Block user</Button>
-                      {activeConversation.kind === "group" ? <Button size="sm" variant="destructive" onClick={() => void leaveGroupConversation(activeConversation.id).then(() => { setActiveConversationId(null); setShowConversationInfo(false); })}>Leave group</Button> : null}
+                      {activeConversation.kind === "group" ? <Button size="sm" variant="destructive" onClick={() => void leaveGroupConversation(activeConversation.id).then(() => { closeConversation(); setShowConversationInfo(false); })}>Leave group</Button> : null}
                     </div>
                     {activeConversation.kind === "group" ? (
                       <div className="mb-4"><p className="mb-2 text-sm font-medium">Members ({activeConversation.participantProfiles.length})</p><div className="flex flex-wrap gap-2">{activeConversation.participantProfiles.map((profile) => <span key={profile.uid} className="rounded-full border bg-background px-3 py-1 text-xs">{profile.displayName}{activeConversation.adminIds.includes(profile.uid) ? " · Admin" : ""}</span>)}</div></div>
@@ -1039,6 +1107,20 @@ function MessagesPageContent() {
                       </Button>
                     </div>
                   ) : null}
+                  {showNewMessagesButton ? (
+                    <div className="sticky top-0 z-20 mb-4 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                          setShowNewMessagesButton(false);
+                        }}
+                        className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/20"
+                      >
+                        New messages
+                      </button>
+                    </div>
+                  ) : null}
                   {messagesLoading ? (
                     <div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" /></div>
                   ) : visibleMessages.length === 0 ? (
@@ -1094,7 +1176,9 @@ function MessagesPageContent() {
                           <div
                             className={`rounded-[24px] px-4 py-3 text-sm shadow-sm ${
                               message.senderId === currentUserId
-                                ? "bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 text-white"
+                                ? message.attachmentType?.startsWith("audio/")
+                                  ? "bg-slate-900 text-white"
+                                  : "bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 text-white"
                                 : "border border-border/60 bg-white text-slate-900"
                             }`}
                           >

@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Clapperboard, Home, PlusSquare, Search, User } from "lucide-react";
 
 import { useAuthContext } from "@/components/AuthProvider";
 export default function BottomNav() {
   const { user } = useAuthContext();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isConversationOpen = pathname.startsWith("/messages") && searchParams.has("conversation");
 
-  if (!user || pathname === "/login" || pathname === "/signup") {
+  if (!user || pathname === "/login" || pathname === "/signup" || isConversationOpen) {
     return null;
   }
 
