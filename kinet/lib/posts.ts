@@ -19,7 +19,7 @@ import {
 } from "firebase/firestore";
 
 import { uploadToFirebaseStorage } from "@/lib/storage";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isPermissionDeniedFirestoreError } from "@/lib/firebase";
 import { recordViewedPost } from "@/lib/history";
 import { createNotification } from "@/lib/notifications";
 
@@ -406,40 +406,69 @@ async function getCurrentAuthorProfile() {
   assertFirebaseReady();
 
   const user = auth.currentUser!;
-  const profileSnapshot = await getDoc(doc(db!, "users", user.uid));
-  const profile = profileSnapshot.exists()
-    ? (profileSnapshot.data() as Record<string, unknown>)
-    : null;
-  const role = (profile?.role as Record<string, unknown> | undefined) ?? {};
+  try {
+    const profileSnapshot = await getDoc(doc(db!, "users", user.uid));
+    const profile = profileSnapshot.exists()
+      ? (profileSnapshot.data() as Record<string, unknown>)
+      : null;
+    const role = (profile?.role as Record<string, unknown> | undefined) ?? {};
 
-  return {
-    profile,
-    author: {
-      name: user.displayName || String(profile?.displayName ?? "Kinet User"),
-      username: `@${String(profile?.username ?? user.uid.slice(0, 8))}`,
-      avatar: user.photoURL || String(profile?.photoURL ?? ""),
-      verified: Boolean(profile?.verified),
-      role: role.type ? String(role.type) : null,
-      location: profile?.location ? String(profile.location) : null,
-    },
-    defaultSport: role.sport ? String(role.sport) : "",
-    following: Array.isArray(profile?.following) ? (profile?.following as string[]) : [],
-    blockedUsers: Array.isArray(profile?.blockedUsers) ? (profile?.blockedUsers as string[]) : [],
-  };
+    return {
+      profile,
+      author: {
+        name: user.displayName || String(profile?.displayName ?? "Kinet User"),
+        username: `@${String(profile?.username ?? user.uid.slice(0, 8))}`,
+        avatar: user.photoURL || String(profile?.photoURL ?? ""),
+        verified: Boolean(profile?.verified),
+        role: role.type ? String(role.type) : null,
+        location: profile?.location ? String(profile.location) : null,
+      },
+      defaultSport: role.sport ? String(role.sport) : "",
+      following: Array.isArray(profile?.following) ? (profile?.following as string[]) : [],
+      blockedUsers: Array.isArray(profile?.blockedUsers) ? (profile?.blockedUsers as string[]) : [],
+    };
+  } catch (error) {
+    if (!isPermissionDeniedFirestoreError(error)) {
+      console.warn("Could not load the current profile for post search.", error);
+    }
+    return {
+      profile: null,
+      author: {
+        name: user.displayName || "Kinet User",
+        username: `@${user.uid.slice(0, 8)}`,
+        avatar: user.photoURL || "",
+        verified: false,
+        role: null,
+        location: null,
+      },
+      defaultSport: "",
+      following: [],
+      blockedUsers: [],
+    };
+  }
 }
 
 async function getAuthorPrivacyMap(userIds: string[]): Promise<Map<string, boolean>> {
   if (!db || userIds.length === 0) return new Map();
-  const snapshots = await Promise.all(userIds.map((uid) => getDoc(doc(db, "users", uid)).catch(() => null)));
-  const map = new Map<string, boolean>();
-  snapshots.forEach((snapshot, index) => {
-    if (snapshot?.exists()) {
-      const data = snapshot.data() as Record<string, unknown>;
-      const settings = (data.settings ?? {}) as Record<string, unknown>;
-      map.set(userIds[index], settings.privateAccount === true);
+  const firestore = db;
+  if (!firestore) return new Map();
+  try {
+    const snapshots = await Promise.all(userIds.map((uid) => getDoc(doc(firestore, "users", uid)).catch(() => null)));
+    const map = new Map<string, boolean>();
+    snapshots.forEach((snapshot, index) => {
+      if (snapshot?.exists()) {
+        const data = snapshot.data() as Record<string, unknown>;
+        const settings = (data.settings ?? {}) as Record<string, unknown>;
+        map.set(userIds[index], settings.privateAccount === true);
+      }
+    });
+    return map;
+  } catch (error) {
+    if (!isPermissionDeniedFirestoreError(error)) {
+      console.warn("Could not load post privacy data.", error);
     }
-  });
-  return map;
+    return new Map();
+  }
 }
 
 function canViewPrivateAuthorPost(postUserId: string, viewerId: string, following: string[], privacyMap: Map<string, boolean>): boolean {
@@ -1297,34 +1326,41 @@ export async function searchPosts(searchTerm: string) {
     return [];
   }
 
-  const snapshot = await getDocs(query(collection(db, "posts"), limit(50)));
-  const normalized = searchTerm.trim().toLowerCase();
-  const profile = await getCachedViewerProfile();
-  const blockedUsers = profile?.blockedUsers ?? [];
-  const following = profile?.following ?? [];
-  const posts = snapshot.docs
-    .map((docSnapshot: { id: string; data: () => Record<string, unknown> }) =>
-      mapPost(docSnapshot.id, docSnapshot.data() as Record<string, unknown>)
-    )
-    .filter((post: FeedPost) => !blockedUsers.includes(post.userId))
-    .filter(isVisiblePost)
-    .filter((post: FeedPost) => canAccessPost(post, profile));
+  try {
+    const snapshot = await getDocs(query(collection(db, "posts"), limit(50)));
+    const normalized = searchTerm.trim().toLowerCase();
+    const profile = await getCachedViewerProfile();
+    const blockedUsers = profile?.blockedUsers ?? [];
+    const following = profile?.following ?? [];
+    const posts = snapshot.docs
+      .map((docSnapshot: { id: string; data: () => Record<string, unknown> }) =>
+        mapPost(docSnapshot.id, docSnapshot.data() as Record<string, unknown>)
+      )
+      .filter((post: FeedPost) => !blockedUsers.includes(post.userId))
+      .filter(isVisiblePost)
+      .filter((post: FeedPost) => canAccessPost(post, profile));
 
-  const authorIds = [...new Set(posts.map((post) => post.userId))];
-  const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
+    const authorIds = [...new Set(posts.map((post) => post.userId))];
+    const privacyMap = authorIds.length ? await getAuthorPrivacyMap(authorIds) : new Map();
 
-  return posts
-    .filter((post: FeedPost) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
-    .filter((post: FeedPost) => {
-      if (!normalized) {
-        return true;
-      }
+    return posts
+      .filter((post: FeedPost) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
+      .filter((post: FeedPost) => {
+        if (!normalized) {
+          return true;
+        }
 
-      const haystack = [post.caption, post.sport, post.author.name, ...post.hashtags]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalized);
-    });
+        const haystack = [post.caption, post.sport, post.author.name, ...post.hashtags]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(normalized);
+      });
+  } catch (error) {
+    if (!isPermissionDeniedFirestoreError(error)) {
+      console.warn("Could not search posts.", error);
+    }
+    return [];
+  }
 }
 
 export async function getPostsByIds(postIds: string[]) {

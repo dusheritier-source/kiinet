@@ -1,7 +1,7 @@
 "use client";
 
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isPermissionDeniedFirestoreError } from "@/lib/firebase";
 import type { SearchCategory } from "@/lib/search";
 
 export interface SavedSearch {
@@ -50,7 +50,13 @@ export function subscribeSearchPreferences(callback: (preferences: SearchPrefere
 }
 
 async function persist(preferences: SearchPreferences) {
-  await setDoc(preferenceRef(), { ...preferences, userId: auth.currentUser!.uid, updatedAt: serverTimestamp() }, { merge: true });
+  try {
+    await setDoc(preferenceRef(), { ...preferences, userId: auth.currentUser!.uid, updatedAt: serverTimestamp() }, { merge: true });
+  } catch (error) {
+    if (!isPermissionDeniedFirestoreError(error)) {
+      console.warn("Could not persist search preferences.", error);
+    }
+  }
 }
 
 export async function recordSearch(query: string, current: SearchPreferences) {

@@ -76,6 +76,25 @@ export function isTransientFirestoreError(error: unknown): boolean {
   return false;
 }
 
+export function isPermissionDeniedFirestoreError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    const code = typeof (error as { code?: string }).code === "string"
+      ? (error as { code?: string }).code!.toLowerCase()
+      : "";
+
+    return (
+      code === "permission-denied" ||
+      code === "firebase-permission-denied" ||
+      message.includes("insufficient permissions") ||
+      message.includes("missing or insufficient permissions") ||
+      message.includes("permission denied")
+    );
+  }
+
+  return false;
+}
+
 export const getClientAnalytics = async () => {
   if (!app || typeof window === "undefined") {
     return null;

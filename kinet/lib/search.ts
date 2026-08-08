@@ -1,7 +1,7 @@
 "use client";
 
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isPermissionDeniedFirestoreError } from "@/lib/firebase";
 import { searchPosts, type FeedPost } from "@/lib/posts";
 import { getSuggestedProfiles, searchProfiles, type SearchProfile } from "@/lib/user-profile";
 import { intelligentMatch, parseSearchIntent, suggestCorrection } from "@/lib/search-intelligence";
@@ -26,56 +26,70 @@ const MAX_CACHE_ENTRIES = 40;
 
 export async function searchPeopleDirectory(searchTerm: string): Promise<SearchProfile[]> {
   const normalized = searchTerm.trim().replace(/^@/, "").toLowerCase();
-  const [profiles, authoredPosts, viewerSnapshot] = await Promise.all([
-    searchProfiles(searchTerm),
-    searchPosts(searchTerm),
-    db && auth.currentUser
-      ? getDoc(doc(db, "users", auth.currentUser.uid))
-      : Promise.resolve(null),
-  ]);
-  const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
-  const followedUserIds = new Set(Array.isArray(viewerData.following) ? viewerData.following as string[] : []);
-  const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
-  const postAuthorIds = new Set<string>();
-  for (const post of authoredPosts) {
-    if (byUserId.has(post.userId)) continue;
-    postAuthorIds.add(post.userId);
-    const username = post.author.username.replace(/^@/, "");
-    const authorText = `${post.author.name} ${username}`.toLowerCase();
-    if (normalized && !authorText.includes(normalized)) continue;
-    byUserId.set(post.userId, {
-      uid: post.userId,
-      displayName: post.author.name || "Kinet User",
-      username: username || post.userId.slice(0, 8),
-      photoURL: post.author.avatar || "",
-      verified: post.author.verified,
-      followers: [],
-      following: [],
-      discoveryIsFollowing: followedUserIds.has(post.userId),
-      location: post.author.location || null,
-      role: post.author.role ? { type: post.author.role } : undefined,
-      privateAccount: false,
-    });
-  }
-  if (postAuthorIds.size > 0) {
-    const authorProfiles = await Promise.all([...postAuthorIds].map(async (uid) => {
-      const snapshot = await getDoc(doc(db!, "users", uid));
-      return snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null;
+  try {
+    const [profiles, authoredPosts, viewerSnapshot] = await Promise.all([
+      searchProfiles(searchTerm),
+      searchPosts(searchTerm),
+      db && auth.currentUser
+        ? getDoc(doc(db, "users", auth.currentUser.uid))
+        : Promise.resolve(null),
+    ]);
+    const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
+    const followedUserIds = new Set(Array.isArray(viewerData.following) ? viewerData.following as string[] : []);
+    const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
+    const postAuthorIds = new Set<string>();
+    for (const post of authoredPosts) {
+      if (byUserId.has(post.userId)) continue;
+      postAuthorIds.add(post.userId);
+      const username = post.author.username.replace(/^@/, "");
+      const authorText = `${post.author.name} ${username}`.toLowerCase();
+      if (normalized && !authorText.includes(normalized)) continue;
+      byUserId.set(post.userId, {
+        uid: post.userId,
+        displayName: post.author.name || "Kinet User",
+        username: username || post.userId.slice(0, 8),
+        photoURL: post.author.avatar || "",
+        verified: post.author.verified,
+        followers: [],
+        following: [],
+        discoveryIsFollowing: followedUserIds.has(post.userId),
+        location: post.author.location || null,
+        role: post.author.role ? { type: post.author.role } : undefined,
+        privateAccount: false,
+      });
+    }
+    if (postAuthorIds.size > 0) {
+      const authorProfiles = await Promise.all([...postAuthorIds].map(async (uid) => {
+        try {
+          const snapshot = await getDoc(doc(db!, "users", uid));
+          return snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null;
+        } catch (error) {
+          if (!isPermissionDeniedFirestoreError(error)) {
+            console.warn("Could not load author privacy data during search.", error);
+          }
+          return null;
+        }
+      }));
+      const privateAuthorIds = new Set<string>();
+      authorProfiles.forEach((data, index) => {
+        const uid = [...postAuthorIds][index];
+        const settings = (data?.settings ?? {}) as Record<string, unknown>;
+        if (settings.privateAccount === true && !followedUserIds.has(uid)) {
+          privateAuthorIds.add(uid);
+        }
+      });
+      privateAuthorIds.forEach((uid) => byUserId.delete(uid));
+    }
+    return Array.from(byUserId.values()).map((profile) => ({
+      ...profile,
+      discoveryIsFollowing: followedUserIds.has(profile.uid) || profile.discoveryIsFollowing,
     }));
-    const privateAuthorIds = new Set<string>();
-    authorProfiles.forEach((data, index) => {
-      const uid = [...postAuthorIds][index];
-      const settings = (data?.settings ?? {}) as Record<string, unknown>;
-      if (settings.privateAccount === true && !followedUserIds.has(uid)) {
-        privateAuthorIds.add(uid);
-      }
-    });
-    privateAuthorIds.forEach((uid) => byUserId.delete(uid));
+  } catch (error) {
+    if (!isPermissionDeniedFirestoreError(error)) {
+      console.warn("Could not load people directory search results.", error);
+    }
+    return [];
   }
-  return Array.from(byUserId.values()).map((profile) => ({
-    ...profile,
-    discoveryIsFollowing: followedUserIds.has(profile.uid) || profile.discoveryIsFollowing,
-  }));
 }
 
 export function clearUniversalSearchCache() {
@@ -99,13 +113,18 @@ export function universalSearch(searchTerm: string): Promise<UniversalSearchResu
 
 async function runUniversalSearch(searchTerm: string): Promise<UniversalSearchResults> {
   const normalized = searchTerm.trim().replace(/^[@#]/, "").toLowerCase();
-  const [searchedPeople, suggestedPeople, allContent, viewerSnapshot, commentsSnapshot] = await Promise.all([
+  const [searchedPeopleResult, suggestedPeopleResult, allContentResult, viewerSnapshotResult, commentsSnapshotResult] = await Promise.allSettled([
     searchPeopleDirectory(normalized),
     normalized ? Promise.resolve([]) : getSuggestedProfiles(20),
     searchPosts(""),
     db && auth.currentUser ? getDoc(doc(db, "users", auth.currentUser.uid)) : Promise.resolve(null),
     db ? getDocs(query(collection(db, "comments"), limit(100))) : Promise.resolve(null),
   ]);
+  const searchedPeople = searchedPeopleResult.status === "fulfilled" ? searchedPeopleResult.value : [];
+  const suggestedPeople = suggestedPeopleResult.status === "fulfilled" ? suggestedPeopleResult.value : [];
+  const allContent = allContentResult.status === "fulfilled" ? allContentResult.value : [];
+  const viewerSnapshot = viewerSnapshotResult.status === "fulfilled" ? viewerSnapshotResult.value : null;
+  const commentsSnapshot = commentsSnapshotResult.status === "fulfilled" ? commentsSnapshotResult.value : null;
   const rawPeople = normalized ? searchedPeople : suggestedPeople.map((item) => item.profile);
   const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
   const viewerFollowing = Array.isArray(viewerData.following) ? viewerData.following as string[] : [];
@@ -152,39 +171,52 @@ async function runUniversalSearch(searchTerm: string): Promise<UniversalSearchRe
   let messages: MessageSearchResult[] = [];
 
   if (db && auth.currentUser) {
-    const snapshot = await getDocs(query(collection(db, "conversations"), where("participantIds", "array-contains", auth.currentUser.uid), limit(50)));
-    const conversations = snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Record<string, unknown> & { id: string }));
-    groups = conversations
-      .filter((item) => item.kind === "group" && !(Array.isArray(item.hiddenBy) && item.hiddenBy.includes(auth.currentUser!.uid)))
-      .map((item) => ({ id: item.id, name: String(item.groupName ?? "Group"), photoURL: String(item.groupPhotoURL ?? ""), members: Array.isArray(item.participantIds) ? item.participantIds.length : 0, lastMessage: String(item.lastMessage ?? "") }))
-      .filter((item) => !normalized || intelligentMatch(`${item.name} ${item.lastMessage}`, normalized).matches);
-    if (normalized) {
-    const visibleConversations = conversations.filter((item) => !(Array.isArray(item.hiddenBy) && item.hiddenBy.includes(auth.currentUser!.uid))).slice(0, 12);
-    const messageBatches = await Promise.all(visibleConversations.map(async (conversation) => {
-      const messageSnapshot = await getDocs(query(collection(db!, "messages"), where("conversationId", "==", conversation.id), limit(40)));
-      const profiles = Array.isArray(conversation.participantProfiles) ? conversation.participantProfiles as Array<{ uid: string; displayName: string }> : [];
-      const other = profiles.find((profile) => profile.uid !== auth.currentUser!.uid);
-      const conversationName = conversation.kind === "group" ? String(conversation.groupName ?? "Group") : other?.displayName || "Conversation";
-      return messageSnapshot.docs.map((messageDocument) => {
-        const message = messageDocument.data();
-        const sender = profiles.find((profile) => profile.uid === message.senderId);
-        return {
-          id: messageDocument.id,
-          conversationId: conversation.id,
-          name: conversationName,
-          senderName: sender?.displayName || "User",
-          lastMessage: String(message.text ?? ""),
-          attachmentName: message.attachmentName ? String(message.attachmentName) : null,
-          attachmentType: message.attachmentType ? String(message.attachmentType) : null,
-          pinned: Array.isArray(message.pinnedBy) && message.pinnedBy.includes(auth.currentUser!.uid),
-          saved: Array.isArray(message.savedBy) && message.savedBy.includes(auth.currentUser!.uid),
-          archived: Array.isArray(conversation.archivedBy) && conversation.archivedBy.includes(auth.currentUser!.uid),
-          request: conversation.requestStatus === "pending" && conversation.requestedBy !== auth.currentUser!.uid,
-          updatedAt: message.createdAt as MessageSearchResult["updatedAt"],
-        } satisfies MessageSearchResult;
-      });
-    }));
-    messages = messageBatches.flat().filter((item) => !normalized || intelligentMatch(`${item.name} ${item.senderName} ${item.lastMessage} ${item.attachmentName ?? ""}`, normalized).matches);
+    try {
+      const snapshot = await getDocs(query(collection(db, "conversations"), where("participantIds", "array-contains", auth.currentUser.uid), limit(50)));
+      const conversations = snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Record<string, unknown> & { id: string }));
+      groups = conversations
+        .filter((item) => item.kind === "group" && !(Array.isArray(item.hiddenBy) && item.hiddenBy.includes(auth.currentUser!.uid)))
+        .map((item) => ({ id: item.id, name: String(item.groupName ?? "Group"), photoURL: String(item.groupPhotoURL ?? ""), members: Array.isArray(item.participantIds) ? item.participantIds.length : 0, lastMessage: String(item.lastMessage ?? "") }))
+        .filter((item) => !normalized || intelligentMatch(`${item.name} ${item.lastMessage}`, normalized).matches);
+      if (normalized) {
+        const visibleConversations = conversations.filter((item) => !(Array.isArray(item.hiddenBy) && item.hiddenBy.includes(auth.currentUser!.uid))).slice(0, 12);
+        const messageBatches = await Promise.all(visibleConversations.map(async (conversation) => {
+          try {
+            const messageSnapshot = await getDocs(query(collection(db!, "messages"), where("conversationId", "==", conversation.id), limit(40)));
+            const profiles = Array.isArray(conversation.participantProfiles) ? conversation.participantProfiles as Array<{ uid: string; displayName: string }> : [];
+            const other = profiles.find((profile) => profile.uid !== auth.currentUser!.uid);
+            const conversationName = conversation.kind === "group" ? String(conversation.groupName ?? "Group") : other?.displayName || "Conversation";
+            return messageSnapshot.docs.map((messageDocument) => {
+              const message = messageDocument.data();
+              const sender = profiles.find((profile) => profile.uid === message.senderId);
+              return {
+                id: messageDocument.id,
+                conversationId: conversation.id,
+                name: conversationName,
+                senderName: sender?.displayName || "User",
+                lastMessage: String(message.text ?? ""),
+                attachmentName: message.attachmentName ? String(message.attachmentName) : null,
+                attachmentType: message.attachmentType ? String(message.attachmentType) : null,
+                pinned: Array.isArray(message.pinnedBy) && message.pinnedBy.includes(auth.currentUser!.uid),
+                saved: Array.isArray(message.savedBy) && message.savedBy.includes(auth.currentUser!.uid),
+                archived: Array.isArray(conversation.archivedBy) && conversation.archivedBy.includes(auth.currentUser!.uid),
+                request: conversation.requestStatus === "pending" && conversation.requestedBy !== auth.currentUser!.uid,
+                updatedAt: message.createdAt as MessageSearchResult["updatedAt"],
+              } satisfies MessageSearchResult;
+            });
+          } catch (error) {
+            if (!isPermissionDeniedFirestoreError(error)) {
+              console.warn("Could not load conversation messages for search.", error);
+            }
+            return [];
+          }
+        }));
+        messages = messageBatches.flat().filter((item) => !normalized || intelligentMatch(`${item.name} ${item.senderName} ${item.lastMessage} ${item.attachmentName ?? ""}`, normalized).matches);
+      }
+    } catch (error) {
+      if (!isPermissionDeniedFirestoreError(error)) {
+        console.warn("Could not load conversations for search.", error);
+      }
     }
   }
 
