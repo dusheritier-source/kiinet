@@ -5,6 +5,14 @@ interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   children?: React.ReactNode;
 }
 
+export function hasUsableAvatarSrc(src: string | null | undefined) {
+  if (typeof src !== "string") return false;
+  const normalized = src.trim();
+  if (!normalized) return false;
+  if (normalized.toLowerCase() === "null" || normalized.toLowerCase() === "undefined") return false;
+  return true;
+}
+
 const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
   ({ className, children, ...props }, ref) => {
     return (
@@ -26,11 +34,32 @@ Avatar.displayName = "Avatar";
 interface AvatarImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {}
 
 const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, src, alt = "", onError, ...props }, ref) => {
+    const [hasError, setHasError] = React.useState(false);
+
+    React.useEffect(() => {
+      setHasError(false);
+    }, [src]);
+
+    const imageSrc = typeof src === "string" ? src : "";
+
+    if (!hasUsableAvatarSrc(imageSrc) || hasError) {
+      return null;
+    }
+
     return (
       <img
         ref={ref}
-        className={cn("aspect-square h-full w-full object-cover", className)}
+        src={imageSrc}
+        alt={alt}
+        loading="lazy"
+        className={cn("absolute inset-0 z-10 h-full w-full object-cover", className)}
+        onError={(event) => {
+          setHasError(true);
+          if (onError) {
+            onError(event);
+          }
+        }}
         {...props}
       />
     );
@@ -61,7 +90,7 @@ const AvatarFallback = React.forwardRef<HTMLDivElement, AvatarFallbackProps>(
       <div
         ref={ref}
         className={cn(
-          "flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground",
+          "absolute inset-0 z-0 flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground",
           className
         )}
         {...props}
@@ -71,4 +100,27 @@ const AvatarFallback = React.forwardRef<HTMLDivElement, AvatarFallbackProps>(
 );
 AvatarFallback.displayName = "AvatarFallback";
 
-export { Avatar, AvatarImage, AvatarFallback };
+interface ProfileAvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+  src?: string | null;
+  username?: string;
+  alt?: string;
+}
+
+function ProfileAvatar({
+  src,
+  username,
+  alt,
+  className,
+  ...props
+}: ProfileAvatarProps) {
+  return (
+    <Avatar className={cn("overflow-hidden rounded-full bg-muted", className)} {...props}>
+      <AvatarImage src={src ?? ""} alt={alt || username || "User"} />
+      <AvatarFallback>{username?.trim().slice(0, 1) || "U"}</AvatarFallback>
+    </Avatar>
+  );
+}
+
+ProfileAvatar.displayName = "ProfileAvatar";
+
+export { Avatar, AvatarImage, AvatarFallback, ProfileAvatar };

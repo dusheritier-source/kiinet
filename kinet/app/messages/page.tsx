@@ -38,6 +38,7 @@ import Link from "next/link";
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
+import { ProfileAvatar } from "@/components/ui/avatar";
 import {
   createOrGetConversation,
   createGroupConversation,
@@ -731,7 +732,7 @@ function MessagesPageContent() {
             <div className="max-h-64 space-y-1 overflow-y-auto">
               {people.map((profile) => (
                 <button key={profile.uid} type="button" onClick={() => creatingGroup ? setSelectedGroupMembers((current) => current.includes(profile.uid) ? current.filter((uid) => uid !== profile.uid) : [...current, profile.uid]) : void startConversation(profile)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted ${selectedGroupMembers.includes(profile.uid) ? "bg-primary/10" : ""}`} disabled={creating}>
-                  {profile.photoURL ? <img src={profile.photoURL} alt="" className="h-10 w-10 rounded-full object-cover" /> : <DefaultAvatar username={profile.displayName || "User"} className="h-10 w-10 rounded-full" />}
+                  <ProfileAvatar src={profile.photoURL} username={profile.displayName || "Kinet User"} alt={profile.displayName || "Kinet User"} className="h-10 w-10" />
                   <div className="min-w-0"><p className="truncate font-medium">{profile.displayName || "Kinet User"}</p><p className="truncate text-xs text-muted-foreground">{profile.username ? `@${profile.username}` : "Start a conversation"}</p></div>
                 </button>
               ))}
@@ -749,11 +750,7 @@ function MessagesPageContent() {
                 return (
                   <div key={note.id} className="flex w-[140px] shrink-0 flex-col gap-1 rounded-2xl border bg-muted/40 p-3">
                     <div className="flex items-center gap-2">
-                      {noteUser?.photoURL ? (
-                        <img src={noteUser.photoURL} alt="" className="h-6 w-6 rounded-full object-cover" />
-                      ) : (
-                        <DefaultAvatar username={noteUser?.displayName || "User"} className="h-6 w-6 rounded-full" />
-                      )}
+                      <ProfileAvatar src={noteUser?.photoURL} username={noteUser?.displayName || "User"} alt={noteUser?.displayName || "User"} className="h-6 w-6" />
                       <span className="truncate text-xs font-medium">{noteUser?.displayName || "User"}</span>
                     </div>
                     <p className="text-sm leading-snug">{note.text}</p>
@@ -795,10 +792,11 @@ function MessagesPageContent() {
                     }`}
                   >
                     <div className="rounded-full bg-background p-[2px]">
-                      <img
+                      <ProfileAvatar
                         src={person.photoURL}
+                        username={person.displayName}
                         alt={person.displayName}
-                        className="h-[68px] w-[68px] rounded-full object-cover"
+                        className="h-[68px] w-[68px]"
                       />
                     </div>
                   </div>
@@ -846,11 +844,12 @@ function MessagesPageContent() {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        {other?.photoURL ? (
-                          <img src={other.photoURL} alt={other.displayName || "Conversation"} className="h-14 w-14 rounded-full object-cover" />
-                        ) : (
-                          <DefaultAvatar username={other?.displayName || "User"} className="h-14 w-14 rounded-full" />
-                        )}
+                        <ProfileAvatar
+                          src={other?.photoURL}
+                          username={other?.displayName || "Conversation"}
+                          alt={other?.displayName || "Conversation"}
+                          className="h-14 w-14"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate font-semibold">{conversation.kind === "group" ? conversation.groupName || "Group" : other?.displayName || "Conversation"}</p>
@@ -896,65 +895,55 @@ function MessagesPageContent() {
           >
             {activeConversation ? (
               <>
-                <div className="flex items-center justify-between border-b px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="md:hidden"
-                      onClick={() => setActiveConversationId(null)}
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="md:hidden"
-                      onClick={() => setActiveConversationId(null)}
-                      aria-label="Quit chat"
-                    >
-                      <X className="h-5 w-5" />
-                    </Button>
-                    {(activeConversation.kind === "group" ? activeConversation.groupPhotoURL : activeOtherUser?.photoURL) ? (
-                      <img src={activeConversation.kind === "group" ? activeConversation.groupPhotoURL! : activeOtherUser!.photoURL} alt={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"} className="h-10 w-10 rounded-full object-cover" />
-                    ) : (
-                      <DefaultAvatar username={activeOtherUser?.displayName || "User"} className="h-10 w-10 rounded-full" />
-                    )}
-                    <div>
-                      <Link
-                        href={activeOtherUser ? `/profile/${activeOtherUser.uid}` : "#"}
-                        className="font-semibold hover:underline"
+                <div className="sticky top-0 z-20 border-b bg-background/95 px-4 py-3 backdrop-blur-sm shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="md:hidden"
+                        onClick={() => setActiveConversationId(null)}
                       >
-                        {activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {activeConversation.typingBy.includes(activeOtherUser?.uid || "")
-                          ? "Typing..."
-                          : activeConversation.kind === "group"
-                            ? `${activeConversation.participantIds.length} members`
-                          : otherPresence?.status === "online"
-                            ? "Active now"
-                            : otherPresence?.lastSeen
-                              ? `Last seen ${formatTimeAgo({ seconds: Math.floor(otherPresence.lastSeen / 1000) })}`
-                              : "Offline"}
-                      </p>
+                        <ArrowLeft className="h-5 w-5" />
+                      </Button>
+                      <ProfileAvatar
+                        src={activeConversation.kind === "group" ? activeConversation.groupPhotoURL : activeOtherUser?.photoURL}
+                        username={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"}
+                        alt={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"}
+                        className="h-10 w-10"
+                      />
+                      <div className="min-w-0">
+                        <Link
+                          href={activeOtherUser ? `/profile/${activeOtherUser.uid}` : "#"}
+                          className="block truncate text-sm font-semibold hover:underline"
+                        >
+                          {activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {activeConversation.typingBy.includes(activeOtherUser?.uid || "")
+                            ? "Typing..."
+                            : activeConversation.kind === "group"
+                              ? `${activeConversation.participantIds.length} members`
+                              : otherPresence?.status === "online"
+                                ? "Active now"
+                                : otherPresence?.lastSeen
+                                  ? `Last seen ${formatTimeAgo({ seconds: Math.floor(otherPresence.lastSeen / 1000) })}`
+                                  : "Offline"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="relative flex items-center gap-2">
-                    {autoTranslate ? (
-                      <span className="hidden rounded-full border px-2 py-1 text-xs md:inline-flex">
-                        Translate: {dmLanguage}
-                      </span>
-                    ) : null}
-                    <CallPanel currentUserId={currentUserId} conversationId={activeConversation.id} participantIds={activeConversation.participantIds} title={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"} />
-                    <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
-                    {showChatMenu ? <div className="absolute right-0 top-11 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
-                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { setShowConversationInfo(true); setShowChatMenu(false); }}><Info className="h-4 w-4" />Chat details</button>
-                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "mutedBy", !activeConversation.mutedBy.includes(currentUserId)); setShowChatMenu(false); }}><BellOff className="h-4 w-4" />{activeConversation.mutedBy.includes(currentUserId) ? "Unmute" : "Mute"}</button>
-                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "archivedBy", !activeConversation.archivedBy.includes(currentUserId)); setShowChatMenu(false); }}><Archive className="h-4 w-4" />{activeConversation.archivedBy.includes(currentUserId) ? "Unarchive" : "Archive"}</button>
-                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "pinnedBy", !activeConversation.pinnedBy.includes(currentUserId)); setShowChatMenu(false); }}><Pin className="h-4 w-4" />{activeConversation.pinnedBy.includes(currentUserId) ? "Unpin chat" : "Pin chat"}</button>
-                      <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void markConversationUnread(activeConversation.id); setShowChatMenu(false); }}><Mail className="h-4 w-4" />Mark unread</button>
-                    </div> : null}
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" aria-label="Voice call"><Phone className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Video call"><Video className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
+                      {showChatMenu ? <div className="absolute right-4 top-16 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
+                        <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { setShowConversationInfo(true); setShowChatMenu(false); }}><Info className="h-4 w-4" />Chat details</button>
+                        <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "mutedBy", !activeConversation.mutedBy.includes(currentUserId)); setShowChatMenu(false); }}><BellOff className="h-4 w-4" />{activeConversation.mutedBy.includes(currentUserId) ? "Unmute" : "Mute"}</button>
+                        <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "archivedBy", !activeConversation.archivedBy.includes(currentUserId)); setShowChatMenu(false); }}><Archive className="h-4 w-4" />{activeConversation.archivedBy.includes(currentUserId) ? "Unarchive" : "Archive"}</button>
+                        <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "pinnedBy", !activeConversation.pinnedBy.includes(currentUserId)); setShowChatMenu(false); }}><Pin className="h-4 w-4" />{activeConversation.pinnedBy.includes(currentUserId) ? "Unpin chat" : "Pin chat"}</button>
+                        <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void markConversationUnread(activeConversation.id); setShowChatMenu(false); }}><Mail className="h-4 w-4" />Mark unread</button>
+                      </div> : null}
+                    </div>
                   </div>
                 </div>
 
@@ -1041,7 +1030,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4" data-message-container>
+                <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4 scroll-smooth" data-message-container>
                   {hasOlderMessages ? (
                     <div className="text-center">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={olderMessagesLoading}>
@@ -1064,13 +1053,14 @@ function MessagesPageContent() {
                       >
                         <div className={`flex w-full max-w-[86%] items-end gap-2 ${message.senderId === currentUserId ? "flex-row-reverse" : ""}`}>
                           {message.senderId !== currentUserId ? (
-                            getMessageSender(message.senderId)?.photoURL ? (
-                              <img src={getMessageSender(message.senderId)!.photoURL} alt={getMessageSender(message.senderId)?.displayName || "Conversation"} className="h-7 w-7 rounded-full object-cover" />
-                            ) : (
-                              <DefaultAvatar username={getMessageSender(message.senderId)?.displayName || "User"} className="h-7 w-7 rounded-full" />
-                            )
+                            <ProfileAvatar
+                              src={getMessageSender(message.senderId)?.photoURL}
+                              username={getMessageSender(message.senderId)?.displayName || "Conversation"}
+                              alt={getMessageSender(message.senderId)?.displayName || "Conversation"}
+                              className="h-7 w-7"
+                            />
                           ) : null}
-                          <div className="min-w-0 max-w-[82%]">
+                          <div className="min-w-0 max-w-[75%]">
                           {message.replyTo ? (
                             <div className="mb-1 rounded-xl border-l-2 border-primary bg-slate-100 px-3 py-2 text-xs text-slate-900">
                               <p className="font-medium">Replying to {message.replyTo.senderId === currentUserId ? "yourself" : activeOtherUser?.displayName || "message"}</p>
@@ -1206,7 +1196,11 @@ function MessagesPageContent() {
                   )}
                 </div>
 
-                <form className="w-full min-w-0 border-t bg-background p-4" onSubmit={handleSend}>
+                <form
+                  className="sticky bottom-0 z-10 w-full min-w-0 border-t bg-background/95 px-4 py-3 backdrop-blur-sm"
+                  style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+                  onSubmit={handleSend}
+                >
                   {replyingTo ? (
                     <div className="mb-3 flex items-center justify-between rounded-2xl border-l-2 border-primary bg-muted px-4 py-2 text-sm">
                       <div className="min-w-0"><p className="text-xs font-medium">Replying to {replyingTo.senderId === currentUserId ? "yourself" : activeOtherUser?.displayName}</p><p className="truncate text-xs text-muted-foreground">{replyingTo.text || "Attachment"}</p></div>
@@ -1238,7 +1232,7 @@ function MessagesPageContent() {
                          <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
                        </span>
                        <span>Recording voice note... {recordingSeconds}s</span>
-                       <Button type="button" size="sm" variant="destructive" onClick={stopVoiceRecording} className="ml-auto">Stop</Button>
+                       <Button type="button" size="sm" variant="destructive" onClick={() => { setIsRecording(false); setRecordingSeconds(0); }} className="ml-auto">Stop</Button>
                      </div>
                    ) : null}
 
@@ -1301,17 +1295,18 @@ function MessagesPageContent() {
                        value={draft}
                        disabled={!canSendToActiveConversation}
                        onChange={async (event) => {
-                         setDraft(event.target.value);
+                         const value = event.target.value;
+                         setDraft(value);
                          if (activeConversationId) {
-                           localStorage.setItem(`kinet:message-draft:${activeConversationId}`, event.target.value);
-                           await setConversationTyping(activeConversationId, Boolean(event.target.value.trim()));
+                           localStorage.setItem(`kinet:message-draft:${activeConversationId}`, value);
+                           await setConversationTyping(activeConversationId, Boolean(value.trim()));
                          }
                        }}
                        placeholder={canSendToActiveConversation ? "Message..." : "Accept this request to reply"}
                        className="h-10 w-full bg-transparent px-1 text-sm outline-none"
                      />
                       {isRecording ? (
-                        <Button type="button" size="icon" className="rounded-full bg-red-600 text-white hover:bg-red-700" onClick={stopVoiceRecording} aria-label="Stop recording">
+                        <Button type="button" size="icon" className="rounded-full bg-red-600 text-white hover:bg-red-700" onClick={() => { setIsRecording(false); setRecordingSeconds(0); }} aria-label="Stop recording">
                           <Square className="h-4 w-4" />
                         </Button>
                       ) : (
@@ -1319,8 +1314,8 @@ function MessagesPageContent() {
                           <Mic className="h-4 w-4" />
                         </Button>
                       )}
-                     <Button type="submit" size="icon" className="rounded-full" disabled={!canSendToActiveConversation || sending || (!draft.trim() && !attachment && !isRecording)}>
-                       <SendHorizontal className="h-4 w-4" />
+                     <Button type="submit" size={draft.trim() || attachment || isRecording ? "default" : "icon"} className="rounded-full" disabled={!canSendToActiveConversation || sending || (!draft.trim() && !attachment && !isRecording)}>
+                       {draft.trim() ? "Send" : <SendHorizontal className="h-4 w-4" />}
                      </Button>
                    </div>
                 </form>
