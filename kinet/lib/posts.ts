@@ -1423,14 +1423,15 @@ export function subscribeToComments(
   const commentsQuery = query(
     collection(db, "comments"),
     where("postId", "==", postId),
-    orderBy("createdAt", "desc"),
-    limit(10)
+    limit(50)
   );
 
   return onSnapshot(
     commentsQuery,
     (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
-      callback(snapshot.docs.map((commentDoc) => mapComment(commentDoc.id, commentDoc.data())));
+      callback(snapshot.docs
+        .map((commentDoc) => mapComment(commentDoc.id, commentDoc.data()))
+        .sort((first, second) => (second.createdAt?.seconds ?? 0) - (first.createdAt?.seconds ?? 0)));
     },
     () => callback([])
   );
