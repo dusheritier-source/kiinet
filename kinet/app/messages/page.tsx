@@ -206,11 +206,21 @@ function MessagesPageContent() {
 
   useEffect(() => {
     const routeConversation = searchParams.get("conversation");
+    const pendingRoute = routeSyncRef.current;
+
+    if (pendingRoute) {
+      if (routeConversation === pendingRoute) {
+        routeSyncRef.current = null;
+      } else {
+        // Ignore stale route values while the current conversation navigation is still pending.
+        return;
+      }
+    }
+
     if (routeConversation && routeConversation !== activeConversationId) {
       setShowNewMessagesButton(false);
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
-      routeSyncRef.current = routeConversation;
       const cached = messagesCacheRef.current.get(routeConversation);
       if (cached) {
         setMessages(cached);
@@ -229,11 +239,6 @@ function MessagesPageContent() {
     }
 
     if (!routeConversation && activeConversationId) {
-      if (routeSyncRef.current === activeConversationId) {
-        // If we are still in the middle of a route sync to the current conversation,
-        // do not reset the active conversation until the URL is updated.
-        return;
-      }
       setActiveConversationId(null);
       setShowNewMessagesButton(false);
       routeSyncRef.current = null;
