@@ -573,18 +573,12 @@ function MessagesPageContent() {
       setAttachment(null);
       setReplyingTo(null);
       setExpiresInSeconds(null);
-      await setConversationTyping(activeConversationId, false);
+      await setConversationTyping(activeConversationId, false).catch(() => undefined);
     } catch (sendError) {
-      if (attachmentFile) {
-        setMessages((current) => current.filter((message) => message.id !== optimisticId));
-        setDraft(normalizedText);
-        localStorage.setItem(`kinet:message-draft:${activeConversationId}`, normalizedText);
-      } else {
-        setMessages((current) => current.map((message) => message.id === optimisticId ? { ...message, clientStatus: "failed" } : message));
-      }
-      if (!isTransientFirestoreError(sendError)) {
-        setError(sendError instanceof Error ? sendError.message : "Message could not be sent.");
-      }
+      setMessages((current) => current.filter((message) => message.id !== optimisticId));
+      setDraft(normalizedText);
+      localStorage.setItem(`kinet:message-draft:${activeConversationId}`, normalizedText);
+      setError(sendError instanceof Error ? sendError.message : "Message could not be sent.");
     } finally {
       setSending(false);
       setUploadProgress(null);
