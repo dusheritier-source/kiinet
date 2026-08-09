@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, Suspense, useCallback, useEffect, useMemo, useR
 import {
   Archive,
   ArrowLeft,
+  ArrowDown,
   BellOff,
   Bookmark,
   CheckSquare,
@@ -148,11 +149,21 @@ function MessagesPageContent() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isSentMessageRef = useRef(false);
   const previousMessagesRef = useRef<ConversationMessage[]>([]);
+  const initialScrollPendingRef = useRef(false);
+  const olderScrollRef = useRef<{ top: number; height: number } | null>(null);
+  const loadingOlderRef = useRef(false);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
+  }, []);
 
   const openConversation = useCallback((conversationId: string) => {
     setActiveConversationId(conversationId);
     setShowNewMessagesButton(false);
     isSentMessageRef.current = true;
+    initialScrollPendingRef.current = true;
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("conversation", conversationId);
     router.push(`/messages?${nextParams.toString()}`);
@@ -172,6 +183,7 @@ function MessagesPageContent() {
       setActiveConversationId(routeConversation);
       setShowNewMessagesButton(false);
       isSentMessageRef.current = true;
+      initialScrollPendingRef.current = true;
       return;
     }
     if (!routeConversation && activeConversationId) {
@@ -317,6 +329,7 @@ function MessagesPageContent() {
     }
 
     previousMessagesRef.current = [];
+    initialScrollPendingRef.current = true;
     setMessages([]);
     setMessagesLoading(true);
     void markConversationRead(activeConversationId).catch(() => undefined);
@@ -420,17 +433,29 @@ function MessagesPageContent() {
     if (!container) return;
 
     const previousMessages = previousMessagesRef.current;
+    if (loadingOlderRef.current && olderScrollRef.current) {
+      const previousScroll = olderScrollRef.current;
+      window.requestAnimationFrame(() => {
+        const nextContainer = messagesContainerRef.current;
+        if (nextContainer) nextContainer.scrollTop = nextContainer.scrollHeight - previousScroll.height + previousScroll.top;
+      });
+      loadingOlderRef.current = false;
+      olderScrollRef.current = null;
+      previousMessagesRef.current = messages;
+      return;
+    }
     const becameNewer = messages.length > previousMessages.length;
     previousMessagesRef.current = messages;
 
     const isInitialMessageLoad = previousMessages.length === 0;
     const shouldAutoScroll = isInitialMessageLoad || isSentMessageRef.current || isNearBottom;
     if (shouldAutoScroll) {
-      const scrollToLatest = () => container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
-      scrollToLatest();
-      if (isInitialMessageLoad) window.requestAnimationFrame(scrollToLatest);
+      const scrollLatest = () => container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
+      scrollLatest();
+      if (isInitialMessageLoad) window.requestAnimationFrame(scrollLatest);
       setShowNewMessagesButton(false);
       isSentMessageRef.current = false;
+      initialScrollPendingRef.current = false;
       return;
     }
 
@@ -646,6 +671,8 @@ function MessagesPageContent() {
   const loadOlderMessages = async () => {
     if (!activeConversationId || !messages[0]?.createdAt || olderMessagesLoading) return;
     setOlderMessagesLoading(true);
+    olderScrollRef.current = { top: messagesContainerRef.current?.scrollTop ?? 0, height: messagesContainerRef.current?.scrollHeight ?? 0 };
+    loadingOlderRef.current = true;
     try {
       const result = await getOlderConversationMessages(activeConversationId, messages[0].createdAt);
       setMessages((current) => {
@@ -658,6 +685,8 @@ function MessagesPageContent() {
         setError(loadError instanceof Error ? loadError.message : "Older messages could not be loaded.");
       }
     } finally {
+      loadingOlderRef.current = false;
+      olderScrollRef.current = null;
       setOlderMessagesLoading(false);
     }
   };
@@ -1090,7 +1119,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4 scroll-smooth" data-message-container>
+                <div ref={messagesContainerRef} className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4 pb-24 scroll-smooth" data-message-container>
                   {hasOlderMessages ? (
                     <div className="text-center">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={olderMessagesLoading}>
@@ -1103,7 +1132,7 @@ function MessagesPageContent() {
                       <button
                         type="button"
                         onClick={() => {
-                          messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                          scrollToLatest();
                           setShowNewMessagesButton(false);
                         }}
                         className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/20"
@@ -1143,13 +1172,14 @@ function MessagesPageContent() {
                           ) : null}
                           {message.attachmentUrl ? (
                             message.attachmentType?.startsWith("image/") ? (
-                              <img
+                                <img
                                 src={message.attachmentUrl}
                                 alt="Attachment"
                                 className="mb-2 max-h-64 rounded-3xl object-cover shadow-sm"
+                                  onLoad={() => { if (initialScrollPendingRef.current || isNearBottom) scrollToLatest("auto"); }}
                               />
                             ) : message.attachmentType?.startsWith("video/") ? (
-                              <video src={message.attachmentUrl} controls preload="metadata" className="mb-2 max-h-72 rounded-3xl" />
+                              <video src={message.attachmentUrl} controls preload="metadata" className="mb-2 max-h-72 rounded-3xl" onLoadedMetadata={() => { if (initialScrollPendingRef.current || isNearBottom) scrollToLatest("auto"); }} />
                              ) : message.attachmentType?.startsWith("audio/") ? (
                                <VoiceNotePlayer url={message.attachmentUrl} duration={message.attachmentSize ? undefined : undefined} isOwn={message.senderId === currentUserId} />
                             ) : (
@@ -1271,6 +1301,7 @@ function MessagesPageContent() {
                     ))
                   )}
                   <div ref={messagesEndRef} aria-hidden="true" className="h-px" />
+                  {!isNearBottom ? <button type="button" onClick={() => { scrollToLatest(); setShowNewMessagesButton(false); }} className="sticky bottom-3 left-1/2 z-30 mx-auto flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg" aria-label="Jump to latest message"><ArrowDown className="h-3.5 w-3.5" />Jump to latest</button> : null}
                 </div>
 
                 <form
