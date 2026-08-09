@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { History, Mic, MicOff, MonitorUp, Phone, PhoneOff, PictureInPicture, Video, VideoOff, X } from "lucide-react";
+import { History, Mic, MicOff, MonitorUp, Phone, PhoneOff, PictureInPicture, Star, Video, VideoOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, type CallRecord, type CallType } from "@/lib/calls";
 
@@ -15,6 +15,8 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const [error, setError] = useState("");
   const [history, setHistory] = useState<CallRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [ratingCall, setRatingCall] = useState<CallRecord | null>(null);
+  const [rating, setRating] = useState(0);
   const [duration, setDuration] = useState(0);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -39,7 +41,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   };
 
   const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: type === "video" });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: type === "video" });
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     const peer = new RTCPeerConnection(rtcConfig); peerRef.current = peer;
@@ -66,7 +68,8 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         if (!record) return;
         setCall(record);
         if (record.answer && !peer.currentRemoteDescription) void peer.setRemoteDescription(record.answer);
-        if (["declined", "missed", "ended"].includes(record.status)) stopMedia();
+        if (["declined", "missed"].includes(record.status)) { stopMedia(); setCall(null); }
+        if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); }
       }));
     } catch (cause) { stopMedia(); setCall(null); setError(cause instanceof Error ? cause.message : "Could not start call."); }
   };
@@ -79,11 +82,29 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       await peer.setRemoteDescription(incoming.offer);
       const answer = await peer.createAnswer(); await peer.setLocalDescription(answer);
       await updateCallRecord(incoming.id, { answer: { type: answer.type, sdp: answer.sdp }, status: "active", answeredAt: new Date() });
-      cleanupsRef.current.push(subscribeCall(incoming.id, (record) => { if (record) setCall(record); if (record?.status === "ended") stopMedia(); }));
+      cleanupsRef.current.push(subscribeCall(incoming.id, (record) => {
+        if (!record) return;
+        if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); return; }
+        setCall(record);
+      }));
     } catch (cause) { stopMedia(); setCall(null); setError(cause instanceof Error ? cause.message : "Could not answer call."); }
   };
 
-  const endCall = async () => { const active = call; stopMedia(); setCall(null); if (active) await updateCallRecord(active.id, { status: "ended", endedAt: new Date() }); };
+  const endCall = async () => {
+    const active = call;
+    stopMedia();
+    setCall(null);
+    if (active) {
+      await updateCallRecord(active.id, { status: "ended", endedAt: new Date() });
+      setRatingCall(active);
+    }
+  };
+  const submitRating = async () => {
+    if (!ratingCall || !rating) return;
+    await updateCallRecord(ratingCall.id, { rating, ratingBy: currentUserId, ratedAt: new Date() }).catch(() => undefined);
+    setRatingCall(null);
+    setRating(0);
+  };
   const decline = async () => { if (!incoming) return; await updateCallRecord(incoming.id, { status: "declined", endedAt: new Date() }); setIncoming(null); };
   const toggleAudio = () => { const next = !muted; localStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !next; }); setMuted(next); };
   const toggleVideo = () => { const next = !cameraOff; localStreamRef.current?.getVideoTracks().forEach((track) => { track.enabled = !next; }); setCameraOff(next); };
@@ -111,6 +132,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     {showHistory ? <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/50 p-4"><div className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-2xl border bg-background shadow-2xl"><div className="flex items-center justify-between border-b p-4"><h2 className="font-semibold">Call history</h2><Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}><X className="h-4 w-4" /></Button></div><div className="max-h-[55vh] space-y-1 overflow-y-auto p-3">{history.map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl p-3 hover:bg-muted"><div><p className="text-sm font-medium">{item.callerId === currentUserId ? "Outgoing" : "Incoming"} {item.type} call</p><p className="text-xs text-muted-foreground">{item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleString() : "Just now"}</p></div><span className={`text-xs capitalize ${item.status === "missed" || item.status === "declined" ? "text-red-600" : "text-muted-foreground"}`}>{item.status}</span></div>)}{history.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No calls yet.</p> : null}</div></div></div> : null}
     {incoming ? <div className="fixed inset-x-4 top-20 z-[80] mx-auto flex max-w-md items-center justify-between rounded-2xl border bg-background p-4 shadow-2xl"><div><p className="font-semibold">Incoming {incoming.type} call</p><p className="text-sm text-muted-foreground">{title}</p></div><div className="flex gap-2"><Button size="icon" onClick={() => void answerCall()}><Phone className="h-4 w-4" /></Button><Button size="icon" variant="destructive" onClick={() => void decline()}><PhoneOff className="h-4 w-4" /></Button></div></div> : null}
     {call ? <div className="fixed inset-0 z-[90] flex flex-col bg-slate-950 text-white"><div className="relative flex flex-1 items-center justify-center"><video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-contain" /><video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-4 right-4 h-36 w-28 rounded-xl border object-cover" /><div className="absolute top-6 text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{call.status === "ringing" ? "Ringing…" : call.status === "active" ? "Connected" : "Connecting…"}</p></div></div><div className="flex justify-center gap-3 p-6"><Button size="icon" variant="secondary" onClick={toggleAudio}>{muted ? <MicOff /> : <Mic />}</Button>{call.type === "video" ? <><Button size="icon" variant="secondary" onClick={toggleVideo}>{cameraOff ? <VideoOff /> : <Video />}</Button><Button size="icon" variant="secondary" title="Share screen" onClick={() => void shareScreen()}><MonitorUp /></Button><Button size="icon" variant="secondary" title="Picture in picture" onClick={() => void openPictureInPicture()}><PictureInPicture /></Button></> : null}<Button size="icon" variant="destructive" onClick={() => void endCall()}><PhoneOff /></Button></div></div> : null}
+    {ratingCall ? <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4"><div className="w-full max-w-sm rounded-2xl bg-background p-6 text-center shadow-2xl"><h2 className="text-lg font-semibold">How was your call?</h2><p className="mt-1 text-sm text-muted-foreground">Rate the call quality with {title}.</p><div className="my-5 flex justify-center gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${value} stars`} onClick={() => setRating(value)} className={value <= rating ? "text-amber-400" : "text-muted-foreground/40"}><Star className="h-8 w-8 fill-current" /></button>)}</div><div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setRatingCall(null)}>Skip</Button><Button className="flex-1" disabled={!rating} onClick={() => void submitRating()}>Submit</Button></div></div></div> : null}
     {error ? <div className="fixed bottom-4 right-4 z-[100] rounded-lg bg-red-600 px-4 py-3 text-sm text-white" onClick={() => setError("")}>{error}</div> : null}
   </>;
 }
