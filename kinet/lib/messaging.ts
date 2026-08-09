@@ -20,7 +20,6 @@ import {
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { uploadMessageAttachment } from "@/lib/message-attachments";
-import { moderateTextBeforePublish } from "@/lib/moderation-client";
 import { getUserProfileById, isMutualFollow } from "@/lib/user-profile";
 
 export interface ConversationSummary {
@@ -351,8 +350,6 @@ export async function sendConversationMessage(
   if (linkCount > 5 || /(.)\1{24,}/.test(trimmedText)) {
     throw new Error("This message looks like spam. Edit it before sending.");
   }
-  await moderateTextBeforePublish(trimmedText, "message_text");
-
   const sender = await getCurrentUserMiniProfile();
   const conversationSnapshot = await getDoc(doc(db, "conversations", conversationId));
   const conversation = conversationSnapshot.exists()
