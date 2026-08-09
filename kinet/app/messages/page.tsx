@@ -113,6 +113,9 @@ function MessagesPageContent() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const [skeletonHeight, setSkeletonHeight] = useState<number | null>(null);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -147,6 +150,7 @@ function MessagesPageContent() {
   const recordingTimerRef = useRef<number | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesCacheRef = useRef<Map<string, ConversationMessage[]>>(new Map());
   const isSentMessageRef = useRef(false);
   const previousMessagesRef = useRef<ConversationMessage[]>([]);
   const initialScrollPendingRef = useRef(false);
@@ -160,18 +164,39 @@ function MessagesPageContent() {
   }, []);
 
   const openConversation = useCallback((conversationId: string) => {
-    setActiveConversationId(conversationId);
     setShowNewMessagesButton(false);
     isSentMessageRef.current = true;
     initialScrollPendingRef.current = true;
+
+    // If we have cached messages for this conversation, show them immediately
+    const cached = messagesCacheRef.current.get(conversationId);
+    if (cached) {
+      setMessages(cached);
+      setMessagesLoading(false);
+      setShowSkeleton(false);
+      setActiveConversationId(conversationId);
+    } else {
+      // Precompute a skeleton height from the current messages container to avoid layout flash
+      const height = messagesContainerRef.current?.clientHeight ?? null;
+      if (height) setSkeletonHeight(height);
+      setShowSkeleton(true);
+      setMessages([]);
+      setMessagesLoading(true);
+      setActiveConversationId(conversationId);
+    }
+
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("conversation", conversationId);
+    // Prefetch the route for faster navigation
+    void router.prefetch(`/messages?${nextParams.toString()}`).catch(() => undefined);
     router.push(`/messages?${nextParams.toString()}`);
   }, [router, searchParams]);
 
   const closeConversation = useCallback(() => {
     setActiveConversationId(null);
     setShowNewMessagesButton(false);
+    setShowSkeleton(false);
+    setMessagesLoading(false);
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("conversation");
     router.replace(`/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
@@ -180,10 +205,23 @@ function MessagesPageContent() {
   useEffect(() => {
     const routeConversation = searchParams.get("conversation");
     if (routeConversation && routeConversation !== activeConversationId) {
-      setActiveConversationId(routeConversation);
       setShowNewMessagesButton(false);
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
+      const cached = messagesCacheRef.current.get(routeConversation);
+      if (cached) {
+        setMessages(cached);
+        setMessagesLoading(false);
+        setShowSkeleton(false);
+        setActiveConversationId(routeConversation);
+      } else {
+        const height = messagesContainerRef.current?.clientHeight ?? null;
+        if (height) setSkeletonHeight(height);
+        setShowSkeleton(true);
+        setMessages([]);
+        setMessagesLoading(true);
+        setActiveConversationId(routeConversation);
+      }
       return;
     }
     if (!routeConversation && activeConversationId) {
@@ -193,11 +231,20 @@ function MessagesPageContent() {
   }, [searchParams, activeConversationId]);
 
   useEffect(() => {
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
-    return subscribeToConversations(user.uid, setConversations);
+    // Keep a loading flag until the first conversations batch arrives
+    let first = true;
+    const handle = (items: ConversationSummary[]) => {
+      setConversations(items);
+      if (first) {
+        setConversationsLoading(false);
+        first = false;
+      }
+    };
+
+    const cleanup = subscribeToConversations(user.uid, handle);
+    return cleanup;
   }, [user]);
 
   useEffect(() => {
@@ -325,17 +372,31 @@ function MessagesPageContent() {
   useEffect(() => {
     if (!activeConversationId) {
       setMessages([]);
+      setShowSkeleton(false);
       return;
     }
 
     previousMessagesRef.current = [];
     initialScrollPendingRef.current = true;
-    setMessages([]);
-    setMessagesLoading(true);
+
+    // If we have cached messages for this conversation, show them immediately.
+    const cached = messagesCacheRef.current.get(activeConversationId);
+    if (cached) {
+      setMessages(cached);
+      setMessagesLoading(false);
+      setShowSkeleton(false);
+    } else {
+      setMessages([]);
+      setMessagesLoading(true);
+      setShowSkeleton(true);
+    }
+
     void markConversationRead(activeConversationId).catch(() => undefined);
     return subscribeToConversationMessages(
       activeConversationId,
       (nextMessages, hasOlder) => {
+        // cache and set messages
+        messagesCacheRef.current.set(activeConversationId, nextMessages);
         setMessages((current) => {
           const nextIds = new Set(nextMessages.map((message) => message.id));
           const oldestLiveSeconds = nextMessages[0]?.createdAt?.seconds ?? Number.POSITIVE_INFINITY;
@@ -351,12 +412,14 @@ function MessagesPageContent() {
         });
         setHasOlderMessages(hasOlder);
         setMessagesLoading(false);
+        setShowSkeleton(false);
       },
       (subscriptionError) => {
         if (!isTransientFirestoreError(subscriptionError)) {
           setError("Messages could not be loaded. Please try again.");
         }
         setMessagesLoading(false);
+        setShowSkeleton(false);
       }
     );
   }, [activeConversationId]);
@@ -426,6 +489,53 @@ function MessagesPageContent() {
     onScroll();
     return () => container.removeEventListener("scroll", onScroll);
   }, [activeConversationId, messages.length]);
+
+  // Ensure we reliably scroll to the latest message when a conversation first opens.
+  // Some clients may render the container hidden, or images/media can change height after
+  // initial render — use a ResizeObserver and a timeout fallback to guarantee we land
+  // at the bottom once content has settled.
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (!initialScrollPendingRef.current) return;
+
+    let ro: ResizeObserver | null = null;
+    let timedFallback: number | null = null;
+
+    const tryScrollToBottom = (behavior: ScrollBehavior = "auto") => {
+      if (!container) return;
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      initialScrollPendingRef.current = false;
+    };
+
+    try {
+      ro = new ResizeObserver(() => {
+        if (!initialScrollPendingRef.current) return;
+        // When layout changes (images load, fonts apply), ensure bottom is visible.
+        tryScrollToBottom("auto");
+      });
+      ro.observe(container);
+    } catch {
+      ro = null;
+    }
+
+    // Fallback: if ResizeObserver doesn't fire, ensure we still scroll after a short delay.
+    timedFallback = window.setTimeout(() => {
+      if (initialScrollPendingRef.current) tryScrollToBottom("auto");
+    }, 300);
+
+    // Extra safety: also scroll when messagesEndRef becomes available in the DOM.
+    const end = messagesEndRef.current;
+    if (end && initialScrollPendingRef.current) {
+      tryScrollToBottom("auto");
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      if (timedFallback) window.clearTimeout(timedFallback);
+    };
+  }, [activeConversationId, messagesLoading, messages.length]);
 
   useEffect(() => {
     if (!activeConversationId || messagesLoading || messages.length === 0) return;
@@ -863,7 +973,16 @@ function MessagesPageContent() {
             </div>
           </div>
           <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2">
-            {directPeople.length === 0 ? (
+            {conversationsLoading ? (
+              <div className="flex gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="flex w-[84px] shrink-0 flex-col items-center gap-2 opacity-60">
+                    <div className="h-[68px] w-[68px] rounded-full bg-muted/60 animate-pulse" />
+                    <div className="h-3 w-20 rounded bg-muted/60 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : directPeople.length === 0 ? (
               <div className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
                 No active chats yet.
               </div>
@@ -873,6 +992,7 @@ function MessagesPageContent() {
                   key={person.conversationId}
                   type="button"
                   onClick={() => openConversation(person.conversationId)}
+                  onMouseEnter={() => void router.prefetch(`/messages?conversation=${person.conversationId}`).catch(() => undefined)}
                   className="flex w-[84px] shrink-0 flex-col items-center gap-2"
                 >
                   <div
@@ -911,9 +1031,17 @@ function MessagesPageContent() {
             {creating ? <p className="text-sm text-muted-foreground">Starting conversation...</p> : null}
 
             <div className="space-y-2">
-              {visibleConversations.length === 0 ? (
+              {!conversationsLoading && visibleConversations.length === 0 ? (
                 <div className="rounded-3xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                   No conversations yet. Start one from a profile or reply to a story.
+                </div>
+              ) : conversationsLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="w-full animate-pulse">
+                      <div className="h-14 w-full rounded-[28px] bg-muted/40" />
+                    </div>
+                  ))}
                 </div>
               ) : (
                 visibleConversations.map((conversation) => {
@@ -928,6 +1056,7 @@ function MessagesPageContent() {
                       key={conversation.id}
                       type="button"
                       onClick={() => openConversation(conversation.id)}
+                      onMouseEnter={() => void router.prefetch(`/messages?conversation=${conversation.id}`).catch(() => undefined)}
                     className={`w-full rounded-[28px] border p-3 text-left transition ${
                         activeConversationId === conversation.id ? "border-primary/20 bg-muted/80" : "border-transparent hover:bg-muted/60"
                       }`}
@@ -1137,11 +1266,21 @@ function MessagesPageContent() {
                         }}
                         className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/20"
                       >
-                        New messages
+                        New messages ↓
                       </button>
                     </div>
                   ) : null}
-                  {messagesLoading ? (
+                  {showSkeleton ? (
+                    <div className="flex h-full items-center justify-center px-4">
+                      <div style={{ height: skeletonHeight ?? 220 }} className="w-full">
+                        <div className="mx-auto h-full max-w-2xl space-y-3">
+                          {[0,1,2,3,4].map((i) => (
+                            <div key={i} className="h-6 w-full rounded bg-muted/40 animate-pulse" />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : messagesLoading ? (
                     <div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" /></div>
                   ) : visibleMessages.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
@@ -1301,7 +1440,7 @@ function MessagesPageContent() {
                     ))
                   )}
                   <div ref={messagesEndRef} aria-hidden="true" className="h-px" />
-                  {!isNearBottom ? <button type="button" onClick={() => { scrollToLatest(); setShowNewMessagesButton(false); }} className="sticky bottom-3 left-1/2 z-30 mx-auto flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg" aria-label="Jump to latest message"><ArrowDown className="h-3.5 w-3.5" />Jump to latest</button> : null}
+                  {!isNearBottom ? <button type="button" onClick={() => { scrollToLatest(); setShowNewMessagesButton(false); }} className="sticky bottom-3 left-1/2 z-30 mx-auto flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg" aria-label="Jump to latest message"><ArrowDown className="h-3.5 w-3.5" />Jump to latest ↓</button> : null}
                 </div>
 
                 <form

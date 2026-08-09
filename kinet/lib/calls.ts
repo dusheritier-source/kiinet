@@ -54,6 +54,43 @@ export async function markCallMissedIfRinging(callId: string) {
 export const addCallCandidate = async (callId: string, side: "caller" | "callee", candidate: RTCIceCandidateInit) =>
   addDoc(collection(requireDb(), "calls", callId, `${side}Candidates`), candidate);
 
+// Group call helpers: offers/answers/candidates per participant for multi-party (star) topology.
+export const addParticipantOffer = async (callId: string, from: string, to: string, offer: RTCSessionDescriptionInit) =>
+  updateDoc(doc(requireDb(), "calls", callId), { updatedAt: serverTimestamp() }).catch(() => undefined).then(() =>
+    addDoc(collection(requireDb(), "calls", callId, "offers"), { from, to, offer })
+  );
+
+export function subscribeOffers(callId: string, myUserId: string, callback: (offer: { id: string; from: string; to: string; offer: RTCSessionDescriptionInit }) => void) {
+  if (!db) return () => undefined;
+  const offersCollection = collection(db, "calls", callId, "offers");
+  const q = query(offersCollection, where("to", "==", myUserId), orderBy("from"));
+  return onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().filter((c) => c.type === "added").forEach((change) => callback({ id: change.doc.id, ...(change.doc.data() as any) }));
+  });
+}
+
+export const addParticipantAnswer = async (callId: string, from: string, to: string, answer: RTCSessionDescriptionInit) =>
+  addDoc(collection(requireDb(), "calls", callId, "answers"), { from, to, answer });
+
+export function subscribeAnswers(callId: string, targetFrom: string, callback: (answer: { id: string; from: string; to: string; answer: RTCSessionDescriptionInit }) => void) {
+  if (!db) return () => undefined;
+  const answersCollection = collection(db, "calls", callId, "answers");
+  const q = query(answersCollection, where("to", "==", targetFrom));
+  return onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().filter((c) => c.type === "added").forEach((change) => callback({ id: change.doc.id, ...(change.doc.data() as any) }));
+  });
+}
+
+export const addGroupCandidate = async (callId: string, from: string, to: string, candidate: RTCIceCandidateInit) =>
+  addDoc(collection(requireDb(), "calls", callId, `candidates_${from}_${to}`), candidate);
+
+export function subscribeGroupCandidates(callId: string, from: string, to: string, callback: (candidate: RTCIceCandidateInit) => void) {
+  if (!db) return () => undefined;
+  return onSnapshot(collection(db, "calls", callId, `candidates_${from}_${to}`), (snapshot) => {
+    snapshot.docChanges().filter((change) => change.type === "added").forEach((change) => callback(change.doc.data() as RTCIceCandidateInit));
+  });
+}
+
 export function subscribeCall(callId: string, callback: (call: CallRecord | null) => void) {
   if (!db) return () => undefined;
   return onSnapshot(doc(db, "calls", callId), (snapshot) => callback(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as CallRecord : null));
