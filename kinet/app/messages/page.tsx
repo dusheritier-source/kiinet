@@ -19,7 +19,6 @@ import {
   MoreHorizontal,
   MoreVertical,
   Pencil,
-  Phone,
   Pin,
   Plus,
   Reply,
@@ -30,7 +29,6 @@ import {
   StickyNote,
   Trash2,
   X,
-  Video,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -69,7 +67,7 @@ import {
   subscribeToNotesForUsers,
 } from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
-import { searchProfiles, type SearchProfile } from "@/lib/user-profile";
+import { isMutualFollow, searchProfiles, type SearchProfile } from "@/lib/user-profile";
 import { setUserOffline, setUserOnline, setupPresenceListener, type UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
 import CallPanel from "@/components/CallPanel";
@@ -311,7 +309,10 @@ function MessagesPageContent() {
     const timer = window.setTimeout(() => {
       void searchProfiles(peopleSearch)
         .then((results) => {
-          if (!cancelled) setPeople(results.filter((profile) => profile.uid !== user.uid));
+          if (!cancelled) {
+            const eligiblePeople = results.filter((profile) => profile.uid !== user.uid);
+            setPeople(creatingGroup ? eligiblePeople.filter((profile) => isMutualFollow(user.uid, profile)) : eligiblePeople);
+          }
         })
         .catch(() => {
           if (!cancelled) setError("Could not load people. Please try again.");
@@ -322,7 +323,7 @@ function MessagesPageContent() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [peopleSearch, showNewMessage, user]);
+  }, [creatingGroup, peopleSearch, showNewMessage, user]);
 
   useEffect(() => {
     if (!activeConversationId) {
@@ -330,6 +331,7 @@ function MessagesPageContent() {
       return;
     }
 
+    previousMessagesRef.current = [];
     setMessages([]);
     setMessagesLoading(true);
     void markConversationRead(activeConversationId).catch(() => undefined);
@@ -436,9 +438,10 @@ function MessagesPageContent() {
     const becameNewer = messages.length > previousMessages.length;
     previousMessagesRef.current = messages;
 
-    const shouldAutoScroll = isSentMessageRef.current || isNearBottom;
+    const isInitialMessageLoad = previousMessages.length === 0;
+    const shouldAutoScroll = isInitialMessageLoad || isSentMessageRef.current || isNearBottom;
     if (shouldAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
       setShowNewMessagesButton(false);
       isSentMessageRef.current = false;
       return;
@@ -757,6 +760,12 @@ function MessagesPageContent() {
 
   return (
     <ProtectedRoute>
+      <CallPanel
+        currentUserId={currentUserId}
+        conversationId={activeConversation?.id}
+        participantIds={activeConversation?.participantIds}
+        title={activeConversation?.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Incoming call"}
+      />
       <div className="mobile-safe-shell mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -959,7 +968,7 @@ function MessagesPageContent() {
           </div>
 
           <div
-            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden md:rounded-[32px] md:border md:bg-background md:shadow-sm ${
+            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden md:h-[calc(100dvh-12rem)] md:rounded-[32px] md:border md:bg-background md:shadow-sm ${
               !showConversationPane ? "hidden md:flex" : ""
             }`}
           >
@@ -1002,8 +1011,6 @@ function MessagesPageContent() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" aria-label="Voice call"><Phone className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" aria-label="Video call"><Video className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
                       {showChatMenu ? <div className="absolute right-4 top-16 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
                         <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { setShowConversationInfo(true); setShowChatMenu(false); }}><Info className="h-4 w-4" />Chat details</button>

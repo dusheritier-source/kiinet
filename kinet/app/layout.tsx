@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import PWARegistrar from "@/components/PWARegistrar";
@@ -58,7 +59,9 @@ export default function RootLayout({
             <main className="mobile-safe-shell mx-auto min-h-[100svh] w-full min-w-0 overflow-x-hidden px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6 md:pb-6">
               {children}
             </main>
-            <BottomNav />
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
           </AuthProvider>
         </ReactQueryProvider>
       </body>

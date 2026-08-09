@@ -17,6 +17,7 @@ import {
 import { deleteObject, ref as storageRef } from "firebase/storage";
 
 import { uploadToFirebaseStorage } from "@/lib/storage";
+import { moderateTextBeforePublish } from "@/lib/moderation-client";
 import { auth, db, storage } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 
@@ -117,6 +118,7 @@ export async function createStory(
   if (file.size > 50 * 1024 * 1024) {
     throw new Error("Stories must be smaller than 50 MB.");
   }
+  await moderateTextBeforePublish(caption, "story_caption");
 
   let optimizedFile = file;
   let thumbnailFile: File | null = null;

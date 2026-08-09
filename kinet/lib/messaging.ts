@@ -20,7 +20,8 @@ import {
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { uploadMessageAttachment } from "@/lib/message-attachments";
-import { getUserProfileById } from "@/lib/user-profile";
+import { moderateTextBeforePublish } from "@/lib/moderation-client";
+import { getUserProfileById, isMutualFollow } from "@/lib/user-profile";
 
 export interface ConversationSummary {
   id: string;
@@ -217,35 +218,41 @@ export async function createOrGetConversation(otherUserId: string) {
 
 export async function createGroupConversation(name: string, memberIds: string[]) {
   if (!auth.currentUser || !db) throw new Error("You must be signed in.");
+  const currentUserId = auth.currentUser.uid;
   const groupName = name.trim();
   if (groupName.length < 2 || groupName.length > 80) throw new Error("Group name must be 2–80 characters.");
-  const participantIds = Array.from(new Set([auth.currentUser.uid, ...memberIds])).slice(0, 100);
+  const participantIds = Array.from(new Set([currentUserId, ...memberIds])).slice(0, 100);
   if (participantIds.length < 3) throw new Error("Choose at least two other people.");
 
   const profiles = await Promise.all(participantIds.map(async (uid) => {
     const snapshot = await getDoc(doc(db!, "users", uid));
     const data = snapshot.exists() ? snapshot.data() : {};
-    return { uid, displayName: String(data.displayName ?? "Kinet User"), photoURL: String(data.photoURL ?? "") };
+    return { uid, data, displayName: String(data.displayName ?? "Kinet User"), photoURL: String(data.photoURL ?? "") };
   }));
+  const ineligibleMember = profiles.find((profile) => profile.uid !== currentUserId && !isMutualFollow(currentUserId, profile.data));
+  if (ineligibleMember) {
+    throw new Error("Groups can only include people who follow each other.");
+  }
+  const participantProfiles = profiles.map(({ data: _data, ...profile }) => profile);
   const conversationRef = doc(collection(db, "conversations"));
   await setDoc(conversationRef, {
     key: conversationRef.id,
     participantIds,
-    participantProfiles: profiles,
+    participantProfiles,
     kind: "group",
     groupName,
     groupPhotoURL: null,
-    adminIds: [auth.currentUser.uid],
-    createdBy: auth.currentUser.uid,
+    adminIds: [currentUserId],
+    createdBy: currentUserId,
     lastMessage: "Group created",
-    lastSenderId: auth.currentUser.uid,
+    lastSenderId: currentUserId,
     unreadBy: [], typingBy: [], mutedBy: [], archivedBy: [], pinnedBy: [], hiddenBy: [], leftBy: [],
     requestStatus: "accepted",
-    requestedBy: auth.currentUser.uid,
+    requestedBy: currentUserId,
     updatedAt: serverTimestamp(),
   });
-  const creator = profiles.find((profile) => profile.uid === auth.currentUser!.uid)!;
-  memberIds.filter((uid) => uid !== auth.currentUser!.uid).forEach((uid) => {
+  const creator = participantProfiles.find((profile) => profile.uid === currentUserId)!;
+  memberIds.filter((uid) => uid !== currentUserId).forEach((uid) => {
     void createNotification({
       type: "message",
       recipientId: uid,
@@ -344,6 +351,7 @@ export async function sendConversationMessage(
   if (linkCount > 5 || /(.)\1{24,}/.test(trimmedText)) {
     throw new Error("This message looks like spam. Edit it before sending.");
   }
+  await moderateTextBeforePublish(trimmedText, "message_text");
 
   const sender = await getCurrentUserMiniProfile();
   const conversationSnapshot = await getDoc(doc(db, "conversations", conversationId));
@@ -601,6 +609,7 @@ export function subscribeToConversationMessages(
   const messagesQuery = query(
     collection(firestore, "messages"),
     where("conversationId", "==", conversationId),
+    orderBy("createdAt", "desc"),
     limit(MESSAGE_PAGE_SIZE)
   );
 

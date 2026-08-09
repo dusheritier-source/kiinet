@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 
 import { uploadToFirebaseStorage } from "@/lib/storage";
+import { moderateTextBeforePublish } from "@/lib/moderation-client";
 import { auth, db, isPermissionDeniedFirestoreError } from "@/lib/firebase";
 import { recordViewedPost } from "@/lib/history";
 import { createNotification } from "@/lib/notifications";
@@ -106,6 +107,8 @@ export interface PostComment {
   postId: string;
   userId: string;
   text: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
   parentCommentId?: string | null;
   reactions?: Record<string, string[]>;
   mentionUserIds?: string[];
@@ -379,6 +382,8 @@ function mapComment(id: string, data: Record<string, unknown>): PostComment {
     postId: String(data.postId ?? ""),
     userId: String(data.userId ?? ""),
     text: String(data.text ?? ""),
+    mediaUrl: data.mediaUrl ? String(data.mediaUrl) : null,
+    mediaType: data.mediaType ? String(data.mediaType) : null,
     parentCommentId: data.parentCommentId ? String(data.parentCommentId) : null,
     reactions:
       data.reactions && typeof data.reactions === "object"
@@ -561,6 +566,8 @@ export async function createPost({
   const { author } = await getCurrentAuthorProfile();
 
   const selectedFiles = (files.length ? files : file ? [file] : []).slice(0, 10);
+  const trimmedCaption = caption.trim();
+  await moderateTextBeforePublish([trimmedCaption, questionPrompt.trim()].filter(Boolean).join(" "), contentType === "reel" ? "reel_caption" : "post_caption");
   const [uploadedItems, uploadedCover, uploadedMusic] = await Promise.all([
     Promise.all(selectedFiles.map(async (selectedFile, index) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`, index === 0 ? onUploadProgress : undefined, signal); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; })),
     coverFile ? uploadToFirebaseStorage(coverFile, `Kinet/reel-covers/${user!.uid}`, undefined, signal) : Promise.resolve(null),
@@ -569,7 +576,6 @@ export async function createPost({
   const uploadedMedia = uploadedItems[0] ?? null;
   const mediaType = uploadedMedia?.type ?? "image";
   const mediaUrl = uploadedMedia?.url ?? "";
-  const trimmedCaption = caption.trim();
   const mentionUserIds = await resolveMentionedUserIds(
     [trimmedCaption, questionPrompt.trim()].filter(Boolean).join(" ")
   );
@@ -914,7 +920,7 @@ export async function recordPostView(postId: string, completed = false) {
   });
 }
 
-export async function addPostComment(postId: string, text: string, parentCommentId?: string) {
+export async function addPostComment(postId: string, text: string, parentCommentId?: string, mediaFile?: File | null) {
   if (!auth?.currentUser || !db) {
     throw new Error("You must be signed in to comment.");
   }
@@ -923,6 +929,10 @@ export async function addPostComment(postId: string, text: string, parentComment
   if (!trimmedText) {
     throw new Error("Comment cannot be empty.");
   }
+  await moderateTextBeforePublish(trimmedText, "comment_text");
+  const uploadedMedia = mediaFile
+    ? await uploadToFirebaseStorage(mediaFile, `Kinet/comments/${auth.currentUser.uid}`)
+    : null;
 
   const { author } = await getCurrentAuthorProfile();
   const postSnapshot = await getDoc(doc(db, "posts", postId));
@@ -935,6 +945,8 @@ export async function addPostComment(postId: string, text: string, parentComment
     postId,
     userId: auth.currentUser.uid,
     text: trimmedText,
+    mediaUrl: uploadedMedia?.url ?? null,
+    mediaType: uploadedMedia ? mediaFile?.type ?? null : null,
     parentCommentId: parentCommentId ?? null,
     mentionUserIds: await resolveMentionedUserIds(trimmedText),
     reactions: {},

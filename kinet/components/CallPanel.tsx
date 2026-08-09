@@ -7,7 +7,7 @@ import { addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeC
 
 const rtcConfig: RTCConfiguration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
 
-export default function CallPanel({ currentUserId, conversationId, participantIds, title }: { currentUserId: string; conversationId: string; participantIds: string[]; title: string }) {
+export default function CallPanel({ currentUserId, conversationId, participantIds, title }: { currentUserId: string; conversationId?: string; participantIds?: string[]; title: string }) {
   const [call, setCall] = useState<CallRecord | null>(null);
   const [incoming, setIncoming] = useState<CallRecord | null>(null);
   const [muted, setMuted] = useState(false);
@@ -52,6 +52,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   };
 
   const startCall = async (type: CallType) => {
+    if (!conversationId || !participantIds) return;
     if (participantIds.length !== 2) return setError("Group calls require a conferencing server and are not enabled yet.");
     try {
       const callId = await createCallRecord(conversationId, participantIds, type);
@@ -104,8 +105,8 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const formatDuration = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
   return <>
-    <Button variant="ghost" size="icon" title="Voice call" onClick={() => void startCall("audio")}><Phone className="h-4 w-4" /></Button>
-    <Button variant="ghost" size="icon" title="Video call" onClick={() => void startCall("video")}><Video className="h-4 w-4" /></Button>
+    {conversationId && participantIds ? <><Button variant="ghost" size="icon" title="Voice call" onClick={() => void startCall("audio")}><Phone className="h-4 w-4" /></Button>
+    <Button variant="ghost" size="icon" title="Video call" onClick={() => void startCall("video")}><Video className="h-4 w-4" /></Button></> : null}
     <Button variant="ghost" size="icon" title="Call history" onClick={() => setShowHistory(true)}><History className="h-4 w-4" /></Button>
     {showHistory ? <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/50 p-4"><div className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-2xl border bg-background shadow-2xl"><div className="flex items-center justify-between border-b p-4"><h2 className="font-semibold">Call history</h2><Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}><X className="h-4 w-4" /></Button></div><div className="max-h-[55vh] space-y-1 overflow-y-auto p-3">{history.map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl p-3 hover:bg-muted"><div><p className="text-sm font-medium">{item.callerId === currentUserId ? "Outgoing" : "Incoming"} {item.type} call</p><p className="text-xs text-muted-foreground">{item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleString() : "Just now"}</p></div><span className={`text-xs capitalize ${item.status === "missed" || item.status === "declined" ? "text-red-600" : "text-muted-foreground"}`}>{item.status}</span></div>)}{history.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No calls yet.</p> : null}</div></div></div> : null}
     {incoming ? <div className="fixed inset-x-4 top-20 z-[80] mx-auto flex max-w-md items-center justify-between rounded-2xl border bg-background p-4 shadow-2xl"><div><p className="font-semibold">Incoming {incoming.type} call</p><p className="text-sm text-muted-foreground">{title}</p></div><div className="flex gap-2"><Button size="icon" onClick={() => void answerCall()}><Phone className="h-4 w-4" /></Button><Button size="icon" variant="destructive" onClick={() => void decline()}><PhoneOff className="h-4 w-4" /></Button></div></div> : null}

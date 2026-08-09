@@ -16,11 +16,10 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { auth, db, isTransientFirestoreError, storage } from "@/lib/firebase";
+import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { recordFollowerGrowth } from "@/lib/profile-analytics";
-import { uploadFile } from "@/lib/supabase-storage";
+import { uploadToFirebaseStorage } from "@/lib/storage";
 
 export type KinetRole = "athlete" | "coach" | "scout" | "fan";
 
@@ -200,11 +199,7 @@ export function withCacheBuster(url: string, version = Date.now()) {
   }
 }
 
-async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover", fallbackUrl = "") {
-  if (!storage) {
-    return fallbackUrl;
-  }
-
+async function uploadProfileImage(file: File, path: string, kind: "avatar" | "cover") {
   let uploadFileCandidate = file;
   if (file.type.startsWith("image/") && file.size > 350 * 1024) {
     const { default: imageCompression } = await import("browser-image-compression");
@@ -216,40 +211,8 @@ async function uploadProfileImage(file: File, path: string, kind: "avatar" | "co
     });
   }
 
-  const extension = uploadFileCandidate.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
-  const reference = ref(storage, `${path}/${Date.now()}.${extension}`);
-
-  try {
-    await uploadBytes(reference, uploadFileCandidate, { contentType: uploadFileCandidate.type || "image/jpeg" });
-    const downloadUrl = await getDownloadURL(reference);
-    return withCacheBuster(downloadUrl);
-  } catch (error) {
-    if (isStorageUploadError(error)) {
-      try {
-        const supabaseBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || process.env.SUPABASE_STORAGE_BUCKET || "kinet-media";
-        const supabasePath = `${path}/${Date.now()}.${extension}`;
-        const result = await uploadFile(supabaseBucket, supabasePath, uploadFileCandidate, {
-          cacheControl: "public, max-age=31536000, immutable",
-          upsert: true,
-        });
-        if (!result.error && result.publicUrl) {
-          return withCacheBuster(result.publicUrl);
-        }
-      } catch (supabaseError) {
-        console.warn("Profile image fallback to Supabase failed.", supabaseError);
-      }
-
-      try {
-        const previewUrl = await fileToDataUrl(file);
-        console.warn(`Profile ${kind} upload failed, using a local preview fallback.`, error);
-        return previewUrl;
-      } catch (previewError) {
-        console.warn(`Profile ${kind} upload failed and no local preview could be created.`, previewError);
-        return fallbackUrl;
-      }
-    }
-    throw error;
-  }
+  const uploaded = await uploadToFirebaseStorage(uploadFileCandidate, path);
+  return withCacheBuster(uploaded.url);
 }
 
 export async function saveUserProfile(input: CompleteProfileInput) {
@@ -395,8 +358,8 @@ export async function updateCurrentUserProfile(input: {
 
   const usernameChanged = normalizedUsername !== String(currentProfile?.username ?? "").trim().toLowerCase();
   const [nextPhotoURL, nextCoverPhotoURL] = await Promise.all([
-    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`, "avatar", photoURL) : Promise.resolve(photoURL),
-    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`, "cover", coverPhotoURL) : Promise.resolve(coverPhotoURL),
+    input.avatarFile ? uploadProfileImage(input.avatarFile, `Kinet/avatars/${user.uid}`, "avatar") : Promise.resolve(photoURL),
+    input.coverPhotoFile ? uploadProfileImage(input.coverPhotoFile, `Kinet/covers/${user.uid}`, "cover") : Promise.resolve(coverPhotoURL),
     usernameChanged ? ensureUsernameAvailable(normalizedUsername, user.uid) : Promise.resolve(),
   ]);
   photoURL = nextPhotoURL;
