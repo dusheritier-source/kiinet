@@ -1431,7 +1431,8 @@ export function subscribeToComments(
     commentsQuery,
     (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       callback(snapshot.docs.map((commentDoc) => mapComment(commentDoc.id, commentDoc.data())));
-    }
+    },
+    () => callback([])
   );
 }
 
