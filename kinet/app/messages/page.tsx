@@ -1290,6 +1290,7 @@ function MessagesPageContent() {
                       </div>
                     ))
                   )}
+                  <div ref={messagesEndRef} aria-hidden="true" className="h-px" />
                 </div>
 
                 <form
