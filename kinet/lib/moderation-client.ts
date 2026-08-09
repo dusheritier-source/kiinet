@@ -13,5 +13,9 @@ export async function moderateTextBeforePublish(text: string, purpose: string) {
     body: JSON.stringify({ text, purpose }),
   });
   const result = await response.json() as { error?: string };
-  if (!response.ok) throw new Error(result.error || "This content could not be shared.");
+  if (!response.ok) {
+    throw new Error(result.error || (response.status === 422
+      ? "This message violates Kinet Community Guidelines and cannot be sent."
+      : "Message moderation is unavailable. Please try again."));
+  }
 }

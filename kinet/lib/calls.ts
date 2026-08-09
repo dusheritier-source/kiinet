@@ -66,11 +66,11 @@ export function subscribeCallCandidates(callId: string, side: "caller" | "callee
   });
 }
 
-export function subscribeIncomingCalls(userId: string, callback: (calls: CallRecord[]) => void) {
+export function subscribeIncomingCalls(userId: string, callback: (calls: CallRecord[]) => void, onError?: (error: Error) => void) {
   if (!db) return () => undefined;
   return onSnapshot(query(collection(db, "calls"), where("participantIds", "array-contains", userId), orderBy("createdAt", "desc")), (snapshot) => {
     callback(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as CallRecord)).filter((call) => call.callerId !== userId && call.status === "ringing").slice(0, 1));
-  });
+  }, (error) => onError?.(error));
 }
 
 export function subscribeCallHistory(userId: string, callback: (calls: CallRecord[]) => void) {

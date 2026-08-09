@@ -22,7 +22,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const cleanupsRef = useRef<Array<() => void>>([]);
 
-  useEffect(() => subscribeIncomingCalls(currentUserId, (calls) => setIncoming(calls[0] ?? null)), [currentUserId]);
+  useEffect(() => subscribeIncomingCalls(currentUserId, (calls) => setIncoming(calls[0] ?? null), (cause) => setError(cause.message.includes("index") ? "Calls need the latest Firestore index deployment." : "Calls are unavailable right now.")), [currentUserId]);
   useEffect(() => subscribeCallHistory(currentUserId, setHistory), [currentUserId]);
   useEffect(() => () => stopMedia(), []);
   useEffect(() => {

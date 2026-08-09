@@ -441,7 +441,9 @@ function MessagesPageContent() {
     const isInitialMessageLoad = previousMessages.length === 0;
     const shouldAutoScroll = isInitialMessageLoad || isSentMessageRef.current || isNearBottom;
     if (shouldAutoScroll) {
-      container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
+      const scrollToLatest = () => container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
+      scrollToLatest();
+      if (isInitialMessageLoad) window.requestAnimationFrame(scrollToLatest);
       setShowNewMessagesButton(false);
       isSentMessageRef.current = false;
       return;
@@ -981,6 +983,8 @@ function MessagesPageContent() {
                         variant="ghost"
                         size="icon"
                         onClick={closeConversation}
+                        title="Close chat"
+                        aria-label="Close chat"
                       >
                         <ArrowLeft className="h-5 w-5" />
                       </Button>
