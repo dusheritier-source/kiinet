@@ -396,7 +396,10 @@ service cloud.firestore {
       match /{candidateCollection}/{candidateId} {
         allow read, create: if isSignedIn()
           && request.auth.uid in get(/databases/$(database)/documents/calls/$(callId)).data.participantIds
-          && candidateCollection in ['callerCandidates', 'calleeCandidates'];
+          && (
+            candidateCollection in ['callerCandidates', 'calleeCandidates', 'offers', 'answers']
+            || candidateCollection.matches('^candidates_.*$')
+          );
         allow update, delete: if false;
       }
     }
