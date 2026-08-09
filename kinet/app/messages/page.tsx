@@ -42,7 +42,6 @@ import {
   createGroupConversation,
   deleteConversationMessage,
   getOlderConversationMessages,
-  getConversationMessage,
   markConversationRead,
   markConversationUnread,
   leaveGroupConversation,
@@ -95,7 +94,6 @@ function MessagesPageContent() {
   const router = useRouter();
   const starterUser = searchParams.get("user");
   const starterConversation = searchParams.get("conversation");
-  const highlightedMessageId = searchParams.get("message");
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -288,19 +286,6 @@ function MessagesPageContent() {
   useEffect(() => {
     if (starterConversation) setActiveConversationId(starterConversation);
   }, [starterConversation]);
-
-  useEffect(() => {
-    if (!highlightedMessageId || !activeConversationId) return;
-    void getConversationMessage(highlightedMessageId)
-      .then((message) => {
-        if (!message || message.conversationId !== activeConversationId) return;
-        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
-        window.setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-        }, 100);
-      })
-      .catch(() => undefined);
-  }, [activeConversationId, highlightedMessageId]);
 
   useEffect(() => {
     if (!showNewMessage || !user) return;
@@ -975,12 +960,13 @@ function MessagesPageContent() {
                     <div className="flex items-center gap-3">
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="sm"
                         onClick={closeConversation}
                         title="Close chat"
                         aria-label="Close chat"
                       >
                         <ArrowLeft className="h-5 w-5" />
+                        <span className="ml-1 hidden sm:inline">Close</span>
                       </Button>
                       <ProfileAvatar
                         src={activeConversation.kind === "group" ? activeConversation.groupPhotoURL : activeOtherUser?.photoURL}
@@ -1137,7 +1123,7 @@ function MessagesPageContent() {
                       <div
                         key={message.id}
                         id={`message-${message.id}`}
-                        className={`flex rounded-xl transition ${message.id === highlightedMessageId ? "bg-primary/10 ring-2 ring-primary/30" : ""} ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}
+                        className={`flex rounded-xl transition ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}
                       >
                         <div className={`flex w-full max-w-[86%] items-end gap-2 ${message.senderId === currentUserId ? "flex-row-reverse" : ""}`}>
                           {message.senderId !== currentUserId ? (

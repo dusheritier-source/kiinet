@@ -307,7 +307,7 @@ export async function restoreNotification(notification: AppNotification) {
 
 export function getNotificationTarget(notification: AppNotification) {
   if (notification.targetUrl?.startsWith("/")) return notification.targetUrl;
-  if (notification.conversationId) return `/messages?conversation=${encodeURIComponent(notification.conversationId)}${notification.messageId ? `&message=${encodeURIComponent(notification.messageId)}` : ""}`;
+  if (notification.conversationId) return `/messages?conversation=${encodeURIComponent(notification.conversationId)}`;
   if (notification.postId) return `/post/${encodeURIComponent(notification.postId)}${notification.commentId ? `?comment=${encodeURIComponent(notification.commentId)}` : ""}`;
   if (notification.storyId) return `/stories?story=${encodeURIComponent(notification.storyId)}`;
   return notification.actorId ? `/profile/${encodeURIComponent(notification.actorId)}` : "/notifications";
