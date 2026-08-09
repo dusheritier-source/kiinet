@@ -161,6 +161,11 @@ function MessagesPageContent() {
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
     if (!container) return;
+    const end = messagesEndRef.current;
+    if (end) {
+      end.scrollIntoView({ behavior, block: "end" });
+      return;
+    }
     container.scrollTo({ top: container.scrollHeight, behavior });
   }, []);
 
@@ -195,6 +200,11 @@ function MessagesPageContent() {
     // Prefetch the route for faster navigation
     void router.prefetch(`/messages?${nextParams.toString()}`);
     router.push(`/messages?${nextParams.toString()}`);
+    window.setTimeout(() => {
+      if (routeSyncRef.current === conversationId) {
+        scrollToLatest("auto");
+      }
+    }, 120);
   }, [router, searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
