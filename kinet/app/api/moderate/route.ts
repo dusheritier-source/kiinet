@@ -14,6 +14,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "allowed" });
   } catch (error) {
     if (error instanceof ModerationBlockedError) return NextResponse.json({ error: error.message, status: "blocked" }, { status: 422 });
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Moderation failed." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Moderation failed.";
+    const status = message.includes("temporarily busy") || message.includes("out of quota") ? 503 : 500;
+    return NextResponse.json({ error: message, status: "unavailable" }, { status });
   }
 }

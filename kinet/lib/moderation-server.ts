@@ -45,7 +45,12 @@ async function callOpenAi(input: unknown) {
     body: JSON.stringify({ model: "omni-moderation-latest", input }),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`Moderation service failed with status ${response.status}.`);
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Moderation service is temporarily busy or out of quota. Please try again shortly.");
+    }
+    throw new Error(`Moderation service failed with status ${response.status}.`);
+  }
   const payload = await response.json() as { results?: Array<{ flagged?: boolean }> };
   return Boolean(payload.results?.[0]?.flagged);
 }

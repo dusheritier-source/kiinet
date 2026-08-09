@@ -26,6 +26,8 @@ export async function moderateTextBeforePublish(text: string, purpose: string) {
   if (!response.ok) {
     throw new Error(result.error || (response.status === 422
       ? "This message violates Kinet Community Guidelines and cannot be sent."
+      : response.status === 503
+        ? "Message was not sent because moderation is temporarily busy. Your draft is still here; please try again shortly."
       : "Message moderation is unavailable. Please try again."));
   }
 }
