@@ -177,6 +177,9 @@ function MessagesPageContent() {
       setMessagesLoading(false);
       setShowSkeleton(false);
       setActiveConversationId(conversationId);
+      window.requestAnimationFrame(() => {
+        scrollToLatest("auto");
+      });
     } else {
       // Precompute a skeleton height from the current messages container to avoid layout flash
       const height = messagesContainerRef.current?.clientHeight ?? null;
@@ -192,7 +195,7 @@ function MessagesPageContent() {
     // Prefetch the route for faster navigation
     void router.prefetch(`/messages?${nextParams.toString()}`);
     router.push(`/messages?${nextParams.toString()}`);
-  }, [router, searchParams]);
+  }, [router, searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
     setActiveConversationId(null);
@@ -507,8 +510,7 @@ function MessagesPageContent() {
 
   // Ensure we reliably scroll to the latest message when a conversation first opens.
   // Some clients may render the container hidden, or images/media can change height after
-  // initial render — use a ResizeObserver and a timeout fallback to guarantee we land
-  // at the bottom once content has settled.
+  // initial render — use a ResizeObserver and fallback to guarantee we land at the bottom.
   useEffect(() => {
     if (!activeConversationId) return;
     const container = messagesContainerRef.current;
@@ -517,6 +519,7 @@ function MessagesPageContent() {
 
     let ro: ResizeObserver | null = null;
     let timedFallback: number | null = null;
+    let initialLoadObserver: MutationObserver | null = null;
 
     const tryScrollToBottom = (behavior: ScrollBehavior = "auto") => {
       if (!container) return;
@@ -527,7 +530,6 @@ function MessagesPageContent() {
     try {
       ro = new ResizeObserver(() => {
         if (!initialScrollPendingRef.current) return;
-        // When layout changes (images load, fonts apply), ensure bottom is visible.
         tryScrollToBottom("auto");
       });
       ro.observe(container);
@@ -535,20 +537,29 @@ function MessagesPageContent() {
       ro = null;
     }
 
-    // Fallback: if ResizeObserver doesn't fire, ensure we still scroll after a short delay.
     timedFallback = window.setTimeout(() => {
       if (initialScrollPendingRef.current) tryScrollToBottom("auto");
     }, 300);
 
-    // Extra safety: also scroll when messagesEndRef becomes available in the DOM.
     const end = messagesEndRef.current;
     if (end && initialScrollPendingRef.current) {
       tryScrollToBottom("auto");
     }
 
+    try {
+      initialLoadObserver = new MutationObserver(() => {
+        if (!initialScrollPendingRef.current) return;
+        tryScrollToBottom("auto");
+      });
+      initialLoadObserver.observe(container, { childList: true, subtree: true });
+    } catch {
+      initialLoadObserver = null;
+    }
+
     return () => {
       if (ro) ro.disconnect();
       if (timedFallback) window.clearTimeout(timedFallback);
+      if (initialLoadObserver) initialLoadObserver.disconnect();
     };
   }, [activeConversationId, messagesLoading, messages.length]);
 
@@ -569,6 +580,7 @@ function MessagesPageContent() {
       previousMessagesRef.current = messages;
       return;
     }
+
     const becameNewer = messages.length > previousMessages.length;
     previousMessagesRef.current = messages;
 
