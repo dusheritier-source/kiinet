@@ -156,6 +156,7 @@ function MessagesPageContent() {
   const initialScrollPendingRef = useRef(false);
   const olderScrollRef = useRef<{ top: number; height: number } | null>(null);
   const loadingOlderRef = useRef(false);
+  const routeSyncRef = useRef<string | null>(null);
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
@@ -167,6 +168,7 @@ function MessagesPageContent() {
     setShowNewMessagesButton(false);
     isSentMessageRef.current = true;
     initialScrollPendingRef.current = true;
+    routeSyncRef.current = conversationId;
 
     // If we have cached messages for this conversation, show them immediately
     const cached = messagesCacheRef.current.get(conversationId);
@@ -188,7 +190,7 @@ function MessagesPageContent() {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("conversation", conversationId);
     // Prefetch the route for faster navigation
-    void router.prefetch(`/messages?${nextParams.toString()}`).catch(() => undefined);
+    void router.prefetch(`/messages?${nextParams.toString()}`);
     router.push(`/messages?${nextParams.toString()}`);
   }, [router, searchParams]);
 
@@ -208,6 +210,7 @@ function MessagesPageContent() {
       setShowNewMessagesButton(false);
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
+      routeSyncRef.current = routeConversation;
       const cached = messagesCacheRef.current.get(routeConversation);
       if (cached) {
         setMessages(cached);
@@ -224,9 +227,16 @@ function MessagesPageContent() {
       }
       return;
     }
+
     if (!routeConversation && activeConversationId) {
+      if (routeSyncRef.current === activeConversationId) {
+        // If we are still in the middle of a route sync to the current conversation,
+        // do not reset the active conversation until the URL is updated.
+        return;
+      }
       setActiveConversationId(null);
       setShowNewMessagesButton(false);
+      routeSyncRef.current = null;
     }
   }, [searchParams, activeConversationId]);
 
@@ -992,7 +1002,7 @@ function MessagesPageContent() {
                   key={person.conversationId}
                   type="button"
                   onClick={() => openConversation(person.conversationId)}
-                  onMouseEnter={() => void router.prefetch(`/messages?conversation=${person.conversationId}`).catch(() => undefined)}
+                  onMouseEnter={() => void router.prefetch(`/messages?conversation=${person.conversationId}`)}
                   className="flex w-[84px] shrink-0 flex-col items-center gap-2"
                 >
                   <div
@@ -1056,7 +1066,7 @@ function MessagesPageContent() {
                       key={conversation.id}
                       type="button"
                       onClick={() => openConversation(conversation.id)}
-                      onMouseEnter={() => void router.prefetch(`/messages?conversation=${conversation.id}`).catch(() => undefined)}
+                      onMouseEnter={() => void router.prefetch(`/messages?conversation=${conversation.id}`)}
                     className={`w-full rounded-[28px] border p-3 text-left transition ${
                         activeConversationId === conversation.id ? "border-primary/20 bg-muted/80" : "border-transparent hover:bg-muted/60"
                       }`}
