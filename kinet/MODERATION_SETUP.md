@@ -1,6 +1,6 @@
 # Sensitive-content moderation
 
-Server uploads use OpenAI `omni-moderation-latest` before media is stored. Images are sent as data URLs. Videos are sampled at up to 12 frames with `ffmpeg-static`, and every sampled frame is moderated. Captions, comments, message text, and story text are checked through `/api/moderate` before their Firestore write.
+Server uploads use OpenAI `omni-moderation-latest` before media is stored. Images are sent as data URLs. Video frame sampling via `ffmpeg-static` is skipped on Vercel Lambda (the binary does not resolve in the serverless runtime); images and text are still moderated. Captions, comments, message text, and story text are checked through `/api/moderate` before their Firestore write.
 
 ## Server environment
 

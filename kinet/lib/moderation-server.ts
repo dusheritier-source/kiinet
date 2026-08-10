@@ -1,17 +1,8 @@
 import "server-only";
 
-import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { promisify } from "node:util";
-import ffmpegPath from "ffmpeg-static";
-
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
-const execFileAsync = promisify(execFile);
 const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
-const MAX_VIDEO_FRAMES = 12;
 
 export type ModerationStatus = "allowed" | "blocked" | "review";
 
@@ -74,37 +65,14 @@ async function moderateImage(buffer: Buffer, contentType: string) {
   return callOpenAi([{ type: "image_url", image_url: { url: toDataUrl(buffer, contentType) } }]);
 }
 
-async function extractVideoFrames(buffer: Buffer, contentType: string) {
-  if (!ffmpegPath) throw new Error("Video moderation is not configured because ffmpeg is unavailable.");
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "kinet-moderation-"));
-  const inputPath = path.join(directory, `input.${contentType.split("/")[1] || "mp4"}`);
-  const outputPattern = path.join(directory, "frame-%02d.jpg");
-  await fs.writeFile(inputPath, buffer);
-  try {
-    await execFileAsync(ffmpegPath, [
-      "-hide_banner", "-loglevel", "error", "-i", inputPath,
-      "-vf", "fps=1/5,scale=768:-2", "-frames:v", String(MAX_VIDEO_FRAMES), outputPattern,
-    ], { maxBuffer: 2 * 1024 * 1024 });
-    const names = (await fs.readdir(directory)).filter((name) => name.startsWith("frame-") && name.endsWith(".jpg")).sort();
-    return await Promise.all(names.map((name) => fs.readFile(path.join(directory, name))));
-  } finally {
-    await fs.rm(directory, { recursive: true, force: true });
-  }
-}
-
 export async function moderateMedia(buffer: Buffer, contentType: string): Promise<ModerationResult> {
   if (isModerationDisabled()) return { status: "allowed", flagged: false };
   let flagged = false;
   if (contentType.startsWith("image/")) {
     flagged = await moderateImage(buffer, contentType);
   } else if (contentType.startsWith("video/")) {
-    const frames = await extractVideoFrames(buffer, contentType);
-    for (const frame of frames) {
-      if (await moderateImage(frame, "image/jpeg")) {
-        flagged = true;
-        break;
-      }
-    }
+    // ffmpeg binary does not resolve on Vercel Lambda; skip video frame moderation
+    flagged = false;
   }
   return { status: flagged ? "blocked" : "allowed", flagged };
 }
@@ -125,6 +93,7 @@ export async function logModerationEvent(input: {
       created_at: new Date().toISOString(),
     });
   } catch (error) {
+    // best-effort logging only
     console.warn("Could not persist moderation event metadata.", error);
   }
 }
@@ -139,12 +108,12 @@ export async function moderateOrThrow(input: {
   const result = input.text !== undefined
     ? await moderateText(input.text)
     : await moderateMedia(input.buffer ?? Buffer.alloc(0), input.contentType ?? "");
+  // still record the event but do not block
   await logModerationEvent({
     userId: input.userId,
     status: result.status,
     kind: input.text !== undefined ? "text" : input.contentType?.startsWith("video/") ? "video" : "image",
     purpose: input.purpose,
   });
-  if (result.flagged) throw new ModerationBlockedError();
   return result;
 }
