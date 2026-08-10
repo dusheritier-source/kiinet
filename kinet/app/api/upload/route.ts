@@ -28,7 +28,12 @@ export async function POST(request: Request) {
     if (!file.size || file.size > maxFileSize) return NextResponse.json({ error: "Files must be smaller than 50 MB." }, { status: 400 });
     const safeFolder = String(formData.get("folder") ?? "posts").replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "posts";
     const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
-    const path = `${safeFolder}/${user.uid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+    let path = `${safeFolder}/${user.uid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+
+    // Validate path for Supabase storage: no leading slashes, no consecutive slashes, reasonable length
+    if (path.startsWith("/")) path = path.replace(/^\/+/, "");
+    if (path.includes("//")) return NextResponse.json({ error: "Invalid upload path (contains //)", path }, { status: 400 });
+    if (path.length > 1024) return NextResponse.json({ error: "Upload path too long", path }, { status: 400 });
     const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
     const admin = getSupabaseAdmin();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -40,12 +45,19 @@ export async function POST(request: Request) {
         purpose: String(formData.get("purpose") ?? safeFolder),
       });
     }
-    const { error } = await admin.storage.from(bucket).upload(path, fileBuffer, {
-      contentType,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-    if (error) throw new Error(error.message || "Could not store the moderated upload.");
+    try {
+      const { error } = await admin.storage.from(bucket).upload(path, fileBuffer, {
+        contentType,
+        cacheControl: "31536000",
+        upsert: false,
+      });
+      if (error) {
+        return NextResponse.json({ error: error.message || String(error), bucket, path }, { status: 500 });
+      }
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err), bucket, path }, { status: 500 });
+    }
+
     const { data: publicData } = admin.storage.from(bucket).getPublicUrl(path);
     return NextResponse.json({ bucket, path, publicUrl: publicData.publicUrl, status: "allowed" });
   } catch (error) {
@@ -65,7 +77,7 @@ export async function DELETE(request: Request) {
     }
     const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
     const { error } = await getSupabaseAdmin().storage.from(bucket).remove([uploadPath]);
-    if (error) throw new Error(error.message || "Could not remove the upload.");
+    if (error) return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
     return NextResponse.json({ status: "deleted" });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not remove the upload." }, { status: 500 });
