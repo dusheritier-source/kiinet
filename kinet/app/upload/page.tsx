@@ -42,7 +42,7 @@ function UploadPageContent() {
   const [downloadProtected, setDownloadProtected] = useState(false);
   const [rightClickProtected, setRightClickProtected] = useState(false);
   const [premiumGroups, setPremiumGroups] = useState<PremiumGroupRecord[]>([]);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [musicTitle, setMusicTitle] = useState("");
@@ -59,7 +59,7 @@ function UploadPageContent() {
   const [allowRemix, setAllowRemix] = useState(true);
   const [blockedCommentWords, setBlockedCommentWords] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [assistantLoading, setAssistantLoading] = useState<string | null>(null);
@@ -79,18 +79,18 @@ function UploadPageContent() {
   }, [user]);
 
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl("");
+    if (!files.length) {
+      setPreviewUrls([]);
       return;
     }
 
-    const nextPreviewUrl = URL.createObjectURL(file);
-    setPreviewUrl(nextPreviewUrl);
+    const nextPreviewUrls = files.map((fileItem) => URL.createObjectURL(fileItem));
+    setPreviewUrls(nextPreviewUrls);
 
     return () => {
-      URL.revokeObjectURL(nextPreviewUrl);
+      nextPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [file]);
+  }, [files]);
 
   useEffect(() => {
     const draftId = searchParams.get("draft");
@@ -147,16 +147,29 @@ function UploadPageContent() {
   }, [caption, loadedDraftId, musicSourceUrl, remixPostId, searchParams]);
 
   const mediaKind = useMemo(() => {
-    if (!file) return null;
-    return file.type.startsWith("video/") ? "video" : "image";
-  }, [file]);
+    if (!files.length) return null;
+    return files[0].type.startsWith("video/") ? "video" : "image";
+  }, [files]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] ?? null;
+    const nextFiles = Array.from(event.target.files ?? []);
     setError("");
-    if (nextFile && nextFile.size > 50 * 1024 * 1024) { setError("Uploads must be smaller than 50 MB."); event.target.value = ""; return; }
-    if (contentType === "reel" && nextFile && !nextFile.type.startsWith("video/")) { setError("Choose a video file for your reel."); event.target.value = ""; return; }
-    setFile(nextFile);
+    if (contentType === "reel") {
+      if (nextFiles.length !== 1 || (nextFiles[0] && !nextFiles[0].type.startsWith("video/"))) {
+        setError("Choose exactly one video file for your reel.");
+        event.target.value = "";
+        return;
+      }
+    }
+
+    const invalidFile = nextFiles.find((nextFile) => nextFile.size > 50 * 1024 * 1024);
+    if (invalidFile) {
+      setError("Uploads must be smaller than 50 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setFiles(nextFiles.slice(0, 10));
   };
 
   const runMediaAssist = async (task: "caption_rewrite" | "hashtags" | "translate" | "voiceover" | "thumbnail") => {
@@ -206,12 +219,12 @@ function UploadPageContent() {
     event.preventDefault();
     setError("");
 
-    if (contentType === "reel" && !file) {
+    if (contentType === "reel" && files.length === 0) {
       setError("Choose a video to upload.");
       return;
     }
 
-    if (contentType === "reel" && file && !file.type.startsWith("video/")) {
+    if (contentType === "reel" && files[0] && !files[0].type.startsWith("video/")) {
       setError("Reels must use a video file.");
       return;
     }
@@ -227,10 +240,10 @@ function UploadPageContent() {
     uploadAbortRef.current = controller;
 
     try {
-      console.log("Starting upload...", { contentType, postType, hasFile: !!file });
+      console.log("Starting upload...", { contentType, postType, fileCount: files.length });
       await createPost({
         caption,
-        file,
+        files,
         contentType,
         postType,
         questionPrompt,
@@ -319,7 +332,7 @@ function UploadPageContent() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setContentType("reel"); if (file && !file.type.startsWith("video/")) { setFile(null); setError("Choose a video file for your reel."); } }}
+                  onClick={() => { setContentType("reel"); if (files[0] && !files[0].type.startsWith("video/")) { setFiles([]); setPreviewUrls([]); setError("Choose a video file for your reel."); } }}
                   className={`rounded-xl border-2 p-4 text-left transition ${contentType === "reel" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}
                 >
                   <Film className="mb-2 h-6 w-6 text-primary" />
@@ -360,31 +373,40 @@ function UploadPageContent() {
                       disabled={submitting}
                       className="hidden"
                       id="file-upload"
+                      multiple={contentType !== "reel"}
                     />
 
                     <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-lg bg-black/5 ${contentType === "reel" ? "mx-auto aspect-[9/16] max-h-[620px]" : "h-[420px]"}`}>
-                      {previewUrl ? (
+                      {previewUrls.length ? (
                         mediaKind === "video" ? (
-                          <video src={previewUrl} controls onLoadedMetadata={(event) => { event.currentTarget.playbackRate = playbackRate; event.currentTarget.volume = originalVolume; }} className="h-full w-full object-cover" style={{ filter: visualFilter === "warm" ? "sepia(.25) saturate(1.25)" : visualFilter === "cool" ? "hue-rotate(175deg) saturate(1.1)" : visualFilter === "mono" ? "grayscale(1)" : visualFilter === "vivid" ? "saturate(1.7) contrast(1.1)" : "none", transform: `rotate(${rotation}deg)` }} />
+                          <video src={previewUrls[0]} controls onLoadedMetadata={(event) => { event.currentTarget.playbackRate = playbackRate; event.currentTarget.volume = originalVolume; }} className="h-full w-full object-cover" style={{ filter: visualFilter === "warm" ? "sepia(.25) saturate(1.25)" : visualFilter === "cool" ? "hue-rotate(175deg) saturate(1.1)" : visualFilter === "mono" ? "grayscale(1)" : visualFilter === "vivid" ? "saturate(1.7) contrast(1.1)" : "none", transform: `rotate(${rotation}deg)` }} />
                         ) : (
-                          <img src={previewUrl} alt="Upload preview" className="w-full h-full object-cover" />
+                          <div className="grid h-full w-full grid-cols-2 gap-2 p-2">
+                            {previewUrls.slice(0, 6).map((previewUrlItem, index) => (
+                              <img key={previewUrlItem} src={previewUrlItem} alt={`Upload preview ${index + 1}`} className="h-full w-full rounded-xl object-cover" />
+                            ))}
+                          </div>
                         )
                       ) : (
                         <div className="text-center px-6">
                           <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
-                          <p className="mt-3 font-semibold">Tap to select a file</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{contentType === "reel" ? "Vertical videos up to 50 MB." : "Choose an image or video up to 50 MB."}</p>
+                          <p className="mt-3 font-semibold">Tap to select file{contentType !== "reel" ? "s" : ""}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{contentType === "reel" ? "Vertical videos up to 50 MB." : "Choose up to 10 images or videos, 50 MB each."}</p>
                         </div>
                       )}
                       {contentType === "reel" && (overlayText || sticker) ? <div className={`pointer-events-none absolute inset-x-4 z-10 text-center text-white drop-shadow-lg ${overlayPosition === "top" ? "top-16" : overlayPosition === "center" ? "top-1/2 -translate-y-1/2" : "bottom-8"}`}><span className="rounded-xl bg-black/35 px-3 py-1 text-xl font-bold">{sticker ? `${sticker} ` : ""}{overlayText}</span></div> : null}
                       <label htmlFor="file-upload" className="absolute left-4 top-4 inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Add media</label>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-3">
-                      {previewUrl ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      {previewUrls.length ? (
                         <>
-                          <Button type="button" onClick={() => { setFile(null); setPreviewUrl(""); }} variant="outline">Remove</Button>
-                          <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm text-primary">Open preview</a>
+                          <Button type="button" onClick={() => { setFiles([]); setPreviewUrls([]); }} variant="outline">Remove all</Button>
+                          {mediaKind === "video" ? (
+                            <a href={previewUrls[0]} target="_blank" rel="noreferrer" className="text-sm text-primary">Open preview</a>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{previewUrls.length} selected</span>
+                          )}
                           {mediaKind === "video" && (
                             <Button type="button" variant="outline" onClick={() => void runMediaAssist("thumbnail")}>Select cover</Button>
                           )}
@@ -541,7 +563,7 @@ function UploadPageContent() {
                   </div>
                   <div className="grid gap-3 md:grid-cols-[1fr,auto]">
                     <Input value={autoCaption} onChange={(event) => setAutoCaption(event.target.value)} placeholder="Auto-caption text" disabled={submitting} />
-                    <Button type="button" variant="outline" onClick={() => setAutoCaption(`${caption || file?.name || "Uploaded clip"}`)}>
+                    <Button type="button" variant="outline" onClick={() => setAutoCaption(`${caption || (files[0]?.name ?? "Uploaded clip")}`)}>
                       Generate Caption
                     </Button>
                   </div>
