@@ -29,6 +29,10 @@ export interface ModerationResult {
   flagged: boolean;
 }
 
+export function isModerationDisabled() {
+  return String(process.env.DISABLE_MODERATION ?? "").toLowerCase() === "true";
+}
+
 function requireOpenAiKey() {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) throw new Error("Content moderation is not configured. Set OPENAI_API_KEY on the server.");
@@ -56,6 +60,7 @@ async function callOpenAi(input: unknown) {
 }
 
 export async function moderateText(text: string): Promise<ModerationResult> {
+  if (isModerationDisabled()) return { status: "allowed", flagged: false };
   if (!text.trim()) return { status: "allowed", flagged: false };
   const flagged = await callOpenAi(text.slice(0, 20_000));
   return { status: flagged ? "blocked" : "allowed", flagged };
@@ -88,6 +93,7 @@ async function extractVideoFrames(buffer: Buffer, contentType: string) {
 }
 
 export async function moderateMedia(buffer: Buffer, contentType: string): Promise<ModerationResult> {
+  if (isModerationDisabled()) return { status: "allowed", flagged: false };
   let flagged = false;
   if (contentType.startsWith("image/")) {
     flagged = await moderateImage(buffer, contentType);
