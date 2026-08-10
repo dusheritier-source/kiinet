@@ -72,9 +72,9 @@ export async function deleteFile(bucket: string, path: string) {
 export function getPublicUrl(bucket: string, path: string) {
   const url = SUPABASE_URL || '';
   // Use Supabase storage public URL pattern
-  return `${url.replace(/\/$/, '')}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodeURIComponent(
-    path
-  )}`;
+  // Encode each path segment but preserve folder separators
+  const encodedPath = path.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+  return `${url.replace(/\/$/, '')}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodedPath}`;
 }
 
 export async function uploadFileWithToken(bucket: string, path: string, token: string, file: File) {
