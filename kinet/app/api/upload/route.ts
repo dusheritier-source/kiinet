@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
-import { ModerationBlockedError, moderateOrThrow } from "@/lib/moderation-server";
+import { ModerationBlockedError, isModerationDisabled, moderateOrThrow } from "@/lib/moderation-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
     const admin = getSupabaseAdmin();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    if (contentType.startsWith("image/") || contentType.startsWith("video/")) {
+    if (!isModerationDisabled() && (contentType.startsWith("image/") || contentType.startsWith("video/"))) {
       await moderateOrThrow({
         buffer: fileBuffer,
         contentType,
