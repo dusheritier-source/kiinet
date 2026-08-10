@@ -23,7 +23,13 @@ export async function uploadToFirebaseStorage(file: File, folder: string, onProg
     body,
     signal,
   });
-  const prepared = await response.json() as { path?: string; publicUrl?: string; error?: string };
+  let prepared: { path?: string; publicUrl?: string; error?: string } | null = null;
+  try {
+    prepared = await response.json() as { path?: string; publicUrl?: string; error?: string };
+  } catch (err) {
+    const text = await response.text();
+    throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${text}`);
+  }
   if (!response.ok || !prepared.path || !prepared.publicUrl) throw new Error(prepared.error || "Moderated upload failed.");
   if (signal?.aborted) throw new Error("Upload canceled.");
   onProgress?.(100);
