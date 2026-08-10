@@ -27,12 +27,13 @@ export async function POST(request: Request) {
     if (!allowedTypes.test(contentType) && !allowedDocuments.has(contentType)) return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
     if (!file.size || file.size > maxFileSize) return NextResponse.json({ error: "Files must be smaller than 50 MB." }, { status: 400 });
     const safeFolder = String(formData.get("folder") ?? "posts").replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "posts";
-    const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
-    let path = `${safeFolder}/${user.uid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+    const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "") || "upload";
+    const safeUid = String(user.uid).replace(/[^a-z0-9._-]/gi, "-");
+    let path = `${safeFolder}/${safeUid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 
-    // Validate path for Supabase storage: no leading slashes, no consecutive slashes, reasonable length
+    // Validate path for Supabase storage: no leading slashes, no consecutive slashes, no traversal, reasonable length
     if (path.startsWith("/")) path = path.replace(/^\/+/, "");
-    if (path.includes("//")) return NextResponse.json({ error: "Invalid upload path (contains //)", path }, { status: 400 });
+    if (path.includes("//") || path.includes("..")) return NextResponse.json({ error: "Invalid upload path", path }, { status: 400 });
     if (path.length > 1024) return NextResponse.json({ error: "Upload path too long", path }, { status: 400 });
     const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
     const admin = getSupabaseAdmin();
