@@ -159,6 +159,9 @@ function MessagesPageContent() {
   const olderScrollRef = useRef<{ top: number; height: number } | null>(null);
   const loadingOlderRef = useRef(false);
   const routeSyncRef = useRef<string | null>(null);
+  const inboxScrollPositionRef = useRef(0);
+  const handledStarterUserRef = useRef<string | null>(null);
+  const closingConversationRef = useRef<string | null>(null);
 
   const getCachedConversationMessages = useCallback((conversationId: string) => {
     const memoryCached = messagesCacheRef.current.get(conversationId);
@@ -194,6 +197,8 @@ function MessagesPageContent() {
   }, []);
 
   const openConversation = useCallback((conversationId: string) => {
+    closingConversationRef.current = null;
+    if (!activeConversationId) inboxScrollPositionRef.current = window.scrollY;
     setShowNewMessagesButton(false);
     setIsNearBottom(true);
     isSentMessageRef.current = true;
@@ -222,6 +227,7 @@ function MessagesPageContent() {
     }
 
     const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("user");
     nextParams.set("conversation", conversationId);
     // The chat is already open in local state. Updating browser history avoids an
     // unnecessary App Router/server navigation just to synchronize the query string.
@@ -231,9 +237,10 @@ function MessagesPageContent() {
         scrollToLatest("auto");
       }
     }, 120);
-  }, [getCachedConversationMessages, searchParams, scrollToLatest]);
+  }, [activeConversationId, getCachedConversationMessages, searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
+    closingConversationRef.current = activeConversationId;
     setActiveConversationId(null);
     setOpenMessageMenuId(null);
     setShowChatMenu(false);
@@ -243,12 +250,19 @@ function MessagesPageContent() {
     setMessagesLoading(false);
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("conversation");
+    nextParams.delete("user");
     window.history.replaceState(null, "", `/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
-  }, [searchParams]);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: inboxScrollPositionRef.current, behavior: "auto" });
+    });
+  }, [activeConversationId, searchParams]);
 
   useEffect(() => {
     const routeConversation = searchParams.get("conversation");
     const pendingRoute = routeSyncRef.current;
+
+    if (routeConversation && routeConversation === closingConversationRef.current) return;
+    if (!routeConversation) closingConversationRef.current = null;
 
     if (pendingRoute) {
       if (routeConversation === pendingRoute) {
@@ -386,12 +400,13 @@ function MessagesPageContent() {
     if (!user || !starterUser || starterUser === user.uid) {
       return;
     }
+    if (handledStarterUserRef.current === starterUser) return;
+    handledStarterUserRef.current = starterUser;
 
     setCreating(true);
     createOrGetConversation(starterUser)
       .then((conversationId) => {
-        setActiveConversationId(conversationId);
-        setShowNewMessagesButton(false);
+        openConversation(conversationId);
       })
       .catch((conversationError: unknown) => {
         if (!isTransientFirestoreError(conversationError)) {
@@ -399,7 +414,7 @@ function MessagesPageContent() {
         }
       })
       .finally(() => setCreating(false));
-  }, [starterUser, user]);
+  }, [openConversation, starterUser, user]);
 
   useEffect(() => {
     if (starterConversation) setActiveConversationId(starterConversation);
