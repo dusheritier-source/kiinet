@@ -155,6 +155,7 @@ function MessagesPageContent() {
   const isSentMessageRef = useRef(false);
   const previousMessagesRef = useRef<ConversationMessage[]>([]);
   const initialScrollPendingRef = useRef(false);
+  const openingAutoScrollConversationRef = useRef<string | null>(null);
   const olderScrollRef = useRef<{ top: number; height: number } | null>(null);
   const loadingOlderRef = useRef(false);
   const routeSyncRef = useRef<string | null>(null);
@@ -170,6 +171,7 @@ function MessagesPageContent() {
     setIsNearBottom(true);
     isSentMessageRef.current = true;
     initialScrollPendingRef.current = true;
+    openingAutoScrollConversationRef.current = conversationId;
     routeSyncRef.current = conversationId;
 
     // If we have cached messages for this conversation, show them immediately
@@ -194,15 +196,15 @@ function MessagesPageContent() {
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("conversation", conversationId);
-    // Prefetch the route for faster navigation
-    void router.prefetch(`/messages?${nextParams.toString()}`);
-    router.push(`/messages?${nextParams.toString()}`);
+    // The chat is already open in local state. Updating browser history avoids an
+    // unnecessary App Router/server navigation just to synchronize the query string.
+    window.history.pushState(null, "", `/messages?${nextParams.toString()}`);
     window.setTimeout(() => {
       if (routeSyncRef.current === conversationId) {
         scrollToLatest("auto");
       }
     }, 120);
-  }, [router, searchParams, scrollToLatest]);
+  }, [searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
     setActiveConversationId(null);
@@ -214,8 +216,8 @@ function MessagesPageContent() {
     setMessagesLoading(false);
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("conversation");
-    router.replace(`/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
-  }, [router, searchParams]);
+    window.history.replaceState(null, "", `/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
+  }, [searchParams]);
 
   useEffect(() => {
     const routeConversation = searchParams.get("conversation");
@@ -235,6 +237,7 @@ function MessagesPageContent() {
       setIsNearBottom(true);
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
+      openingAutoScrollConversationRef.current = routeConversation;
       const cached = messagesCacheRef.current.get(routeConversation);
       if (cached) {
         setMessages(cached);
@@ -407,6 +410,7 @@ function MessagesPageContent() {
 
     previousMessagesRef.current = [];
     initialScrollPendingRef.current = true;
+    openingAutoScrollConversationRef.current = activeConversationId;
 
     // If we have cached messages for this conversation, show them immediately.
     const cached = messagesCacheRef.current.get(activeConversationId);
@@ -514,9 +518,21 @@ function MessagesPageContent() {
       }
     };
 
+    const stopOpeningAutoScroll = () => {
+      if (openingAutoScrollConversationRef.current !== activeConversationId) return;
+      openingAutoScrollConversationRef.current = null;
+      initialScrollPendingRef.current = false;
+    };
+
     container.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("touchstart", stopOpeningAutoScroll, { passive: true });
+    container.addEventListener("wheel", stopOpeningAutoScroll, { passive: true });
     onScroll();
-    return () => container.removeEventListener("scroll", onScroll);
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      container.removeEventListener("touchstart", stopOpeningAutoScroll);
+      container.removeEventListener("wheel", stopOpeningAutoScroll);
+    };
   }, [activeConversationId, messages.length]);
 
   // Keep the thread pinned to its latest message while the initial mobile layout,
@@ -530,24 +546,16 @@ function MessagesPageContent() {
 
     let ro: ResizeObserver | null = null;
     let initialLoadObserver: MutationObserver | null = null;
-    const timers: number[] = [];
 
     const tryScrollToBottom = () => {
-      if (!initialScrollPendingRef.current) return;
-      container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
+      if (openingAutoScrollConversationRef.current !== activeConversationId) return;
+      container.scrollTop = container.scrollHeight;
       setIsNearBottom(true);
       setShowNewMessagesButton(false);
     };
 
     tryScrollToBottom();
     window.requestAnimationFrame(tryScrollToBottom);
-    [100, 300, 700].forEach((delay) => {
-      timers.push(window.setTimeout(tryScrollToBottom, delay));
-    });
-    timers.push(window.setTimeout(() => {
-      tryScrollToBottom();
-      initialScrollPendingRef.current = false;
-    }, 900));
 
     try {
       ro = new ResizeObserver(() => {
@@ -570,7 +578,6 @@ function MessagesPageContent() {
     return () => {
       if (ro) ro.disconnect();
       if (initialLoadObserver) initialLoadObserver.disconnect();
-      timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [activeConversationId, messagesLoading, messages.length]);
 
@@ -1285,7 +1292,7 @@ function MessagesPageContent() {
                   </div>
                 ) : null}
 
-                <div ref={messagesContainerRef} className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4 pb-24 scroll-smooth" data-message-container>
+                <div key={activeConversation.id} ref={messagesContainerRef} className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.08),_transparent_30%)] p-4 pb-24 scroll-smooth [overflow-anchor:none]" data-message-container>
                   {hasOlderMessages ? (
                     <div className="text-center">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={olderMessagesLoading}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Bell, Clapperboard, CirclePlay, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
 import { markNotificationDelivered, subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
@@ -24,6 +24,7 @@ const primaryNav = [
 export default function Navbar() {
   const { user, loading } = useAuthContext();
   const pathname = usePathname();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -31,6 +32,30 @@ export default function Navbar() {
   const deliveredNotificationIds = useRef<Set<string>>(new Set());
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Messages is a high-frequency destination and has a large interactive bundle.
+    // Warm it as soon as authentication is ready so opening the inbox does not wait
+    // for a route request after the user taps the icon.
+    router.prefetch("/messages");
+
+    const prefetchCommonRoutes = () => {
+      ["/feed", "/search", "/stories", "/reels", "/notifications", "/profile", "/upload"].forEach((route) => {
+        router.prefetch(route);
+      });
+    };
+
+    const requestIdle = window.requestIdleCallback;
+    if (typeof requestIdle === "function") {
+      const idleId = requestIdle(prefetchCommonRoutes, { timeout: 2000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = window.setTimeout(prefetchCommonRoutes, 500);
+    return () => window.clearTimeout(timer);
+  }, [router, user]);
 
   useEffect(() => {
     if (!user) {

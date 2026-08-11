@@ -534,9 +534,12 @@ export function subscribeToConversations(
     limit(30)
   );
 
-  return onSnapshot(
+  let active = true;
+  let snapshotVersion = 0;
+  const unsubscribe = onSnapshot(
     conversationsQuery,
-    async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+    (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+      const version = ++snapshotVersion;
       const mapped = snapshot.docs.map((docSnapshot) => {
           const data = docSnapshot.data();
           return {
@@ -566,29 +569,45 @@ export function subscribeToConversations(
               null,
           } satisfies ConversationSummary;
         });
+      const sorted = mapped.sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0));
+
+      // Stored participant profiles are enough to paint the inbox immediately.
+      // Fresh profile lookups should never block navigation or the first render.
+      callback(sorted);
+
       const participantIds = Array.from(new Set(mapped.flatMap((conversation) => conversation.participantIds)));
-      const resolvedProfiles = new Map<string, Record<string, unknown>>();
-      await Promise.all(participantIds.map(async (uid) => {
+      void Promise.all(participantIds.map(async (uid) => {
         const profile = await getUserProfileById(uid).catch(() => null);
-        if (profile) resolvedProfiles.set(uid, profile as Record<string, unknown>);
-      }));
-      callback(mapped.map((conversation) => ({
-        ...conversation,
-        participantProfiles: conversation.participantIds.map((uid) => {
-          const stored = conversation.participantProfiles.find((profile) => profile.uid === uid);
-          const current = resolvedProfiles.get(uid);
-          return {
-            uid,
-            displayName: String(current?.displayName ?? stored?.displayName ?? "Kinet User"),
-            photoURL: String(current?.photoURL ?? stored?.photoURL ?? ""),
-          };
-        }),
-      })).sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0)));
+        return [uid, profile] as const;
+      })).then((profiles) => {
+        if (!active || version !== snapshotVersion) return;
+        const resolvedProfiles = new Map<string, Record<string, unknown>>();
+        profiles.forEach(([uid, profile]) => {
+          if (profile) resolvedProfiles.set(uid, profile as Record<string, unknown>);
+        });
+        callback(sorted.map((conversation) => ({
+          ...conversation,
+          participantProfiles: conversation.participantIds.map((uid) => {
+            const stored = conversation.participantProfiles.find((profile) => profile.uid === uid);
+            const current = resolvedProfiles.get(uid);
+            return {
+              uid,
+              displayName: String(current?.displayName ?? stored?.displayName ?? "Kinet User"),
+              photoURL: String(current?.photoURL ?? stored?.photoURL ?? ""),
+            };
+          }),
+        })));
+      });
     },
     () => {
       callback([]);
     }
   );
+
+  return () => {
+    active = false;
+    unsubscribe();
+  };
 }
 
 export function subscribeToConversationMessages(
