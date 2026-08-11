@@ -647,11 +647,22 @@ export async function searchProfiles(searchTerm: string) {
     : [];
 
   const visibleProfiles = snapshotDocs
-    .map((docSnapshot) => ({
-      ...docSnapshot.data(),
-      // Older profiles may not contain uid. The document ID is authoritative.
-      uid: docSnapshot.id,
-    }) as SearchProfile)
+    .map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return {
+        ...data,
+        // Older profiles may not contain all of the fields expected by profile cards.
+        // The document ID is authoritative and UI-facing values must be normalized.
+        uid: docSnapshot.id,
+        displayName: typeof data.displayName === "string" && data.displayName.trim() ? data.displayName : "Kinet user",
+        username: typeof data.username === "string" ? data.username : null,
+        photoURL: typeof data.photoURL === "string" ? data.photoURL : "",
+        verified: data.verified === true,
+        followers: Array.isArray(data.followers) ? data.followers.filter((item): item is string => typeof item === "string") : [],
+        following: Array.isArray(data.following) ? data.following.filter((item): item is string => typeof item === "string") : [],
+        interests: Array.isArray(data.interests) ? data.interests.filter((item): item is string => typeof item === "string") : [],
+      } as SearchProfile;
+    })
     .filter((profile: SearchProfile) => !blockedUsers.includes(profile.uid))
     .filter((profile: SearchProfile) => {
       const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;
