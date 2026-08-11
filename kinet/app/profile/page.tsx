@@ -125,8 +125,14 @@ function ProfilePageContent() {
       .then(() => getCurrentUserSettings())
       .then((nextSettings) => {
         if (!cancelled) {
-          setSettings(nextSettings);
+          setSettings({
+            ...nextSettings,
+            pinnedPosts: Array.isArray(nextSettings?.pinnedPosts) ? nextSettings.pinnedPosts.filter((item): item is string => typeof item === "string") : [],
+          });
         }
+      })
+      .catch(() => {
+        if (!cancelled) setSettings(null);
       })
       .finally(() => {
         if (!cancelled) {
@@ -384,7 +390,7 @@ function ProfilePageContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {posts
-                    .filter((post) => settings.pinnedPosts.includes(post.id))
+                    .filter((post) => settings.pinnedPosts?.includes(post.id))
                     .map((post) => (
                       <div key={post.id} className="overflow-hidden rounded-lg bg-muted">
                         {post.mediaType === "video" ? (

@@ -38,7 +38,21 @@ export async function removeFollower(followerId: string) {
 
 export async function getProfilesByIds(ids: string[]) {
   if (!db) return [];
-  const profiles = await Promise.all(ids.slice(0, 100).map(async (uid) => { const snapshot = await getDoc(doc(db!, "users", uid)); return snapshot.exists() ? ({ uid: snapshot.id, ...snapshot.data() } as SearchProfile) : null; }));
+  const profiles = await Promise.all(ids.filter((uid): uid is string => typeof uid === "string" && Boolean(uid)).slice(0, 100).map(async (uid) => {
+    const snapshot = await getDoc(doc(db!, "users", uid));
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as Record<string, unknown>;
+    return {
+      ...data,
+      uid: snapshot.id,
+      displayName: typeof data.displayName === "string" && data.displayName ? data.displayName : "Kinet user",
+      username: typeof data.username === "string" ? data.username : null,
+      photoURL: typeof data.photoURL === "string" ? data.photoURL : "",
+      verified: data.verified === true,
+      followers: Array.isArray(data.followers) ? data.followers.filter((item): item is string => typeof item === "string") : [],
+      following: Array.isArray(data.following) ? data.following.filter((item): item is string => typeof item === "string") : [],
+    } as SearchProfile;
+  }));
   return profiles.filter((profile): profile is SearchProfile => Boolean(profile));
 }
 
