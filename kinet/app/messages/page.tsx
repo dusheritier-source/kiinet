@@ -599,13 +599,19 @@ function MessagesPageContent() {
       return;
     }
 
-    const becameNewer = messages.length > previousMessages.length;
+    const previousLastMessageId = previousMessages[previousMessages.length - 1]?.id;
+    const currentLastMessageId = messages[messages.length - 1]?.id;
+    const becameNewer = messages.length > previousMessages.length || currentLastMessageId !== previousLastMessageId;
     previousMessagesRef.current = messages;
 
     const isInitialMessageLoad = previousMessages.length === 0;
-    const shouldAutoScroll = isInitialMessageLoad || isSentMessageRef.current || isNearBottom;
+    const sentLocally = isSentMessageRef.current;
+    const shouldAutoScroll = isInitialMessageLoad || sentLocally || (becameNewer && isNearBottom);
     if (shouldAutoScroll) {
-      const scrollLatest = () => container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad ? "auto" : "smooth" });
+      // A locally-sent bubble is inserted optimistically and then reconciled by
+      // Firestore with the same id. Snap into place once; do not animate again
+      // when the pending bubble becomes the confirmed message.
+      const scrollLatest = () => container.scrollTo({ top: container.scrollHeight, behavior: isInitialMessageLoad || sentLocally ? "auto" : "smooth" });
       scrollLatest();
       if (isInitialMessageLoad) window.requestAnimationFrame(scrollLatest);
       setShowNewMessagesButton(false);
