@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   },
   applicationName: "Kinet",
   description: "Share, discover, and connect with your community.",
+  verification: {
+    google: "NhNHQ9nxbnafEu8ltnZaqHlcP6scBj0DRJXLng9TxFw",
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
