@@ -162,16 +162,12 @@ function MessagesPageContent() {
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
     if (!container) return;
-    const end = messagesEndRef.current;
-    if (end) {
-      end.scrollIntoView({ behavior, block: "end" });
-      return;
-    }
     container.scrollTo({ top: container.scrollHeight, behavior });
   }, []);
 
   const openConversation = useCallback((conversationId: string) => {
     setShowNewMessagesButton(false);
+    setIsNearBottom(true);
     isSentMessageRef.current = true;
     initialScrollPendingRef.current = true;
     routeSyncRef.current = conversationId;
@@ -236,6 +232,7 @@ function MessagesPageContent() {
 
     if (routeConversation && routeConversation !== activeConversationId) {
       setShowNewMessagesButton(false);
+      setIsNearBottom(true);
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
       const cached = messagesCacheRef.current.get(routeConversation);
@@ -522,9 +519,9 @@ function MessagesPageContent() {
     return () => container.removeEventListener("scroll", onScroll);
   }, [activeConversationId, messages.length]);
 
-  // Ensure we reliably scroll to the latest message when a conversation first opens.
-  // Some clients may render the container hidden, or images/media can change height after
-  // initial render — use a ResizeObserver and fallback to guarantee we land at the bottom.
+  // Keep the thread pinned to its latest message while the initial mobile layout,
+  // cached data and media are settling. A single early scroll is not sufficient when
+  // the live snapshot or an image changes the container height immediately afterward.
   useEffect(() => {
     if (!activeConversationId) return;
     const container = messagesContainerRef.current;
@@ -532,38 +529,38 @@ function MessagesPageContent() {
     if (!initialScrollPendingRef.current) return;
 
     let ro: ResizeObserver | null = null;
-    let timedFallback: number | null = null;
     let initialLoadObserver: MutationObserver | null = null;
+    const timers: number[] = [];
 
-    const tryScrollToBottom = (behavior: ScrollBehavior = "auto") => {
-      if (!container) return;
-      container.scrollTo({ top: container.scrollHeight, behavior });
-      initialScrollPendingRef.current = false;
+    const tryScrollToBottom = () => {
+      if (!initialScrollPendingRef.current) return;
+      container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
+      setIsNearBottom(true);
+      setShowNewMessagesButton(false);
     };
+
+    tryScrollToBottom();
+    window.requestAnimationFrame(tryScrollToBottom);
+    [100, 300, 700].forEach((delay) => {
+      timers.push(window.setTimeout(tryScrollToBottom, delay));
+    });
+    timers.push(window.setTimeout(() => {
+      tryScrollToBottom();
+      initialScrollPendingRef.current = false;
+    }, 900));
 
     try {
       ro = new ResizeObserver(() => {
-        if (!initialScrollPendingRef.current) return;
-        tryScrollToBottom("auto");
+        tryScrollToBottom();
       });
       ro.observe(container);
     } catch {
       ro = null;
     }
 
-    timedFallback = window.setTimeout(() => {
-      if (initialScrollPendingRef.current) tryScrollToBottom("auto");
-    }, 300);
-
-    const end = messagesEndRef.current;
-    if (end && initialScrollPendingRef.current) {
-      tryScrollToBottom("auto");
-    }
-
     try {
       initialLoadObserver = new MutationObserver(() => {
-        if (!initialScrollPendingRef.current) return;
-        tryScrollToBottom("auto");
+        tryScrollToBottom();
       });
       initialLoadObserver.observe(container, { childList: true, subtree: true });
     } catch {
@@ -572,8 +569,8 @@ function MessagesPageContent() {
 
     return () => {
       if (ro) ro.disconnect();
-      if (timedFallback) window.clearTimeout(timedFallback);
       if (initialLoadObserver) initialLoadObserver.disconnect();
+      timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [activeConversationId, messagesLoading, messages.length]);
 
@@ -606,7 +603,6 @@ function MessagesPageContent() {
       if (isInitialMessageLoad) window.requestAnimationFrame(scrollLatest);
       setShowNewMessagesButton(false);
       isSentMessageRef.current = false;
-      initialScrollPendingRef.current = false;
       return;
     }
 
