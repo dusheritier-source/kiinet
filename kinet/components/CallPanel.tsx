@@ -203,15 +203,19 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   };
 
   const answerCall = async () => {
-    // For 1:1 calls legacy path
-    if (incoming?.offer && participantIds && participantIds.length === 2) {
+    const incomingCall = incoming;
+    if (!incomingCall) return;
+
+    // Support old call records that stored a single offer directly on the call.
+    if (incomingCall.offer) {
       try {
-        setCall(incoming); setIncoming(null);
-        const peer = await preparePeer(incoming.type, incoming.id, "callee");
-        await peer.setRemoteDescription(incoming.offer);
+        setCall(incomingCall); setIncoming(null);
+        const peer = await preparePeer(incomingCall.type, incomingCall.id, "callee");
+        peerRef.current = peer;
+        await peer.setRemoteDescription(incomingCall.offer);
         const answer = await peer.createAnswer(); await peer.setLocalDescription(answer);
-        await updateCallRecord(incoming.id, { answer: { type: answer.type, sdp: answer.sdp }, status: "active", answeredAt: new Date() });
-        cleanupsRef.current.push(subscribeCall(incoming.id, (record) => {
+        await updateCallRecord(incomingCall.id, { answer: { type: answer.type, sdp: answer.sdp }, status: "active", answeredAt: new Date() });
+        cleanupsRef.current.push(subscribeCall(incomingCall.id, (record) => {
           if (!record) return;
           if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); return; }
           setCall(record);
@@ -221,8 +225,10 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     }
 
     // For group calls: listen for offers targeted to me and respond with individual answers
-    const groupCallId = incoming?.id ?? call?.id ?? "";
-    if (!groupCallId) return;
+    const groupCallId = incomingCall.id;
+    setCall(incomingCall);
+    setIncoming(null);
+    let answered = false;
     // subscribeOffers will invoke callback for any offers targeted to current user
     const cleanupOffers = subscribeOffers(groupCallId, currentUserId, async (offerDoc) => {
       try {
@@ -231,9 +237,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current.set(callerId, pc);
         // ensure local stream
-        if (!localStreamRef.current) {
-          await preparePeer("video", groupCallId, "callee");
-        }
+        if (!localStreamRef.current) await preparePeer(incomingCall.type, groupCallId, "callee");
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
         pc.ontrack = (event) => {
           let el = remoteVideosRef.current.get(callerId);
@@ -247,14 +251,27 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         await pc.setRemoteDescription(offer as RTCSessionDescriptionInit);
         const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
         await addParticipantAnswer(groupCallId, currentUserId, callerId, { type: answer.type, sdp: answer.sdp });
+        if (!answered) {
+          answered = true;
+          await updateCallRecord(groupCallId, { status: "active", answeredAt: new Date() });
+        }
         // subscribe to caller's candidates -> me
         const cleanupCands = subscribeGroupCandidates(groupCallId, callerId, currentUserId, (candidate) => void pc.addIceCandidate(candidate).catch(() => undefined));
         cleanupsRef.current.push(cleanupCands);
-      } catch (err) {
-        // ignore individual offer failures
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not answer call.");
       }
     });
     cleanupsRef.current.push(cleanupOffers);
+    cleanupsRef.current.push(subscribeCall(groupCallId, (record) => {
+      if (!record) return;
+      if (["ended", "declined", "missed"].includes(record.status)) {
+        stopMedia(); setCall(null);
+        if (record.status === "ended") setRatingCall(record);
+        return;
+      }
+      setCall(record);
+    }));
   };
 
   const endCall = async () => {

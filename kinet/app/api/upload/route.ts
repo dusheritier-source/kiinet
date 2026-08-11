@@ -16,6 +16,22 @@ const allowedDocuments = new Set([
 ]);
 const maxFileSize = 50 * 1024 * 1024;
 
+function buildStoragePath(folder: FormDataEntryValue | null, uid: string, fileName: string) {
+  const safeUid = uid.replace(/[^a-z0-9._-]/gi, "-");
+  const folderSegments = String(folder ?? "posts")
+    .replace(/^Kinet\//i, "")
+    .split("/")
+    .map((segment) => segment.trim().replace(/[^a-z0-9_-]/gi, "-"))
+    .filter((segment) => segment && segment !== "." && segment !== ".." && segment !== safeUid);
+  const safeName = fileName
+    .normalize("NFKD")
+    .replace(/[^a-z0-9._-]/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[.-]+|[.-]+$/g, "") || "upload";
+  return [...(folderSegments.length ? folderSegments : ["posts"]), safeUid, `${Date.now()}-${crypto.randomUUID()}-${safeName}`].join("/");
+}
+
 export async function POST(request: Request) {
   try {
     const user = await getFirebaseUserFromRequest(request);
@@ -26,13 +42,9 @@ export async function POST(request: Request) {
     const contentType = file.type;
     if (!allowedTypes.test(contentType) && !allowedDocuments.has(contentType)) return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
     if (!file.size || file.size > maxFileSize) return NextResponse.json({ error: "Files must be smaller than 50 MB." }, { status: 400 });
-    const safeFolder = String(formData.get("folder") ?? "posts").replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "posts";
-    const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "") || "upload";
-    const safeUid = String(user.uid).replace(/[^a-z0-9._-]/gi, "-");
-    let path = `${safeFolder}/${safeUid}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+    const path = buildStoragePath(formData.get("folder"), String(user.uid), file.name);
 
     // Validate path for Supabase storage: no leading slashes, no consecutive slashes, no traversal, reasonable length
-    if (path.startsWith("/")) path = path.replace(/^\/+/, "");
     if (path.includes("//") || path.includes("..")) return NextResponse.json({ error: "Invalid upload path", path }, { status: 400 });
     if (path.length > 1024) return NextResponse.json({ error: "Upload path too long", path }, { status: 400 });
     const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
@@ -43,7 +55,7 @@ export async function POST(request: Request) {
         buffer: fileBuffer,
         contentType,
         userId: user.uid,
-        purpose: String(formData.get("purpose") ?? safeFolder),
+        purpose: String(formData.get("purpose") ?? path.split("/")[0]),
       });
     }
     try {
