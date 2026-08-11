@@ -145,6 +145,7 @@ function MessagesPageContent() {
   const [noteText, setNoteText] = useState("");
   const [noteAudience, setNoteAudience] = useState<NoteItem["audience"]>("everyone");
   const [isRecording, setIsRecording] = useState(false);
+  const [returningConversationId, setReturningConversationId] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -162,6 +163,7 @@ function MessagesPageContent() {
   const inboxScrollPositionRef = useRef(0);
   const handledStarterUserRef = useRef<string | null>(null);
   const closingConversationRef = useRef<string | null>(null);
+  const conversationButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   const getCachedConversationMessages = useCallback((conversationId: string) => {
     const memoryCached = messagesCacheRef.current.get(conversationId);
@@ -240,7 +242,9 @@ function MessagesPageContent() {
   }, [activeConversationId, getCachedConversationMessages, searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
-    closingConversationRef.current = activeConversationId;
+    const conversationToReturnTo = activeConversationId;
+    closingConversationRef.current = conversationToReturnTo;
+    setReturningConversationId(conversationToReturnTo);
     setActiveConversationId(null);
     setOpenMessageMenuId(null);
     setShowChatMenu(false);
@@ -253,8 +257,15 @@ function MessagesPageContent() {
     nextParams.delete("user");
     window.history.replaceState(null, "", `/messages${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
     window.requestAnimationFrame(() => {
-      window.scrollTo({ top: inboxScrollPositionRef.current, behavior: "auto" });
+      const conversationButton = conversationToReturnTo ? conversationButtonRefs.current.get(conversationToReturnTo) : null;
+      if (conversationButton) {
+        conversationButton.scrollIntoView({ block: "center", behavior: "auto" });
+        conversationButton.focus({ preventScroll: true });
+      } else {
+        window.scrollTo({ top: inboxScrollPositionRef.current, behavior: "auto" });
+      }
     });
+    window.setTimeout(() => setReturningConversationId((current) => current === conversationToReturnTo ? null : current), 1800);
   }, [activeConversationId, searchParams]);
 
   useEffect(() => {
@@ -1140,11 +1151,12 @@ function MessagesPageContent() {
                   return (
                     <button
                       key={conversation.id}
+                      ref={(node) => { if (node) conversationButtonRefs.current.set(conversation.id, node); else conversationButtonRefs.current.delete(conversation.id); }}
                       type="button"
                       onClick={() => openConversation(conversation.id)}
                       onMouseEnter={() => void router.prefetch(`/messages?conversation=${conversation.id}`)}
                     className={`w-full rounded-[28px] border p-3 text-left transition ${
-                        activeConversationId === conversation.id ? "border-primary/20 bg-muted/80" : "border-transparent hover:bg-muted/60"
+                        activeConversationId === conversation.id || returningConversationId === conversation.id ? "border-primary/40 bg-muted/80 ring-2 ring-primary/20" : "border-transparent hover:bg-muted/60"
                       }`}
                     >
                       <div className="flex items-center gap-3">
