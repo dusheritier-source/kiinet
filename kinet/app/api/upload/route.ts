@@ -16,6 +16,18 @@ const allowedDocuments = new Set([
 ]);
 const maxFileSize = 50 * 1024 * 1024;
 
+function getStorageBucket() {
+  const configured = process.env.SUPABASE_STORAGE_BUCKET
+    ?.trim()
+    .replace(/^['"]|['"]$/g, "")
+    .trim();
+  if (!configured) return "kinet-media";
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(configured)) {
+    throw new Error("Supabase storage bucket is invalid. Set SUPABASE_STORAGE_BUCKET to a bucket name such as kinet-media.");
+  }
+  return configured;
+}
+
 function buildStoragePath(folder: FormDataEntryValue | null, uid: string, fileName: string) {
   const safeUid = uid.replace(/[^a-z0-9._-]/gi, "-");
   const folderSegments = String(folder ?? "posts")
@@ -47,7 +59,7 @@ export async function POST(request: Request) {
     // Validate path for Supabase storage: no leading slashes, no consecutive slashes, no traversal, reasonable length
     if (path.includes("//") || path.includes("..")) return NextResponse.json({ error: "Invalid upload path", path }, { status: 400 });
     if (path.length > 1024) return NextResponse.json({ error: "Upload path too long", path }, { status: 400 });
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
+    const bucket = getStorageBucket();
     const admin = getSupabaseAdmin();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     if (!isModerationDisabled() && (contentType.startsWith("image/") || contentType.startsWith("video/"))) {
@@ -88,7 +100,7 @@ export async function DELETE(request: Request) {
     if (!uploadPath || uploadPath.includes("..") || !uploadPath.split("/").includes(user.uid)) {
       return NextResponse.json({ error: "Invalid upload path." }, { status: 400 });
     }
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "kinet-media";
+    const bucket = getStorageBucket();
     const { error } = await getSupabaseAdmin().storage.from(bucket).remove([uploadPath]);
     if (error) return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
     return NextResponse.json({ status: "deleted" });

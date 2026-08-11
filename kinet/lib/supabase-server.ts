@@ -2,12 +2,31 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 
+function cleanEnvironmentValue(value: string | undefined) {
+  return value?.trim().replace(/^['"]|['"]$/g, "").trim();
+}
+
+function getSupabaseProjectUrl(value: string) {
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(withProtocol);
+  } catch {
+    throw new Error("Supabase Storage URL is invalid. Use https://<project-ref>.supabase.co.");
+  }
+  if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".supabase.co")) {
+    throw new Error("Supabase Storage URL must be the project URL: https://<project-ref>.supabase.co.");
+  }
+  // createClient expects the project origin and adds /storage/v1 itself.
+  return parsed.origin;
+}
+
 export function getSupabaseAdmin() {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL)?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const configuredUrl = cleanEnvironmentValue(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
+  const serviceRoleKey = cleanEnvironmentValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const missing: string[] = [];
-  if (!url) missing.push("NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL");
+  if (!configuredUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL");
   if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
 
   if (missing.length) {
@@ -15,5 +34,6 @@ export function getSupabaseAdmin() {
     throw new Error(msg);
   }
 
-  return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const url = getSupabaseProjectUrl(configuredUrl!);
+  return createClient(url, serviceRoleKey!, { auth: { persistSession: false, autoRefreshToken: false } });
 }
