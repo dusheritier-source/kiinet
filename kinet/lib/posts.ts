@@ -1066,7 +1066,7 @@ function scorePosts(posts: FeedPost[], following: string[], _legacyPreference: s
       const recency = Math.max(0, 5 - ageHours / 12);
       const engagement = Math.log2(1 + post.likes.length + post.commentsCount * 2 + post.shares * 3 + post.saves.length * 2);
       const completionRate = (post.completedViews ?? 0) / Math.max(1, post.views ?? 0);
-      return recency + engagement + completionRate * 5 + (following.includes(post.userId) ? 3 : 0);
+      return recency + engagement + completionRate * 5 + (following.includes(post.userId) ? 12 : 0);
     };
     return score(b) - score(a);
   });
@@ -1142,44 +1142,69 @@ export function subscribeToFeed(
 
   let stopped = false;
   let snapshotVersion = 0;
+  let rawPosts: FeedPost[] = [];
+  let viewerProfile: Awaited<ReturnType<typeof getCurrentAuthorProfile>> | null = null;
+
+  const publishFeed = async () => {
+    if (!viewerProfile) return;
+    const currentVersion = ++snapshotVersion;
+    try {
+      const profile = viewerProfile;
+      const viewerId = auth?.currentUser?.uid ?? "";
+      const preferredSport = profile.defaultSport ?? "";
+      const following = profile.following ?? [];
+      const blockedUsers = profile.blockedUsers ?? [];
+      const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
+      const privacyMap = await getAuthorPrivacyMap(authorIds);
+
+      if (!stopped && currentVersion === snapshotVersion) {
+        callback(
+          scorePosts(
+            rawPosts.filter((post) => {
+              if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
+              if (post.userId === viewerId) return true;
+              return !blockedUsers.includes(post.userId)
+                && matchesFeedPreferences(post, profile.profile)
+                && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
+            }),
+            following,
+            preferredSport
+          )
+        );
+      }
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error("Could not load the feed."));
+    }
+  };
+
+  const viewerId = auth?.currentUser?.uid ?? "";
+  const unsubscribeProfile = viewerId
+    ? onSnapshot(doc(db, "users", viewerId), (snapshot) => {
+        const profile = snapshot.exists() ? snapshot.data() as Record<string, unknown> : {};
+        const role = (profile.role as Record<string, unknown> | undefined) ?? {};
+        viewerProfile = {
+          profile,
+          author: {
+            name: auth?.currentUser?.displayName || String(profile.displayName ?? "Kinet User"),
+            username: `@${String(profile.username ?? viewerId.slice(0, 8))}`,
+            avatar: auth?.currentUser?.photoURL || String(profile.photoURL ?? ""),
+            verified: Boolean(profile.verified),
+            role: role.type ? String(role.type) : null,
+            location: profile.location ? String(profile.location) : null,
+          },
+          defaultSport: role.sport ? String(role.sport) : "",
+          following: Array.isArray(profile.following) ? profile.following as string[] : [],
+          blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers as string[] : [],
+        };
+        void publishFeed();
+      }, (error) => onError?.(error))
+    : () => undefined;
 
   const unsubscribe = onSnapshot(
     feedQuery,
-    async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
-      const currentVersion = ++snapshotVersion;
-      try {
-        const rawPosts = snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data()));
-        const profile = await getCachedViewerProfile();
-        const viewerId = auth?.currentUser?.uid ?? "";
-        const preferredSport = profile?.defaultSport ?? "";
-        const following = profile?.following ?? [];
-        const blockedUsers = profile?.blockedUsers ?? [];
-        const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
-        const privacyMap = await getAuthorPrivacyMap(authorIds);
-
-        // Ignore an older async snapshot if a newer real-time update finished first.
-        if (!stopped && currentVersion === snapshotVersion) {
-          callback(
-            scorePosts(
-              rawPosts.filter(
-                (post) => {
-                  if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
-                  // Personal feed controls should never make a creator's own
-                  // newly published post disappear from their feed.
-                  if (post.userId === viewerId) return true;
-                  return !blockedUsers.includes(post.userId)
-                    && matchesFeedPreferences(post, profile?.profile)
-                    && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
-                }
-              ),
-              following,
-              preferredSport
-            )
-          );
-        }
-      } catch (error) {
-        onError?.(error instanceof Error ? error : new Error("Could not load the feed."));
-      }
+    (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+      rawPosts = snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data()));
+      void publishFeed();
     },
     (error: Error) => {
       onError?.(error);
@@ -1188,6 +1213,7 @@ export function subscribeToFeed(
 
   return () => {
     stopped = true;
+    unsubscribeProfile();
     unsubscribe();
   };
 }
