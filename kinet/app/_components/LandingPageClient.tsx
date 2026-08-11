@@ -30,9 +30,7 @@ export default function LandingPageClient() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="mb-8 flex items-center justify-center gap-3">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/50">
-                <span className="text-5xl font-bold text-white">K</span>
-              </div>
+              <img src="/icon-192.png" alt="Kinet logo" width={80} height={80} className="h-20 w-20 rounded-[22px] object-cover shadow-lg shadow-black/40" />
               <span className="text-6xl font-bold text-white">Kinet</span>
             </div>
 

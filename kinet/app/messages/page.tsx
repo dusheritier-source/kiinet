@@ -924,12 +924,6 @@ function MessagesPageContent() {
 
   return (
     <ProtectedRoute>
-      <CallPanel
-        currentUserId={currentUserId}
-        conversationId={activeConversation?.id}
-        participantIds={activeConversation?.participantIds}
-        title={activeConversation?.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Incoming call"}
-      />
       <div className="mobile-safe-shell mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1196,6 +1190,12 @@ function MessagesPageContent() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <CallPanel
+                        currentUserId={currentUserId}
+                        conversationId={activeConversation.id}
+                        participantIds={activeConversation.participantIds}
+                        title={activeConversation.kind === "group" ? activeConversation.groupName || "Group" : activeOtherUser?.displayName || "Conversation"}
+                      />
                       <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
                       <Button variant="ghost" size="icon" title="Close conversation" aria-label="Close conversation" onClick={closeConversation}><X className="h-5 w-5" /></Button>
                       {showChatMenu ? <div className="absolute right-4 top-16 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
