@@ -57,6 +57,25 @@ interface StoredProfile {
   };
 }
 
+function normalizeStoredProfile(value: unknown): StoredProfile | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const normalized = { ...raw } as StoredProfile;
+  normalized.followers = Array.isArray(raw.followers) ? raw.followers.filter((item): item is string => typeof item === "string") : [];
+  normalized.following = Array.isArray(raw.following) ? raw.following.filter((item): item is string => typeof item === "string") : [];
+  normalized.savedPosts = Array.isArray(raw.savedPosts) ? raw.savedPosts.filter((item): item is string => typeof item === "string") : [];
+  normalized.socialLinks = Array.isArray(raw.socialLinks)
+    ? raw.socialLinks.flatMap((item) => item && typeof item === "object"
+      ? [{ label: String((item as Record<string, unknown>).label ?? "Link"), url: String((item as Record<string, unknown>).url ?? "") }]
+      : []).filter((item) => item.url)
+    : [];
+  normalized.settings = raw.settings && typeof raw.settings === "object" ? raw.settings as StoredProfile["settings"] : {};
+  normalized.role = raw.role && typeof raw.role === "object" ? raw.role as StoredProfile["role"] : {};
+  normalized.business = raw.business && typeof raw.business === "object" ? raw.business as StoredProfile["business"] : undefined;
+  normalized.actionButton = raw.actionButton && typeof raw.actionButton === "object" ? raw.actionButton as StoredProfile["actionButton"] : null;
+  return normalized;
+}
+
 function getProfileThemeClass(theme?: string) {
   if (theme === "sunset") return "from-orange-500 via-rose-500 to-amber-400";
   if (theme === "court") return "from-emerald-600 via-lime-500 to-yellow-300";
@@ -100,7 +119,7 @@ function ProfilePageContent() {
     getCurrentUserProfile()
       .then((data) => {
         if (!cancelled) {
-          setProfile((data as StoredProfile | null) ?? null);
+          setProfile(normalizeStoredProfile(data));
         }
       })
       .then(() => getCurrentUserSettings())
@@ -116,9 +135,9 @@ function ProfilePageContent() {
       });
 
     const unsubscribe = subscribeToUserPosts(user.uid, setPosts);
-    const unsubscribeProfile = subscribeToUserProfile(user.uid, (data) => { setProfile(data as StoredProfile | null); });
+    const unsubscribeProfile = subscribeToUserProfile(user.uid, (data) => { setProfile(normalizeStoredProfile(data)); });
     const unsubscribeHighlights = subscribeToProfileHighlights(user.uid, setHighlights);
-    void getProfileStories(user.uid).then(setStoryArchive);
+    void getProfileStories(user.uid).then(setStoryArchive).catch(() => setStoryArchive([]));
     return () => {
       cancelled = true;
       unsubscribe();
@@ -129,8 +148,8 @@ function ProfilePageContent() {
 
   useEffect(() => {
     if (!user || !profile) return;
-    void getTaggedProfilePosts(user.uid).then(setTaggedPosts);
-    void getSuggestedSocialProfiles({ ...profile, uid: user.uid, displayName: profile.displayName || user.displayName || "User", photoURL: profile.photoURL || "", verified: Boolean(profile.verified), followers: profile.followers ?? [], following: profile.following ?? [] } as SearchProfile).then(setSuggestions);
+    void getTaggedProfilePosts(user.uid).then(setTaggedPosts).catch(() => setTaggedPosts([]));
+    void getSuggestedSocialProfiles({ ...profile, uid: user.uid, displayName: profile.displayName || user.displayName || "User", photoURL: profile.photoURL || "", verified: Boolean(profile.verified), followers: profile.followers ?? [], following: profile.following ?? [] } as SearchProfile).then(setSuggestions).catch(() => setSuggestions([]));
     return subscribeToFollowRequests(setFollowRequests);
   }, [profile, user]);
 

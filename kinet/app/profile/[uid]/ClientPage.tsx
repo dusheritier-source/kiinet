@@ -13,8 +13,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { subscribeToUserPosts, type FeedPost } from "@/lib/posts";
 import { recordProfileVisit } from "@/lib/profile-analytics";
-import { getUserProfileById, subscribeToUserProfile, toggleFollowUser } from "@/lib/user-profile";
-import { getTaggedProfilePosts, hasPendingFollowRequest, toggleSocialList } from "@/lib/profile-social";
+import { getUserProfileById, subscribeToUserProfile, toggleFollowUser, type SearchProfile } from "@/lib/user-profile";
+import { getProfilesByIds, getTaggedProfilePosts, hasPendingFollowRequest, toggleSocialList } from "@/lib/profile-social";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
 
@@ -85,6 +85,9 @@ export default function PublicProfilePageContent() {
   const [followRequested, setFollowRequested] = useState(false);
   const [shared, setShared] = useState(false);
   const [highlights, setHighlights] = useState<ProfileHighlight[]>([]);
+  const [connectionTitle, setConnectionTitle] = useState("");
+  const [connectionProfiles, setConnectionProfiles] = useState<SearchProfile[]>([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -111,10 +114,10 @@ export default function PublicProfilePageContent() {
 
   const isSelf = user?.uid === uid;
   const isFollowing = Boolean(user && profile?.followers?.includes(user.uid));
-  const isFollowedBy = Boolean(user && profile?.following?.includes(user.uid));
   const isPrivate = profile?.settings?.privateAccount === true;
-  const canViewContent = isSelf || !isPrivate || (isFollowing && isFollowedBy);
-  const canViewProfile = isSelf || !isPrivate || (isFollowing && isFollowedBy);
+  const canViewContent = isSelf || !isPrivate || isFollowing;
+  const canViewProfile = isSelf || !isPrivate || isFollowing;
+  const canViewConnections = canViewProfile && profile?.settings?.showFollowerCounts !== false;
 
   useEffect(() => {
     if (!uid || !canViewContent) {
@@ -171,6 +174,17 @@ export default function PublicProfilePageContent() {
   const temporaryAvatarActive = Boolean(profile.temporaryAvatarExpiresAt?.seconds && profile.temporaryAvatarExpiresAt.seconds * 1000 > Date.now());
   const avatarUrl = temporaryAvatarActive ? (profile.photoURL || "") : (profile.previousPhotoURL || profile.photoURL || "");
 
+  const openConnections = async (title: string, ids: string[]) => {
+    setConnectionTitle(title);
+    setConnectionProfiles([]);
+    setConnectionsLoading(true);
+    try {
+      setConnectionProfiles(await getProfilesByIds(ids));
+    } finally {
+      setConnectionsLoading(false);
+    }
+  };
+
   if (!canViewProfile) {
     return (
       <div className="mx-auto max-w-3xl py-8">
@@ -178,8 +192,8 @@ export default function PublicProfilePageContent() {
           <CardContent className="p-12 text-center">
             <Lock className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 text-xl font-semibold">This account is private</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Follow this account and wait for them to follow you back to see their profile and content.</p>
-            {isFollowing && !isFollowedBy ? <p className="mt-1 text-xs text-muted-foreground">Your follow request is pending approval.</p> : null}
+            <p className="mt-2 text-sm text-muted-foreground">Follow this account and wait for approval to see their profile and content.</p>
+            {followRequested ? <p className="mt-1 text-xs text-muted-foreground">Your follow request is pending approval.</p> : null}
           </CardContent>
         </Card>
       </div>
@@ -218,15 +232,12 @@ export default function PublicProfilePageContent() {
               <p className="mt-2 leading-6">{profile.bio || profile.role?.bio || "No bio yet."}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">{profile.location ? <span className="inline-flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</span> : null}{profile.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><Globe2 className="h-4 w-4" />Website</a> : null}{profile.musicUrl ? <a href={profile.musicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><Music2 className="h-4 w-4" />Profile song</a> : null}{profile.contactEmail ? <a href={`mailto:${profile.contactEmail}`} className="inline-flex items-center gap-1 text-primary"><Mail className="h-4 w-4" />Contact</a> : null}{profile.socialLinks?.map((link) => <a key={`${link.label}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{link.label}</a>)}</div>
               {profile.actionButton ? <Button className="mt-3" size="sm" asChild style={{ backgroundColor: profile.accentColor || undefined }}><a href={profile.actionButton.url} target="_blank" rel="noreferrer">{profile.actionButton.label}</a></Button> : null}
-              <div className="mt-4 flex gap-4 text-sm text-muted-foreground">
-                {profile.settings?.showFollowerCounts !== false ? <>
-                <span>{profile.followers?.length ?? 0} followers</span>
-                <span>{profile.following?.length ?? 0} following</span>
-                </> : null}
-                <span>{standardPosts.length} posts</span>
-                <span>{reelPosts.length} reels</span>
-                {mutualCount ? <span className="text-primary">{mutualCount} mutual</span> : null}
+              <div className="mt-5 grid max-w-md grid-cols-3 gap-2 text-center">
+                <div><strong className="block text-lg text-foreground">{standardPosts.length + reelPosts.length}</strong><span className="text-xs text-muted-foreground">posts</span></div>
+                {canViewConnections ? <button type="button" onClick={() => void openConnections("Followers", profile.followers ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.followers?.length ?? 0}</strong><span className="text-xs text-muted-foreground">followers</span></button> : null}
+                {canViewConnections ? <button type="button" onClick={() => void openConnections("Following", profile.following ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.following?.length ?? 0}</strong><span className="text-xs text-muted-foreground">following</span></button> : null}
               </div>
+              {mutualCount ? <p className="mt-2 text-xs text-primary">{mutualCount} mutual connection{mutualCount === 1 ? "" : "s"}</p> : null}
               <div className="mt-4 flex flex-wrap gap-3">
                 {isSelf ? (
                   <Button asChild>
@@ -337,6 +348,12 @@ export default function PublicProfilePageContent() {
         {visibleContent.length < allVisibleContent.length ? <div className="mt-5 text-center"><Button variant="outline" onClick={() => setVisibleCount((count) => count + 12)}>Load more</Button></div> : null}
         </>}
       </div>
+      {connectionTitle ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" onClick={() => setConnectionTitle("")}>
+        <div className="max-h-[75vh] w-full max-w-md overflow-hidden rounded-t-3xl bg-background shadow-2xl sm:rounded-3xl" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b px-5 py-4"><h2 className="font-semibold">{connectionTitle}</h2><button type="button" onClick={() => setConnectionTitle("")} className="rounded-full px-3 py-1 text-xl" aria-label="Close">×</button></div>
+          <div className="max-h-[65vh] overflow-y-auto p-3">{connectionsLoading ? <p className="p-6 text-center text-sm text-muted-foreground">Loading…</p> : connectionProfiles.length ? connectionProfiles.map((connection) => <Link key={connection.uid} href={`/profile/${connection.uid}`} onClick={() => setConnectionTitle("")} className="flex items-center gap-3 rounded-xl p-3 hover:bg-muted"><Avatar className="h-11 w-11"><AvatarImage src={connection.photoURL} /><AvatarFallback>{connection.displayName?.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar><div className="min-w-0"><p className="truncate font-medium">{connection.displayName}</p><p className="truncate text-sm text-muted-foreground">@{connection.username || connection.uid.slice(0, 8)}</p></div></Link>) : <p className="p-8 text-center text-sm text-muted-foreground">No people yet.</p>}</div>
+        </div>
+      </div> : null}
     </div>
   );
 }

@@ -160,6 +160,33 @@ function MessagesPageContent() {
   const loadingOlderRef = useRef(false);
   const routeSyncRef = useRef<string | null>(null);
 
+  const getCachedConversationMessages = useCallback((conversationId: string) => {
+    const memoryCached = messagesCacheRef.current.get(conversationId);
+    if (memoryCached) return memoryCached;
+    if (!currentUserId) return undefined;
+    try {
+      const stored = JSON.parse(localStorage.getItem(`kinet:messages:${currentUserId}:${conversationId}`) || "null") as { savedAt?: number; messages?: ConversationMessage[] } | null;
+      if (!stored?.messages || !Array.isArray(stored.messages) || Date.now() - Number(stored.savedAt ?? 0) > 7 * 86_400_000) return undefined;
+      const valid = stored.messages.filter((message) => message && message.conversationId === conversationId && typeof message.id === "string").slice(-40);
+      if (!valid.length) return undefined;
+      messagesCacheRef.current.set(conversationId, valid);
+      return valid;
+    } catch {
+      return undefined;
+    }
+  }, [currentUserId]);
+
+  const cacheConversationMessages = useCallback((conversationId: string, nextMessages: ConversationMessage[]) => {
+    const recentMessages = nextMessages.slice(-40);
+    messagesCacheRef.current.set(conversationId, recentMessages);
+    if (!currentUserId) return;
+    try {
+      localStorage.setItem(`kinet:messages:${currentUserId}:${conversationId}`, JSON.stringify({ savedAt: Date.now(), messages: recentMessages }));
+    } catch {
+      // The in-memory cache still provides instant navigation when storage is full.
+    }
+  }, [currentUserId]);
+
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -175,7 +202,7 @@ function MessagesPageContent() {
     routeSyncRef.current = conversationId;
 
     // If we have cached messages for this conversation, show them immediately
-    const cached = messagesCacheRef.current.get(conversationId);
+    const cached = getCachedConversationMessages(conversationId);
     if (cached) {
       setMessages(cached);
       setMessagesLoading(false);
@@ -204,7 +231,7 @@ function MessagesPageContent() {
         scrollToLatest("auto");
       }
     }, 120);
-  }, [searchParams, scrollToLatest]);
+  }, [getCachedConversationMessages, searchParams, scrollToLatest]);
 
   const closeConversation = useCallback(() => {
     setActiveConversationId(null);
@@ -238,7 +265,7 @@ function MessagesPageContent() {
       isSentMessageRef.current = true;
       initialScrollPendingRef.current = true;
       openingAutoScrollConversationRef.current = routeConversation;
-      const cached = messagesCacheRef.current.get(routeConversation);
+      const cached = getCachedConversationMessages(routeConversation);
       if (cached) {
         setMessages(cached);
         setMessagesLoading(false);
@@ -260,7 +287,7 @@ function MessagesPageContent() {
       setShowNewMessagesButton(false);
       routeSyncRef.current = null;
     }
-  }, [searchParams, activeConversationId]);
+  }, [searchParams, activeConversationId, getCachedConversationMessages]);
 
   useEffect(() => {
     if (!user) return;
@@ -413,7 +440,7 @@ function MessagesPageContent() {
     openingAutoScrollConversationRef.current = activeConversationId;
 
     // If we have cached messages for this conversation, show them immediately.
-    const cached = messagesCacheRef.current.get(activeConversationId);
+    const cached = getCachedConversationMessages(activeConversationId);
     if (cached) {
       setMessages(cached);
       setMessagesLoading(false);
@@ -429,7 +456,7 @@ function MessagesPageContent() {
       activeConversationId,
       (nextMessages, hasOlder) => {
         // cache and set messages
-        messagesCacheRef.current.set(activeConversationId, nextMessages);
+        cacheConversationMessages(activeConversationId, nextMessages);
         setMessages((current) => {
           const nextIds = new Set(nextMessages.map((message) => message.id));
           const oldestLiveSeconds = nextMessages[0]?.createdAt?.seconds ?? Number.POSITIVE_INFINITY;
@@ -455,7 +482,7 @@ function MessagesPageContent() {
         setShowSkeleton(false);
       }
     );
-  }, [activeConversationId]);
+  }, [activeConversationId, cacheConversationMessages, getCachedConversationMessages]);
 
   const visibleConversations = useMemo(() => {
     if (!user) {
