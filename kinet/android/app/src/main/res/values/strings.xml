@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">HoopLink</string>
-    <string name="title_activity_main">HoopLink</string>
-    <string name="package_name">com.hooplink.app</string>
-    <string name="custom_url_scheme">com.hooplink.app</string>
+    <string name="app_name">Kinet</string>
+    <string name="title_activity_main">Kinet</string>
+    <string name="package_name">com.kinet.app</string>
+    <string name="custom_url_scheme">kinet</string>
 </resources>

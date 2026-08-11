@@ -15,10 +15,10 @@ if (keystorePropertiesFile.exists() && !hasKeystoreConfig) {
 }
 
 android {
-    namespace = "com.hooplink.app"
+    namespace = "com.kinet.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.hooplink.app"
+        applicationId "com.kinet.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -1,4 +1,4 @@
-# Kinet Mobile App Setup
+# Kinet Native App Release Guide
 
 This project is prepared for a Capacitor wrapper so you can ship it to the App Store and Google Play.
 
@@ -11,84 +11,78 @@ Why this is the best fit here:
 - Firebase auth/database and Cloudinary uploads are already web-based
 - you can ship mobile apps faster without rewriting everything in React Native
 
-## Before You Start
+## Production configuration
 
-1. Deploy the web app first
-2. Make sure the production URL works well on mobile
-3. Replace the placeholder URL in `capacitor.config.json`
+The Android and iOS shells load the production application from:
 
-Update:
-- `server.url`
+- `https://kinett.vercel.app`
+- application ID / bundle ID: `com.kinet.app`
+- deep-link scheme: `kinet://`
 
-Example:
-- `https://your-kinet-domain.com`
+Camera, microphone, photo-library, notification, and internet permissions are
+declared in the native projects. Run `npm run cap:sync` after every native
+configuration or plugin change.
 
-## Install Capacitor
+## Android / Google Play
 
-Run:
-
-```powershell
-npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios
-```
-
-Then initialize if needed:
+Use Android Studio's bundled JDK 21 (or another supported JDK 21), then run:
 
 ```powershell
-npx cap init Kinet com.kinet.app
-```
-
-If it asks, keep:
-- App name: `Kinet`
-- App ID: `com.kinet.app`
-
-## Add Native Platforms
-
-```powershell
-npx cap add android
-npx cap add ios
-```
-
-## Sync the Project
-
-```powershell
-npm run cap:sync
-```
-
-## Open Native Projects
-
-Android:
-
-```powershell
+npm run cap:sync:android
 npm run cap:open:android
 ```
 
-iOS:
+For a signed Play Store bundle, copy `android/keystore.properties.example` to
+`android/keystore.properties`, fill in the release keystore values, and run:
 
 ```powershell
+npm run android:bundle:release
+```
+
+The `.aab` is created at
+`android/app/build/outputs/bundle/release/app-release.aab`.
+
+Increase `versionCode` and `versionName` in `android/app/build.gradle` for each
+Play Store release. Never commit `keystore.properties` or the keystore.
+
+## iOS / App Store
+
+iOS releases require macOS with Xcode:
+
+```bash
+npm run cap:sync
 npm run cap:open:ios
 ```
 
-## App Store Readiness Checklist
+In Xcode, select the Apple Developer team, verify bundle ID `com.kinet.app`,
+increment the build number, archive the app, and upload it through Organizer.
 
-Before submitting, make sure you also have:
+## Deep links
 
-1. Real app icons and splash screens
-2. Privacy policy URL
-3. Terms of service URL
-4. Production API/env vars
-5. Mobile-tested auth flow
-6. Deep-link/domain setup
-7. Keyboard-safe screens
-8. Stable upload and media playback on real devices
+The custom `kinet://` scheme is registered on both platforms. Verified HTTPS
+links additionally require files served by the production domain:
 
-## Important Note
+- Android: `/.well-known/assetlinks.json`
+- iOS: `/.well-known/apple-app-site-association`
 
-This config assumes a hosted app URL, not a fully bundled offline Next.js export.
+Add these only after the Google Play signing certificate SHA-256 and Apple Team
+ID are known.
 
-That is intentional.
+## Store submission checklist
 
-For this repo, the cleanest store path is:
-- host Kinet on Vercel
-- point Capacitor at that live domain
-- submit the iOS and Android wrappers
+- Apple Developer and Google Play Console accounts
+- Android upload keystore and Apple distribution signing
+- unique screenshots for required phone/tablet sizes
+- privacy-policy and support URLs
+- App Privacy and Google Play Data Safety declarations
+- content rating and age-rating questionnaires
+- real-device tests for login, uploads, voice notes, calls, notifications, and links
+- production Firebase authorized domains include `kinett.vercel.app`
+
+## Current architecture
+
+Kinet is a Capacitor native shell around the hosted Next.js application. This
+keeps server routes, Firebase, and Supabase working while providing installable
+Android and iOS binaries. Store releases therefore require the production site
+to remain available over HTTPS.
 
