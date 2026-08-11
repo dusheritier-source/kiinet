@@ -34,6 +34,25 @@ export async function createCallRecord(conversationId: string, participantIds: s
 export const updateCallRecord = async (callId: string, data: Record<string, unknown>) =>
   updateDoc(doc(requireDb(), "calls", callId), { ...data, updatedAt: serverTimestamp() });
 
+export async function acceptCallRecord(callId: string) {
+  const firestore = requireDb();
+  await runTransaction(firestore, async (transaction) => {
+    const callRef = doc(firestore, "calls", callId);
+    const snapshot = await transaction.get(callRef);
+    if (!snapshot.exists()) throw new Error("This call is no longer available.");
+
+    const status = snapshot.data().status as CallStatus;
+    if (status === "active") return;
+    if (status !== "ringing") throw new Error("This call is no longer ringing.");
+
+    transaction.update(callRef, {
+      status: "active",
+      answeredAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 export async function markCallMissedIfRinging(callId: string) {
   const firestore = requireDb();
   const missed = await runTransaction(firestore, async (transaction) => {

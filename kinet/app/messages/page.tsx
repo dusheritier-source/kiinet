@@ -126,6 +126,7 @@ function MessagesPageContent() {
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [forwardingMessage, setForwardingMessage] = useState<ConversationMessage | null>(null);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  const [messageMenuOpensUp, setMessageMenuOpensUp] = useState(false);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showComposerMenu, setShowComposerMenu] = useState(false);
@@ -209,6 +210,9 @@ function MessagesPageContent() {
 
   const closeConversation = useCallback(() => {
     setActiveConversationId(null);
+    setOpenMessageMenuId(null);
+    setShowChatMenu(false);
+    setShowConversationInfo(false);
     setShowNewMessagesButton(false);
     setShowSkeleton(false);
     setMessagesLoading(false);
@@ -1144,24 +1148,23 @@ function MessagesPageContent() {
           </div>
 
           <div
-            className={`flex min-h-0 w-full min-w-0 flex-col overflow-hidden md:h-[calc(100dvh-12rem)] md:rounded-[32px] md:border md:bg-background md:shadow-sm ${
+            className={`fixed inset-0 z-50 flex h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background md:static md:z-auto md:h-[calc(100dvh-12rem)] md:rounded-[32px] md:border md:shadow-sm ${
               !showConversationPane ? "hidden md:flex" : ""
             }`}
           >
             {activeConversation ? (
               <>
-                <div className="sticky top-0 z-20 border-b bg-background/95 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 backdrop-blur-sm shadow-sm">
+                <div className="relative z-30 shrink-0 border-b bg-background/95 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm backdrop-blur-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={closeConversation}
-                        title="Close chat"
-                        aria-label="Close chat"
+                        title="Back to conversations"
+                        aria-label="Back to conversations"
                       >
                         <ArrowLeft className="h-5 w-5" />
-                        <span className="ml-1 hidden sm:inline">Close</span>
                       </Button>
                       <ProfileAvatar
                         src={activeConversation.kind === "group" ? activeConversation.groupPhotoURL : activeOtherUser?.photoURL}
@@ -1191,6 +1194,7 @@ function MessagesPageContent() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="ghost" size="icon" title="Chat options" aria-expanded={showChatMenu} onClick={() => setShowChatMenu((current) => !current)}><MoreHorizontal className="h-5 w-5" /></Button>
+                      <Button variant="ghost" size="icon" title="Close conversation" aria-label="Close conversation" onClick={closeConversation}><X className="h-5 w-5" /></Button>
                       {showChatMenu ? <div className="absolute right-4 top-16 z-50 w-52 rounded-2xl border bg-background p-1.5 text-sm shadow-xl">
                         <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { setShowConversationInfo(true); setShowChatMenu(false); }}><Info className="h-4 w-4" />Chat details</button>
                         <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted" onClick={() => { void updateConversationState(activeConversation.id, "mutedBy", !activeConversation.mutedBy.includes(currentUserId)); setShowChatMenu(false); }}><BellOff className="h-4 w-4" />{activeConversation.mutedBy.includes(currentUserId) ? "Unmute" : "Mute"}</button>
@@ -1455,9 +1459,27 @@ function MessagesPageContent() {
 
                           {!message.clientStatus ? (
                             <div className={`relative mt-1 flex px-1 ${message.senderId === currentUserId ? "justify-end" : "justify-start"}`}>
-                              <button type="button" aria-label="Message options" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><MoreVertical className="h-4 w-4" /></button>
+                              <button
+                                type="button"
+                                aria-label="Message options"
+                                aria-expanded={openMessageMenuId === message.id}
+                                onClick={(event) => {
+                                  if (openMessageMenuId === message.id) {
+                                    setOpenMessageMenuId(null);
+                                    return;
+                                  }
+                                  const triggerBounds = event.currentTarget.getBoundingClientRect();
+                                  const availableBelow = window.innerHeight - triggerBounds.bottom;
+                                  const availableAbove = triggerBounds.top;
+                                  setMessageMenuOpensUp(availableBelow < 360 && availableAbove > availableBelow);
+                                  setOpenMessageMenuId(message.id);
+                                }}
+                                className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
                               {openMessageMenuId === message.id ? (
-                                <div className={`absolute top-7 z-40 w-[min(88vw,12rem)] overflow-hidden rounded-2xl border bg-background p-1.5 text-sm shadow-xl ${message.senderId === currentUserId ? "right-0" : "left-0"}`}>
+                                <div className={`absolute z-40 max-h-[min(60vh,24rem)] w-[min(88vw,12rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-background p-1.5 text-sm shadow-xl ${messageMenuOpensUp ? "bottom-7" : "top-7"} ${message.senderId === currentUserId ? "right-0" : "left-0"}`}>
                                   <button type="button" onClick={() => { setReplyingTo(message); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Reply className="h-4 w-4" />Reply</button>
                                   <button type="button" onClick={() => { void toggleConversationMessageReaction(message.id, "❤️"); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><span>❤️</span>React</button>
                                   <button type="button" onClick={() => { void navigator.clipboard.writeText(message.text); setOpenMessageMenuId(null); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted"><Copy className="h-4 w-4" />Copy</button>

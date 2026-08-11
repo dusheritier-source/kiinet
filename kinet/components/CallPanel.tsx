@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { History, Mic, MicOff, MonitorUp, Phone, PhoneOff, PictureInPicture, Star, Video, VideoOff, X, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, addParticipantOffer, subscribeOffers, addParticipantAnswer, subscribeAnswers, addGroupCandidate, subscribeGroupCandidates, type CallRecord, type CallType } from "@/lib/calls";
+import { acceptCallRecord, addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, addParticipantOffer, subscribeOffers, addParticipantAnswer, subscribeAnswers, addGroupCandidate, subscribeGroupCandidates, type CallRecord, type CallType } from "@/lib/calls";
 import { getUserProfileById } from "@/lib/user-profile";
 
 const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL || "";
@@ -206,29 +206,42 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     const incomingCall = incoming;
     if (!incomingCall) return;
 
+    setIncoming(null);
+    setCall({ ...incomingCall, status: "active" });
+    try {
+      // Accept immediately so every participant stops showing a ringing call while
+      // media permissions and WebRTC negotiation continue in the background.
+      await acceptCallRecord(incomingCall.id);
+    } catch (cause) {
+      setCall(null);
+      setError(cause instanceof Error ? cause.message : "Could not answer call.");
+      return;
+    }
+
     // Support old call records that stored a single offer directly on the call.
     if (incomingCall.offer) {
       try {
-        setCall(incomingCall); setIncoming(null);
         const peer = await preparePeer(incomingCall.type, incomingCall.id, "callee");
         peerRef.current = peer;
         await peer.setRemoteDescription(incomingCall.offer);
         const answer = await peer.createAnswer(); await peer.setLocalDescription(answer);
-        await updateCallRecord(incomingCall.id, { answer: { type: answer.type, sdp: answer.sdp }, status: "active", answeredAt: new Date() });
+        await updateCallRecord(incomingCall.id, { answer: { type: answer.type, sdp: answer.sdp } });
         cleanupsRef.current.push(subscribeCall(incomingCall.id, (record) => {
           if (!record) return;
           if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); return; }
           setCall(record);
         }));
-      } catch (cause) { stopMedia(); setCall(null); setError(cause instanceof Error ? cause.message : "Could not answer call."); }
+      } catch (cause) {
+        stopMedia();
+        setCall(null);
+        await updateCallRecord(incomingCall.id, { status: "ended", endedAt: new Date() }).catch(() => undefined);
+        setError(cause instanceof Error ? cause.message : "Could not answer call.");
+      }
       return;
     }
 
     // For group calls: listen for offers targeted to me and respond with individual answers
     const groupCallId = incomingCall.id;
-    setCall(incomingCall);
-    setIncoming(null);
-    let answered = false;
     // subscribeOffers will invoke callback for any offers targeted to current user
     const cleanupOffers = subscribeOffers(groupCallId, currentUserId, async (offerDoc) => {
       try {
@@ -251,14 +264,13 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         await pc.setRemoteDescription(offer as RTCSessionDescriptionInit);
         const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
         await addParticipantAnswer(groupCallId, currentUserId, callerId, { type: answer.type, sdp: answer.sdp });
-        if (!answered) {
-          answered = true;
-          await updateCallRecord(groupCallId, { status: "active", answeredAt: new Date() });
-        }
         // subscribe to caller's candidates -> me
         const cleanupCands = subscribeGroupCandidates(groupCallId, callerId, currentUserId, (candidate) => void pc.addIceCandidate(candidate).catch(() => undefined));
         cleanupsRef.current.push(cleanupCands);
       } catch (cause) {
+        stopMedia();
+        setCall(null);
+        await updateCallRecord(groupCallId, { status: "ended", endedAt: new Date() }).catch(() => undefined);
         setError(cause instanceof Error ? cause.message : "Could not answer call.");
       }
     });
