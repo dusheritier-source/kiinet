@@ -248,8 +248,9 @@ function StoriesPageContent() {
       setSensitiveContent(false);
       setCaptionsFile(null);
       setCreatorSuccess("Your story is live for 24 hours.");
+      window.dispatchEvent(new CustomEvent("kinet:story-created"));
       try {
-        const nextStories = await getActiveStories();
+        const nextStories = await getActiveStories(true);
         setStories(nextStories);
         const ownStoryIndex = nextStories.findIndex((story) => story.userId === user?.uid);
         if (ownStoryIndex >= 0) setActiveIndex(ownStoryIndex);

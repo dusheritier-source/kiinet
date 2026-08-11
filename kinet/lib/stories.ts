@@ -163,9 +163,14 @@ export async function createStory(
   clearActiveStoriesCache();
 }
 
-export async function getActiveStories() {
+export async function getActiveStories(forceRefresh = false) {
   if (!db) {
     return [];
+  }
+
+  const requestedCacheUserId = auth?.currentUser?.uid ?? "guest";
+  if (!forceRefresh && activeStoriesCache?.userId === requestedCacheUserId && activeStoriesCache.expiresAt > Date.now()) {
+    return activeStoriesCache.stories;
   }
 
   let snapshot;
@@ -229,7 +234,6 @@ export async function getActiveStories() {
     });
   }
   const cacheUserId = auth?.currentUser?.uid ?? "guest";
-  if (activeStoriesCache?.userId === cacheUserId && activeStoriesCache.expiresAt > Date.now()) return activeStoriesCache.stories;
 
   const grouped = new Map<string, StoryItem[]>();
   activeStories.forEach((story) => grouped.set(story.userId, [...(grouped.get(story.userId) ?? []), story]));

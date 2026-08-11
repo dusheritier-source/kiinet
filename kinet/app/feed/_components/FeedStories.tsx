@@ -14,8 +14,31 @@ export default function FeedStories() {
 
   useEffect(() => {
     if (!user) return;
-    void getActiveStories().then(setStories).catch(() => setStories([]));
-  }, [user]);
+    let active = true;
+    const refreshStories = () => {
+      void getActiveStories(true).then((items) => {
+        if (active) setStories(items);
+      }).catch(() => {
+        if (active) setStories([]);
+      });
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshStories();
+    };
+
+    refreshStories();
+    window.addEventListener("focus", refreshStories);
+    window.addEventListener("pageshow", refreshStories);
+    window.addEventListener("kinet:story-created", refreshStories);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshStories);
+      window.removeEventListener("pageshow", refreshStories);
+      window.removeEventListener("kinet:story-created", refreshStories);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [user?.uid]);
 
   const creators = useMemo(() => {
     const seen = new Set<string>();
