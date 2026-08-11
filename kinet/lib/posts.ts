@@ -1141,30 +1141,36 @@ export function subscribeToFeed(
   );
 
   let stopped = false;
+  let snapshotVersion = 0;
 
   const unsubscribe = onSnapshot(
     feedQuery,
     async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+      const currentVersion = ++snapshotVersion;
       try {
         const rawPosts = snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data()));
         const profile = await getCachedViewerProfile();
+        const viewerId = auth?.currentUser?.uid ?? "";
         const preferredSport = profile?.defaultSport ?? "";
         const following = profile?.following ?? [];
         const blockedUsers = profile?.blockedUsers ?? [];
         const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
         const privacyMap = await getAuthorPrivacyMap(authorIds);
 
-        if (!stopped) {
+        // Ignore an older async snapshot if a newer real-time update finished first.
+        if (!stopped && currentVersion === snapshotVersion) {
           callback(
             scorePosts(
               rawPosts.filter(
-                (post) =>
-                  post.contentType === "post" &&
-                  !blockedUsers.includes(post.userId) &&
-                  isVisiblePost(post) &&
-                  matchesFeedPreferences(post, profile?.profile) &&
-                  canAccessPost(post, profile) &&
-                  canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap)
+                (post) => {
+                  if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
+                  // Personal feed controls should never make a creator's own
+                  // newly published post disappear from their feed.
+                  if (post.userId === viewerId) return true;
+                  return !blockedUsers.includes(post.userId)
+                    && matchesFeedPreferences(post, profile?.profile)
+                    && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
+                }
               ),
               following,
               preferredSport
@@ -1264,6 +1270,7 @@ export function subscribeToUserPosts(
     postsQuery,
     async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       const profile = await getCachedViewerProfile();
+      const viewerId = auth?.currentUser?.uid ?? "";
       const blockedUsers = profile?.blockedUsers ?? [];
       const following = profile?.following ?? [];
       const authorIds = [...new Set(snapshot.docs.map((doc) => (doc.data() as Record<string, unknown>).userId as string))];
@@ -1273,7 +1280,7 @@ export function subscribeToUserPosts(
         .filter((post) => !blockedUsers.includes(post.userId))
         .filter(isVisiblePost)
         .filter((post) => canAccessPost(post, profile))
-        .filter((post) => canViewPrivateAuthorPost(post.userId, String(profile?.profile?.uid ?? ""), following, privacyMap))
+        .filter((post) => canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap))
         .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
 
       if (!stopped) {
