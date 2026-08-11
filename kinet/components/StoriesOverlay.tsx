@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Eye, Trash2, X } from "lucide-react";
 
 import { useAuthContext } from "@/components/AuthProvider";
-import { getActiveStories, markStorySeen, reactToStory, recordStoryReply, type StoryItem } from "@/lib/stories";
+import { deleteStory, getActiveStories, markStorySeen, reactToStory, recordStoryReply, type StoryItem } from "@/lib/stories";
 import { createOrGetConversation, sendConversationMessage } from "@/lib/messaging";
+import { getProfilesByIds } from "@/lib/profile-social";
+import type { SearchProfile } from "@/lib/user-profile";
 
 const STORY_DURATION_MS = 5000;
 const STORY_REACTIONS = ["❤️", "😂", "🔥", "👏", "😍", "😮", "😢", "💯"];
@@ -27,6 +29,10 @@ export default function StoriesOverlay() {
   const [revealedStoryIds, setRevealedStoryIds] = useState<string[]>([]);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewerProfiles, setViewerProfiles] = useState<SearchProfile[]>([]);
+  const [viewersLoading, setViewersLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartX = useRef<number | null>(null);
 
@@ -69,6 +75,7 @@ export default function StoriesOverlay() {
     setInteractionStatus("");
     setReactionPickerOpen(false);
     setSafetyMenuOpen(false);
+    setViewersOpen(false);
   }, [activeIndex, stories, user?.uid]);
 
   useEffect(() => {
@@ -122,6 +129,34 @@ export default function StoriesOverlay() {
   const activeCreatorPosition = activeCreatorStories.findIndex((story) => story.id === activeStoryId);
   const groupedCount = useMemo(() => stories.filter((story) => story.userId === activeStory?.userId).length, [activeStory?.userId, stories]);
 
+  const openViewers = async () => {
+    if (!activeStory || activeStory.userId !== user?.uid) return;
+    setPaused(true);
+    setViewersOpen(true);
+    setViewersLoading(true);
+    try {
+      setViewerProfiles(await getProfilesByIds((activeStory.seenBy ?? []).filter((uid) => uid !== user.uid)));
+    } finally {
+      setViewersLoading(false);
+    }
+  };
+
+  const removeActiveStory = async () => {
+    if (!activeStory || activeStory.userId !== user?.uid || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteStory(activeStory);
+      const remaining = stories.filter((story) => story.id !== activeStory.id);
+      setStories(remaining);
+      setViewersOpen(false);
+      window.dispatchEvent(new CustomEvent("kinet:story-created"));
+      if (!remaining.length) setViewerOpen(false);
+      else setActiveIndex((index) => Math.min(index, remaining.length - 1));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!viewerOpen) return null;
 
   return (
@@ -165,7 +200,7 @@ export default function StoriesOverlay() {
             <button type="button" className="rounded-full bg-white px-6 py-2 text-black" onClick={() => setRevealedStoryIds((ids) => [...ids, activeStory.id])}>View</button>
           </div>
         ) : null}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 text-white">
+        <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 text-white">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold">{activeStory?.authorName}</p>
@@ -194,8 +229,14 @@ export default function StoriesOverlay() {
               ) : <p className="text-xs text-white/70">Replies are turned off for this story.</p>}
               {interactionStatus ? <p aria-live="polite" className="text-xs text-white/80">{interactionStatus}</p> : null}
             </div>
+          ) : user && activeStory?.userId === user.uid ? (
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <button type="button" onClick={() => void openViewers()} className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/30"><Eye className="h-5 w-5" />Viewers · {(activeStory.seenBy ?? []).filter((uid) => uid !== user.uid).length}</button>
+              <button type="button" disabled={deleting} onClick={() => void removeActiveStory()} className="inline-flex items-center gap-2 rounded-full bg-red-500/30 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500/45 disabled:opacity-50"><Trash2 className="h-5 w-5" />{deleting ? "Deleting…" : "Delete"}</button>
+            </div>
           ) : null}
         </div>
+        {viewersOpen && activeStory?.userId === user?.uid ? <div className="absolute inset-x-0 bottom-0 z-50 max-h-[72%] overflow-hidden rounded-t-[28px] bg-background text-foreground shadow-2xl"><div className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted-foreground/30" /><div className="flex items-center justify-between border-b px-5 py-4"><div><p className="font-semibold">Story viewers</p><p className="text-xs text-muted-foreground">{viewerProfiles.length} people</p></div><button type="button" onClick={() => { setViewersOpen(false); setPaused(false); }} aria-label="Close viewers"><X className="h-5 w-5" /></button></div><div className="max-h-[48vh] overflow-y-auto p-3">{viewersLoading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading viewers…</p> : viewerProfiles.length ? viewerProfiles.map((viewer) => <a key={viewer.uid} href={`/profile/${viewer.uid}`} className="flex items-center gap-3 rounded-xl p-3 hover:bg-muted"><img src={viewer.photoURL || ""} alt="" className="h-11 w-11 rounded-full bg-muted object-cover" /><div className="min-w-0"><p className="truncate font-medium">{viewer.displayName || "Kinet user"}</p><p className="truncate text-xs text-muted-foreground">@{viewer.username || viewer.uid.slice(0, 8)}</p></div></a>) : <p className="py-10 text-center text-sm text-muted-foreground">No viewers yet.</p>}</div><div className="border-t p-3"><button type="button" disabled={deleting} onClick={() => void removeActiveStory()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-3 font-medium text-destructive-foreground disabled:opacity-50"><Trash2 className="h-4 w-4" />{deleting ? "Deleting story…" : "Delete story"}</button></div></div> : null}
         <button type="button" onClick={() => setActiveIndex((current) => Math.max(0, current - 1))} disabled={activeIndex === 0} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30">←</button>
         <button type="button" onClick={() => setActiveIndex((current) => Math.min(stories.length - 1, current + 1))} disabled={activeIndex === stories.length - 1} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30">→</button>
       </div>
