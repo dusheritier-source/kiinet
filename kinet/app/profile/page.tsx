@@ -100,6 +100,7 @@ function ProfilePageContent() {
   const [suggestions, setSuggestions] = useState<SearchProfile[]>([]);
   const [connectionTitle, setConnectionTitle] = useState("");
   const [connectionProfiles, setConnectionProfiles] = useState<SearchProfile[]>([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [shared, setShared] = useState(false);
   const [highlights, setHighlights] = useState<ProfileHighlight[]>([]);
   const [storyArchive, setStoryArchive] = useState<StoryItem[]>([]);
@@ -185,6 +186,17 @@ function ProfilePageContent() {
   const completionItems = [{ label: "Profile photo", complete: Boolean(avatarUrl) }, { label: "Cover image", complete: Boolean(profile?.coverPhotoURL) }, { label: "Bio", complete: Boolean(profile?.bio) }, { label: "Location", complete: Boolean(profile?.location) }, { label: "Link", complete: Boolean(profile?.website || profile?.socialLinks?.length) }, { label: "Image descriptions", complete: Boolean(profile?.avatarAlt && profile?.coverAlt) }];
   const completion = Math.round(completionItems.filter((item) => item.complete).length / completionItems.length * 100);
 
+  const openConnections = async (title: string, ids: string[]) => {
+    setConnectionTitle(title);
+    setConnectionProfiles([]);
+    setConnectionsLoading(true);
+    try {
+      setConnectionProfiles(await getProfilesByIds(ids));
+    } finally {
+      setConnectionsLoading(false);
+    }
+  };
+
   const highlightSection = <Card className="mx-4 mt-6"><CardContent className="p-5"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Story highlights</h2><p className="text-xs text-muted-foreground">Keep your favorite stories on your profile.</p></div><Button size="sm" variant="outline" onClick={() => setShowHighlightCreator((value) => !value)}><Plus className="mr-1 h-4 w-4" />New</Button></div>{showHighlightCreator ? <div className="mb-5 rounded-2xl border p-4"><Input value={highlightTitle} onChange={(event) => setHighlightTitle(event.target.value)} placeholder="Highlight title" className="mb-3" /><div className="max-h-48 space-y-2 overflow-y-auto">{storyArchive.length ? storyArchive.map((story) => <label key={story.id} className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm"><input type="checkbox" checked={selectedStories.includes(story.id)} onChange={() => setSelectedStories((items) => items.includes(story.id) ? items.filter((id) => id !== story.id) : [...items, story.id])} /><img src={story.mediaUrl} alt="Story" className="h-10 w-10 rounded-lg object-cover" /><span>{(story.expiresAt?.seconds ?? 0) * 1000 < Date.now() ? "Archived story" : "Active story"}</span></label>) : <p className="text-sm text-muted-foreground">Create a story first, then save it here.</p>}</div><Button className="mt-3" size="sm" disabled={!selectedStories.length} onClick={() => void createProfileHighlight(highlightTitle, storyArchive.filter((story) => selectedStories.includes(story.id)), highlights.length).then(() => { setHighlightTitle(""); setSelectedStories([]); setShowHighlightCreator(false); })}>Create highlight</Button></div> : null}<div className="flex gap-4 overflow-x-auto pb-2">{highlights.map((highlight, index) => <div key={highlight.id} className="w-24 shrink-0 text-center"><Link href={`/highlights/${highlight.id}`}><img src={highlight.coverUrl} alt={highlight.title} className="mx-auto h-20 w-20 rounded-full border-4 object-cover" style={{ borderColor: profile?.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-sm font-medium">{highlight.title}</p></Link><div className="mt-1 flex justify-center"><button aria-label="Move left" disabled={index === 0} onClick={() => void moveProfileHighlight(highlights, highlight.id, -1)}><ChevronLeft className="h-4 w-4" /></button><button aria-label="Rename" className="px-1 text-[10px] text-muted-foreground" onClick={() => { const title = window.prompt("Rename highlight", highlight.title); if (title) void renameProfileHighlight(highlight.id, title); }}>Edit</button><button aria-label="Delete" onClick={() => void deleteProfileHighlight(highlight.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></button><button aria-label="Move right" disabled={index === highlights.length - 1} onClick={() => void moveProfileHighlight(highlights, highlight.id, 1)}><ChevronRight className="h-4 w-4" /></button></div></div>)}</div></CardContent></Card>;
 
   const primaryActions = [
@@ -267,11 +279,11 @@ function ProfilePageContent() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <button type="button" onClick={() => void getProfilesByIds(profile?.followers ?? []).then((items) => { setConnectionTitle("Followers"); setConnectionProfiles(items); })} className="rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted">
+              <button type="button" onClick={() => void openConnections("Followers", profile?.followers ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
                 <div className="text-2xl font-bold text-primary">{profile?.followers?.length ?? 0}</div>
                 <div className="text-sm text-muted-foreground">Followers</div>
               </button>
-              <button type="button" onClick={() => void getProfilesByIds(profile?.following ?? []).then((items) => { setConnectionTitle("Following"); setConnectionProfiles(items); })} className="rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted">
+              <button type="button" onClick={() => void openConnections("Following", profile?.following ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
                 <div className="text-2xl font-bold">{profile?.following?.length ?? 0}</div>
                 <div className="text-sm text-muted-foreground">Following</div>
               </button>
@@ -525,7 +537,7 @@ function ProfilePageContent() {
           </Card>
         </div>
         {profile?.profileLayout === "content_first" ? highlightSection : null}
-        {connectionTitle ? <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setConnectionTitle("")}><div className="max-h-[70vh] w-full max-w-md overflow-y-auto rounded-3xl bg-background p-5" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">{connectionTitle}</h2><Button variant="ghost" size="sm" onClick={() => setConnectionTitle("")}>Close</Button></div>{connectionProfiles.length ? <div className="space-y-2">{connectionProfiles.map((item) => <div key={item.uid} className="flex items-center gap-3 rounded-xl border p-3"><Avatar><AvatarImage src={item.photoURL} /><AvatarFallback>{item.displayName.slice(0, 1)}</AvatarFallback></Avatar><Link href={`/profile/${item.uid}`} className="min-w-0 flex-1" onClick={() => setConnectionTitle("")}><p className="truncate font-medium">{item.displayName}</p><p className="truncate text-xs text-muted-foreground">@{item.username || item.uid.slice(0, 8)}</p></Link>{connectionTitle === "Followers" ? <Button size="sm" variant="outline" onClick={() => void removeFollower(item.uid).then(() => setConnectionProfiles((current) => current.filter((profileItem) => profileItem.uid !== item.uid)))}><UserX className="mr-1 h-4 w-4" />Remove</Button> : null}</div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">No people to show.</p>}</div></div> : null}
+        {connectionTitle ? <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setConnectionTitle("")}><div className="max-h-[75vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-5 sm:rounded-3xl" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">{connectionTitle}</h2><Button variant="ghost" size="sm" onClick={() => setConnectionTitle("")}>Close</Button></div>{connectionsLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Loading people…</p> : connectionProfiles.length ? <div className="space-y-2">{connectionProfiles.map((item) => <div key={item.uid} className="flex items-center gap-3 rounded-xl border p-3"><Avatar><AvatarImage src={item.photoURL} /><AvatarFallback>{item.displayName?.slice(0, 1) || "U"}</AvatarFallback></Avatar><Link href={`/profile/${item.uid}`} className="min-w-0 flex-1" onClick={() => setConnectionTitle("")}><p className="truncate font-medium">{item.displayName || "Kinet user"}</p><p className="truncate text-xs text-muted-foreground">@{item.username || item.uid.slice(0, 8)}</p></Link>{connectionTitle === "Followers" ? <Button size="sm" variant="outline" onClick={() => void removeFollower(item.uid).then(() => setConnectionProfiles((current) => current.filter((profileItem) => profileItem.uid !== item.uid)))}><UserX className="mr-1 h-4 w-4" />Remove</Button> : null}</div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">No people to show.</p>}</div></div> : null}
       </div>
     </ProtectedRoute>
   );
