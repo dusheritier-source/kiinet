@@ -1,6 +1,6 @@
 "use client";
 
-import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { addDoc, arrayRemove, arrayUnion, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { sendConversationMessage } from "@/lib/messaging";
@@ -11,6 +11,8 @@ export interface CallRecord {
   id: string; conversationId: string; callerId: string; participantIds: string[];
   type: CallType; status: CallStatus; offer?: RTCSessionDescriptionInit | null;
   answer?: RTCSessionDescriptionInit | null;
+  answeredBy?: string[];
+  pendingParticipantIds?: string[];
   createdAt?: { seconds?: number; nanoseconds?: number } | null;
 }
 
@@ -18,11 +20,17 @@ const requireDb = () => { if (!db || !auth.currentUser) throw new Error("You mus
 
 export async function createCallRecord(conversationId: string, participantIds: string[], type: CallType) {
   const firestore = requireDb();
+  const callerId = auth.currentUser!.uid;
+  const uniqueParticipantIds = Array.from(new Set([...participantIds, callerId]));
+  if (uniqueParticipantIds.length < 2) throw new Error("Choose at least one person to call.");
+  if (uniqueParticipantIds.length > 8) throw new Error("Conference calls support up to 8 people.");
   const created = await addDoc(collection(firestore, "calls"), {
-    conversationId, participantIds, callerId: auth.currentUser!.uid, type,
+    conversationId, participantIds: uniqueParticipantIds, callerId, type,
+    answeredBy: [callerId],
+    pendingParticipantIds: uniqueParticipantIds.filter((uid) => uid !== callerId),
     status: "preparing", offer: null, answer: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
-  participantIds.filter((uid) => uid !== auth.currentUser!.uid).forEach((uid) => {
+  uniqueParticipantIds.filter((uid) => uid !== callerId).forEach((uid) => {
     void createNotification({
       type: "call", recipientId: uid, actorId: auth.currentUser!.uid,
       actorName: auth.currentUser!.displayName || "Someone", actorAvatar: auth.currentUser!.photoURL || "",
@@ -42,12 +50,19 @@ export async function acceptCallRecord(callId: string) {
     const snapshot = await transaction.get(callRef);
     if (!snapshot.exists()) throw new Error("This call is no longer available.");
 
-    const status = snapshot.data().status as CallStatus;
-    if (status === "active") return;
-    if (status !== "ringing") throw new Error("This call is no longer ringing.");
+    const data = snapshot.data() as Record<string, unknown>;
+    const status = data.status as CallStatus;
+    const answeredBy = Array.isArray(data.answeredBy) ? data.answeredBy as string[] : [];
+    const pendingParticipantIds = Array.isArray(data.pendingParticipantIds) ? data.pendingParticipantIds as string[] : [];
+    if (answeredBy.includes(auth.currentUser!.uid)) return;
+    if (!["ringing", "active"].includes(status) || !pendingParticipantIds.includes(auth.currentUser!.uid)) {
+      throw new Error("This call is no longer ringing.");
+    }
 
     transaction.update(callRef, {
       status: "active",
+      answeredBy: arrayUnion(auth.currentUser!.uid),
+      pendingParticipantIds: arrayRemove(auth.currentUser!.uid),
       answeredAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -59,17 +74,32 @@ export async function markCallMissedIfRinging(callId: string) {
   const missed = await runTransaction(firestore, async (transaction) => {
     const callRef = doc(firestore, "calls", callId);
     const snapshot = await transaction.get(callRef);
-    if (snapshot.exists() && snapshot.data().status === "ringing") {
-      transaction.update(callRef, { status: "missed", endedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      return snapshot.data() as Record<string, unknown>;
+    if (snapshot.exists() && ["ringing", "active"].includes(String(snapshot.data().status))) {
+      const data = snapshot.data() as Record<string, unknown>;
+      const pendingParticipantIds = Array.isArray(data.pendingParticipantIds) ? data.pendingParticipantIds as string[] : [];
+      if (!pendingParticipantIds.length) return null;
+      const answeredBy = Array.isArray(data.answeredBy) ? data.answeredBy as string[] : [String(data.callerId ?? "")];
+      const nobodyAnswered = answeredBy.filter((uid) => uid !== String(data.callerId ?? "")).length === 0;
+      transaction.update(callRef, {
+        pendingParticipantIds: [],
+        ...(nobodyAnswered ? { status: "missed", endedAt: serverTimestamp() } : {}),
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        callerId: String(data.callerId ?? ""),
+        conversationId: String(data.conversationId ?? ""),
+        type: String(data.type ?? "audio"),
+        missedParticipantIds: pendingParticipantIds,
+        nobodyAnswered,
+      };
     }
     return null;
   });
   if (missed) {
-    const participantIds = Array.isArray(missed.participantIds) ? missed.participantIds as string[] : [];
+    const participantIds = Array.isArray(missed.missedParticipantIds) ? missed.missedParticipantIds as string[] : [];
     const missedType = String(missed.type ?? "audio") === "video" ? "video" : "voice";
-    void sendConversationMessage(String(missed.conversationId ?? ""), `Missed ${missedType} call`).catch(() => undefined);
-    participantIds.filter((uid) => uid !== String(missed.callerId ?? "")).forEach((uid) => void createNotification({ type: "missed_call", recipientId: uid, actorId: String(missed.callerId ?? ""), actorName: auth.currentUser?.displayName || "Someone", actorAvatar: auth.currentUser?.photoURL || "", message: `You missed a ${String(missed.type ?? "audio")} call.`, conversationId: String(missed.conversationId ?? "") }).catch(() => undefined));
+    if (missed.nobodyAnswered === true) void sendConversationMessage(String(missed.conversationId ?? ""), `Missed ${missedType} call`).catch(() => undefined);
+    participantIds.forEach((uid) => void createNotification({ type: "missed_call", recipientId: uid, actorId: String(missed.callerId ?? ""), actorName: auth.currentUser?.displayName || "Someone", actorAvatar: auth.currentUser?.photoURL || "", message: `You missed a ${String(missed.type ?? "audio")} call.`, conversationId: String(missed.conversationId ?? "") }).catch(() => undefined));
   }
 }
 
@@ -128,7 +158,7 @@ export function subscribeCallCandidates(callId: string, side: "caller" | "callee
 export function subscribeIncomingCalls(userId: string, callback: (calls: CallRecord[]) => void, onError?: (error: Error) => void) {
   if (!db) return () => undefined;
   return onSnapshot(query(collection(db, "calls"), where("participantIds", "array-contains", userId), orderBy("createdAt", "desc")), (snapshot) => {
-    callback(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as CallRecord)).filter((call) => call.callerId !== userId && call.status === "ringing").slice(0, 1));
+    callback(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as CallRecord)).filter((call) => call.callerId !== userId && ["ringing", "active"].includes(call.status) && (call.pendingParticipantIds ?? call.participantIds).includes(userId)).slice(0, 1));
   }, (error) => onError?.(error));
 }
 

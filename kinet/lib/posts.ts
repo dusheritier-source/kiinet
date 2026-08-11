@@ -421,9 +421,9 @@ async function getCurrentAuthorProfile() {
     return {
       profile,
       author: {
-        name: user.displayName || String(profile?.displayName ?? "Kinet User"),
+        name: String(profile?.displayName ?? user.displayName ?? "Kinet User"),
         username: `@${String(profile?.username ?? user.uid.slice(0, 8))}`,
-        avatar: user.photoURL || String(profile?.photoURL ?? ""),
+        avatar: String(profile?.photoURL ?? user.photoURL ?? ""),
         verified: Boolean(profile?.verified),
         role: role.type ? String(role.type) : null,
         location: profile?.location ? String(profile.location) : null,
@@ -1158,15 +1158,16 @@ export function subscribeToFeed(
       const privacyMap = await getAuthorPrivacyMap(authorIds);
 
       if (!stopped && currentVersion === snapshotVersion) {
+        const visiblePosts = rawPosts.filter((post) => {
+          if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
+          if (post.userId === viewerId) return true;
+          return !blockedUsers.includes(post.userId)
+            && matchesFeedPreferences(post, profile.profile)
+            && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
+        }).map((post) => post.userId === viewerId ? { ...post, author: profile.author } : post);
         callback(
           scorePosts(
-            rawPosts.filter((post) => {
-              if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
-              if (post.userId === viewerId) return true;
-              return !blockedUsers.includes(post.userId)
-                && matchesFeedPreferences(post, profile.profile)
-                && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
-            }),
+            visiblePosts,
             following,
             preferredSport
           )
@@ -1185,9 +1186,9 @@ export function subscribeToFeed(
         viewerProfile = {
           profile,
           author: {
-            name: auth?.currentUser?.displayName || String(profile.displayName ?? "Kinet User"),
+            name: String(profile.displayName ?? auth?.currentUser?.displayName ?? "Kinet User"),
             username: `@${String(profile.username ?? viewerId.slice(0, 8))}`,
-            avatar: auth?.currentUser?.photoURL || String(profile.photoURL ?? ""),
+            avatar: String(profile.photoURL ?? auth?.currentUser?.photoURL ?? ""),
             verified: Boolean(profile.verified),
             role: role.type ? String(role.type) : null,
             location: profile.location ? String(profile.location) : null,

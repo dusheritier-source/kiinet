@@ -169,7 +169,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     // Allow group calls via star topology (caller connects directly to each participant)
     try {
       const callId = await createCallRecord(conversationId, participantIds, type);
-      const nextCall: CallRecord = { id: callId, conversationId, participantIds, callerId: currentUserId, type, status: "preparing" };
+      const nextCall: CallRecord = { id: callId, conversationId, participantIds, callerId: currentUserId, type, status: "preparing", answeredBy: [currentUserId], pendingParticipantIds: participantIds.filter((id) => id !== currentUserId) };
       setCall(nextCall);
       // For each other participant create a peer and send an individual offer
       const others = participantIds.filter((id) => id !== currentUserId);
