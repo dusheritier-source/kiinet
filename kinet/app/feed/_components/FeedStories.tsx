@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 
 import { useAuthContext } from "@/components/AuthProvider";
 import { getActiveStories, type StoryItem } from "@/lib/stories";
+import { subscribeToUserProfile } from "@/lib/user-profile";
 
 export default function FeedStories() {
   const { user } = useAuthContext();
   const router = useRouter();
   const [stories, setStories] = useState<StoryItem[]>([]);
+  const [profileAvatar, setProfileAvatar] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -40,6 +42,13 @@ export default function FeedStories() {
     };
   }, [user?.uid]);
 
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToUserProfile(user.uid, (profile) => {
+      setProfileAvatar(typeof profile?.photoURL === "string" ? profile.photoURL : user.photoURL || "");
+    });
+  }, [user]);
+
   const creators = useMemo(() => {
     const seen = new Set<string>();
     return stories.filter((story) => {
@@ -62,7 +71,7 @@ export default function FeedStories() {
         <span className="mt-1 block truncate text-[11px]">Your story</span>
       </button>
       {creators.map((story) => <button key={story.userId} type="button" onClick={() => openStory(story.id)} className="w-16 shrink-0 text-center">
-        <span className="mx-auto block rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2px]"><span className="block rounded-full bg-background p-[2px]"><img src={story.authorAvatar || story.thumbnailUrl || story.mediaUrl} alt={`${story.authorName}'s story`} className="h-12 w-12 rounded-full object-cover" /></span></span>
+        <span className="mx-auto block rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2px]"><span className="block rounded-full bg-background p-[2px]"><img src={(story.userId === user.uid ? profileAvatar : story.authorAvatar) || story.thumbnailUrl || story.mediaUrl} alt={`${story.authorName}'s story`} className="h-12 w-12 rounded-full object-cover" /></span></span>
         <span className="mt-1 block truncate text-[11px]">{story.userId === user.uid ? "Your story" : story.authorName}</span>
       </button>)}
     </div>
