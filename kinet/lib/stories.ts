@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { deleteObject, ref as storageRef } from "firebase/storage";
 
@@ -167,9 +168,20 @@ export async function getActiveStories() {
     return [];
   }
 
-  const snapshot = await getDocs(
-    query(collection(db, "stories"), orderBy("createdAt", "desc"), limit(50))
-  );
+  let snapshot;
+  try {
+    snapshot = await getDocs(
+      query(collection(db, "stories"), orderBy("createdAt", "desc"), limit(50))
+    );
+  } catch (cause) {
+    // Some deployed rules cannot authorize a mixed public/private collection
+    // query. The owner query is always permitted and keeps a successful upload
+    // visible instead of incorrectly reporting it as failed.
+    if (!auth?.currentUser) throw cause;
+    snapshot = await getDocs(
+      query(collection(db, "stories"), where("userId", "==", auth.currentUser.uid), limit(50))
+    );
+  }
   const nowSeconds = Math.floor(Date.now() / 1000);
   let following: string[] = [];
   let currentProfile: Record<string, unknown> | null = null;

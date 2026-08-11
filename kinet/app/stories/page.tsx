@@ -64,6 +64,8 @@ function StoriesPageContent() {
     void getActiveStories().then((items) => {
       const muted = JSON.parse(localStorage.getItem("kinet:muted-story-creators") || "[]") as string[];
       setStories(items.filter((story) => !muted.includes(story.userId)));
+    }).catch((cause) => {
+      setCreatorError(cause instanceof Error ? cause.message : "Stories could not be loaded.");
     });
     void searchProfiles("").then((profiles) => setAudiencePeople(profiles.filter((profile) => profile.uid !== user?.uid)));
   }, [user?.uid]);
@@ -226,11 +228,16 @@ function StoriesPageContent() {
       setAltText("");
       setSensitiveContent(false);
       setCaptionsFile(null);
-      const nextStories = await getActiveStories();
-      setStories(nextStories);
-      const ownStoryIndex = nextStories.findIndex((story) => story.userId === user?.uid);
-      if (ownStoryIndex >= 0) setActiveIndex(ownStoryIndex);
       setCreatorSuccess("Your story is live for 24 hours.");
+      try {
+        const nextStories = await getActiveStories();
+        setStories(nextStories);
+        const ownStoryIndex = nextStories.findIndex((story) => story.userId === user?.uid);
+        if (ownStoryIndex >= 0) setActiveIndex(ownStoryIndex);
+      } catch {
+        // The upload already succeeded. A list refresh failure must never invite
+        // the user to upload the same story a second time.
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Your story could not be posted.";
       setCreatorError(message.toLowerCase().includes("cancel") ? "Upload canceled. Your draft is still here." : online ? message : "You are offline. Reconnect and try again; your draft is still here.");

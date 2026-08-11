@@ -2,20 +2,29 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAppAccessSettings, type AppAccessSettings } from "@/lib/admin";
 
 export default function LandingPageClient() {
+  const router = useRouter();
+  const { user, loading } = useAuthContext();
   const [settings, setSettings] = useState<AppAccessSettings | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    if (loading) return;
+    if (user) {
+      router.replace("/feed");
+      return;
+    }
     void getAppAccessSettings().then(setSettings);
-  }, []);
+  }, [loading, router, user]);
 
-  if (!mounted) {
+  if (!mounted || loading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0a1628]">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />

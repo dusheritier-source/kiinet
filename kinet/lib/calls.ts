@@ -3,6 +3,7 @@
 import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
+import { sendConversationMessage } from "@/lib/messaging";
 
 export type CallType = "audio" | "video";
 export type CallStatus = "preparing" | "ringing" | "active" | "declined" | "missed" | "ended";
@@ -66,6 +67,8 @@ export async function markCallMissedIfRinging(callId: string) {
   });
   if (missed) {
     const participantIds = Array.isArray(missed.participantIds) ? missed.participantIds as string[] : [];
+    const missedType = String(missed.type ?? "audio") === "video" ? "video" : "voice";
+    void sendConversationMessage(String(missed.conversationId ?? ""), `Missed ${missedType} call`).catch(() => undefined);
     participantIds.filter((uid) => uid !== String(missed.callerId ?? "")).forEach((uid) => void createNotification({ type: "missed_call", recipientId: uid, actorId: String(missed.callerId ?? ""), actorName: auth.currentUser?.displayName || "Someone", actorAvatar: auth.currentUser?.photoURL || "", message: `You missed a ${String(missed.type ?? "audio")} call.`, conversationId: String(missed.conversationId ?? "") }).catch(() => undefined));
   }
 }

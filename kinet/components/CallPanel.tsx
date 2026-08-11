@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { History, Mic, MicOff, MonitorUp, Phone, PhoneOff, PictureInPicture, Star, Video, VideoOff, X, RotateCw } from "lucide-react";
+import { createPortal } from "react-dom";
+import { History, Mic, MicOff, MonitorUp, Phone, PhoneOff, PictureInPicture, Video, VideoOff, X, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { acceptCallRecord, addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, addParticipantOffer, subscribeOffers, addParticipantAnswer, subscribeAnswers, addGroupCandidate, subscribeGroupCandidates, type CallRecord, type CallType } from "@/lib/calls";
 import { getUserProfileById } from "@/lib/user-profile";
+import { sendConversationMessage } from "@/lib/messaging";
 
 const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL || "";
 const TURN_USERNAME = process.env.NEXT_PUBLIC_TURN_USERNAME || "";
@@ -27,20 +29,25 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const [error, setError] = useState("");
   const [history, setHistory] = useState<CallRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [ratingCall, setRatingCall] = useState<CallRecord | null>(null);
-  const [rating, setRating] = useState(0);
   const [duration, setDuration] = useState(0);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const [participantProfilesMap, setParticipantProfilesMap] = useState<Map<string, { displayName: string; photoURL?: string }>>(new Map());
   const cleanupsRef = useRef<Array<() => void>>([]);
 
   useEffect(() => subscribeIncomingCalls(currentUserId, (calls) => setIncoming(calls[0] ?? null), (cause) => setError(cause.message.includes("index") ? "Calls need the latest Firestore index deployment." : "Calls are unavailable right now.")), [currentUserId]);
   useEffect(() => subscribeCallHistory(currentUserId, setHistory), [currentUserId]);
   useEffect(() => () => stopMedia(), []);
+  useEffect(() => {
+    if (!call && !incoming) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [call, incoming]);
   useEffect(() => {
     if (call?.status !== "active") { setDuration(0); return; }
     const started = Date.now();
@@ -57,6 +64,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     localStreamRef.current?.getTracks().forEach((track) => track.stop()); localStreamRef.current = null;
     // clear remote video elements
     remoteVideosRef.current.forEach((el) => { try { el.srcObject = null; } catch {} }); remoteVideosRef.current.clear();
+    remoteStreamsRef.current.clear();
   };
 
   const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
@@ -71,11 +79,13 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     // add existing local tracks to the peer
     localStreamRef.current.getTracks().forEach((track) => peer.addTrack(track, localStreamRef.current!));
     peer.ontrack = (event) => {
-      // for group calls, the incoming stream may belong to a specific remote participant
-      // the caller/callee code will set the appropriate remote video element when wiring peers
       const stream = event.streams[0];
-      // attempt to attach to any matching remote video element later
-      // fallback handled by caller/callee wiring
+      const remoteId = (call?.participantIds ?? participantIds ?? []).find((id) => id !== currentUserId);
+      if (remoteId && stream) {
+        remoteStreamsRef.current.set(remoteId, stream);
+        const remoteElement = remoteVideosRef.current.get(remoteId);
+        if (remoteElement) remoteElement.srcObject = stream;
+      }
     };
     peer.onicecandidate = (event) => { if (event.candidate) { /* caller/callee will add candidate per-pair */ } };
     return peer;
@@ -172,6 +182,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         // add local tracks
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
         pc.ontrack = (event) => {
+          remoteStreamsRef.current.set(targetId, event.streams[0]);
           const remoteEl = remoteVideosRef.current.get(targetId);
           if (remoteEl) remoteEl.srcObject = event.streams[0];
         };
@@ -197,7 +208,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         if (!record) return;
         setCall(record);
         if (["declined", "missed"].includes(record.status)) { stopMedia(); setCall(null); }
-        if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); }
+        if (record.status === "ended") { stopMedia(); setCall(null); }
       }));
     } catch (cause) { stopMedia(); setCall(null); setError(cause instanceof Error ? cause.message : "Could not start call."); }
   };
@@ -228,7 +239,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         await updateCallRecord(incomingCall.id, { answer: { type: answer.type, sdp: answer.sdp } });
         cleanupsRef.current.push(subscribeCall(incomingCall.id, (record) => {
           if (!record) return;
-          if (record.status === "ended") { stopMedia(); setCall(null); setRatingCall(record); return; }
+          if (record.status === "ended") { stopMedia(); setCall(null); return; }
           setCall(record);
         }));
       } catch (cause) {
@@ -253,12 +264,9 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         if (!localStreamRef.current) await preparePeer(incomingCall.type, groupCallId, "callee");
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
         pc.ontrack = (event) => {
-          let el = remoteVideosRef.current.get(callerId);
-          if (!el) {
-            // nothing to attach to yet; ignore
-            return;
-          }
-          el.srcObject = event.streams[0];
+          remoteStreamsRef.current.set(callerId, event.streams[0]);
+          const el = remoteVideosRef.current.get(callerId);
+          if (el) el.srcObject = event.streams[0];
         };
         pc.onicecandidate = (event) => { if (event.candidate) void addGroupCandidate(groupCallId, currentUserId, callerId, event.candidate.toJSON()); };
         await pc.setRemoteDescription(offer as RTCSessionDescriptionInit);
@@ -279,7 +287,6 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       if (!record) return;
       if (["ended", "declined", "missed"].includes(record.status)) {
         stopMedia(); setCall(null);
-        if (record.status === "ended") setRatingCall(record);
         return;
       }
       setCall(record);
@@ -292,16 +299,18 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     setCall(null);
     if (active) {
       await updateCallRecord(active.id, { status: "ended", endedAt: new Date() });
-      setRatingCall(active);
+      const label = active.type === "video" ? "Video call ended" : "Voice call ended";
+      const elapsed = duration ? ` • ${formatDuration(duration)}` : "";
+      await sendConversationMessage(active.conversationId, `${label}${elapsed}`).catch(() => undefined);
     }
   };
-  const submitRating = async () => {
-    if (!ratingCall || !rating) return;
-    await updateCallRecord(ratingCall.id, { rating, ratingBy: currentUserId, ratedAt: new Date() }).catch(() => undefined);
-    setRatingCall(null);
-    setRating(0);
+  const decline = async () => {
+    if (!incoming) return;
+    const declinedCall = incoming;
+    await updateCallRecord(declinedCall.id, { status: "declined", endedAt: new Date() });
+    setIncoming(null);
+    await sendConversationMessage(declinedCall.conversationId, `Declined ${declinedCall.type === "video" ? "video" : "voice"} call`).catch(() => undefined);
   };
-  const decline = async () => { if (!incoming) return; await updateCallRecord(incoming.id, { status: "declined", endedAt: new Date() }); setIncoming(null); };
   const toggleAudio = () => { const next = !muted; localStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !next; }); setMuted(next); };
   const toggleVideo = () => { const next = !cameraOff; localStreamRef.current?.getVideoTracks().forEach((track) => { track.enabled = !next; }); setCameraOff(next); };
   const shareScreen = async () => {
@@ -328,49 +337,31 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   };
   const formatDuration = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
+  const callOverlays = typeof document === "undefined" ? null : createPortal(<>
+    {incoming ? <div className="fixed inset-0 z-[110] flex min-h-[100dvh] flex-col items-center justify-between bg-slate-950 px-6 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(4rem,env(safe-area-inset-top))] text-center text-white"><div><p className="text-sm text-white/60">Incoming {incoming.type === "video" ? "video" : "voice"} call</p><h2 className="mt-3 text-3xl font-semibold">{title}</h2></div><div className="flex gap-12"><div className="flex flex-col items-center gap-2"><Button size="icon" className="h-16 w-16 rounded-full bg-emerald-500 hover:bg-emerald-600" onClick={() => void answerCall()}><Phone className="h-7 w-7" /></Button><span className="text-sm">Answer</span></div><div className="flex flex-col items-center gap-2"><Button size="icon" variant="destructive" className="h-16 w-16 rounded-full" onClick={() => void decline()}><PhoneOff className="h-7 w-7" /></Button><span className="text-sm">Decline</span></div></div></div> : null}
+    {call ? (
+      <div className="fixed inset-0 z-[120] flex min-h-[100dvh] w-screen flex-col bg-slate-950 text-white">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center">
+          {call.participantIds.filter((id) => id !== currentUserId).length <= 1 ? (
+            <>{call.participantIds.filter((id) => id !== currentUserId).map((id) => {
+              const name = participantProfilesMap.get(id)?.displayName ?? "User";
+              return <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); el.srcObject = remoteStreamsRef.current.get(id) ?? null; } }} autoPlay playsInline className="h-full w-full object-cover" /><div className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full bg-black/60 px-3 py-1.5 text-sm font-medium">{name}</div></div>;
+            })}</>
+          ) : <div className="grid h-full w-full grid-cols-2 gap-2 p-2">{call.participantIds.filter((id) => id !== currentUserId).map((id) => <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); el.srcObject = remoteStreamsRef.current.get(id) ?? null; } }} autoPlay playsInline className="h-full w-full rounded-xl object-cover" /><div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{participantProfilesMap.get(id)?.displayName ?? "User"}</div></div>)}</div>}
+          <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-4 right-4 h-36 w-28 rounded-2xl border border-white/30 bg-black object-cover shadow-xl" />
+          <div className="pointer-events-none absolute top-[max(1rem,env(safe-area-inset-top))] text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{call.status === "ringing" ? "Ringing…" : call.status === "active" ? formatDuration(duration) : "Connecting…"}</p></div>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3 bg-slate-950/95 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleAudio}>{muted ? <MicOff /> : <Mic />}</Button>{call.type === "video" ? <><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleVideo}>{cameraOff ? <VideoOff /> : <Video />}</Button><Button size="icon" variant="secondary" className="rounded-full" title="Switch camera" onClick={() => void switchCamera()}><RotateCw /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Share screen" onClick={() => void shareScreen()}><MonitorUp /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Picture in picture" onClick={() => void openPictureInPicture()}><PictureInPicture /></Button></> : null}<Button size="icon" variant="destructive" className="rounded-full" onClick={() => void endCall()}><PhoneOff /></Button></div>
+      </div>
+    ) : null}
+  </>, document.body);
+
   return <>
     {conversationId && participantIds ? <><Button variant="ghost" size="icon" title="Voice call" aria-label="Start voice call" className="h-9 w-9" onClick={() => void startCall("audio")}><Phone className="h-4 w-4" /></Button>
     <Button variant="ghost" size="icon" title="Video call" aria-label="Start video call" className="h-9 w-9" onClick={() => void startCall("video")}><Video className="h-4 w-4" /></Button></> : null}
     <Button variant="ghost" size="icon" title="Call history" aria-label="Open call history" className="hidden h-9 w-9 sm:inline-flex" onClick={() => setShowHistory(true)}><History className="h-4 w-4" /></Button>
     {showHistory ? <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/50 p-4"><div className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-2xl border bg-background shadow-2xl"><div className="flex items-center justify-between border-b p-4"><h2 className="font-semibold">Call history</h2><Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}><X className="h-4 w-4" /></Button></div><div className="max-h-[55vh] space-y-1 overflow-y-auto p-3">{history.map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl p-3 hover:bg-muted"><div><p className="text-sm font-medium">{item.callerId === currentUserId ? "Outgoing" : "Incoming"} {item.type} call</p><p className="text-xs text-muted-foreground">{item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleString() : "Just now"}</p></div><span className={`text-xs capitalize ${item.status === "missed" || item.status === "declined" ? "text-red-600" : "text-muted-foreground"}`}>{item.status}</span></div>)}{history.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No calls yet.</p> : null}</div></div></div> : null}
-    {incoming ? <div className="fixed inset-x-4 top-20 z-[80] mx-auto flex max-w-md items-center justify-between rounded-2xl border bg-background p-4 shadow-2xl"><div><p className="font-semibold">Incoming {incoming.type} call</p><p className="text-sm text-muted-foreground">{title}</p></div><div className="flex gap-2"><Button size="icon" onClick={() => void answerCall()}><Phone className="h-4 w-4" /></Button><Button size="icon" variant="destructive" onClick={() => void decline()}><PhoneOff className="h-4 w-4" /></Button></div></div> : null}
-    {call ? (
-      <div className="fixed inset-0 z-[90] flex flex-col bg-slate-950 text-white">
-        <div className="relative flex flex-1 items-center justify-center">
-          {call.participantIds.filter((id) => id !== currentUserId).length <= 1 ? (
-            // single remote (1:1) large view
-            <>
-              {call.participantIds.filter((id) => id !== currentUserId).map((id) => {
-                const name = participantProfilesMap.get(id)?.displayName ?? (id === currentUserId ? "You" : "User");
-                return (
-                <div key={id} className="relative h-full w-full">
-                  <video ref={(el) => { if (el) remoteVideosRef.current.set(id, el); }} autoPlay playsInline className="h-full w-full object-contain" />
-                  <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{name}</div>
-                </div>
-                );
-              })}
-            </>
-          ) : (
-            // group grid
-            <div className="grid h-full w-full grid-cols-2 gap-2 p-2">
-              {call.participantIds.filter((id) => id !== currentUserId).map((id) => {
-                const name = participantProfilesMap.get(id)?.displayName ?? (id === currentUserId ? "You" : "User");
-                return (
-                <div key={id} className="relative h-full w-full">
-                  <video ref={(el) => { if (el) remoteVideosRef.current.set(id, el); }} autoPlay playsInline className="h-full w-full rounded-md object-cover" />
-                  <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{name}</div>
-                </div>
-                );
-              })}
-            </div>
-          )}
-          <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-4 right-4 h-36 w-28 rounded-xl border object-cover" />
-          <div className="absolute top-6 text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{call.status === "ringing" ? "Ringing…" : call.status === "active" ? "Connected" : "Connecting…"}</p></div>
-        </div>
-        <div className="flex justify-center gap-3 p-6"><Button size="icon" variant="secondary" onClick={toggleAudio}>{muted ? <MicOff /> : <Mic />}</Button>{call.type === "video" ? <><Button size="icon" variant="secondary" onClick={toggleVideo}>{cameraOff ? <VideoOff /> : <Video />}</Button><Button size="icon" variant="secondary" title="Switch camera" onClick={() => void switchCamera()}><RotateCw /></Button><Button size="icon" variant="secondary" title="Share screen" onClick={() => void shareScreen()}><MonitorUp /></Button><Button size="icon" variant="secondary" title="Picture in picture" onClick={() => void openPictureInPicture()}><PictureInPicture /></Button></> : null}<Button size="icon" variant="destructive" onClick={() => void endCall()}><PhoneOff /></Button></div>
-      </div>
-    ) : null}
-    {ratingCall ? <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4"><div className="w-full max-w-sm rounded-2xl bg-background p-6 text-center shadow-2xl"><h2 className="text-lg font-semibold">How was your call?</h2><p className="mt-1 text-sm text-muted-foreground">Rate the call quality with {title}.</p><div className="my-5 flex justify-center gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${value} stars`} onClick={() => setRating(value)} className={value <= rating ? "text-amber-400" : "text-muted-foreground/40"}><Star className="h-8 w-8 fill-current" /></button>)}</div><div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setRatingCall(null)}>Skip</Button><Button className="flex-1" disabled={!rating} onClick={() => void submitRating()}>Submit</Button></div></div></div> : null}
+    {callOverlays}
     {error ? <div className="fixed bottom-4 right-4 z-[100] rounded-lg bg-red-600 px-4 py-3 text-sm text-white" onClick={() => setError("")}>{error}</div> : null}
   </>;
 }
