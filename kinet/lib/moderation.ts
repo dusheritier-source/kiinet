@@ -1,6 +1,8 @@
 import {
   addDoc,
+  arrayRemove,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   limit,
@@ -88,6 +90,19 @@ export async function toggleBlockedUser(targetUid: string, isBlocked: boolean) {
     },
     { merge: true }
   );
+
+  if (!isBlocked) {
+    // Blocking also severs existing follows and pending requests. Keep this
+    // cleanup best-effort so older rules cannot prevent the block itself.
+    await Promise.allSettled([
+      setDoc(doc(db, "users", userId), { following: arrayRemove(targetUid), followers: arrayRemove(targetUid) }, { merge: true }),
+      setDoc(doc(db, "users", targetUid), { following: arrayRemove(userId), followers: arrayRemove(userId) }, { merge: true }),
+      deleteDoc(doc(db, "follows", `${userId}_${targetUid}`)),
+      deleteDoc(doc(db, "follows", `${targetUid}_${userId}`)),
+      deleteDoc(doc(db, "followRequests", `${userId}_${targetUid}`)),
+      deleteDoc(doc(db, "followRequests", `${targetUid}_${userId}`)),
+    ]);
+  }
 }
 
 export async function getBlockedUsers() {

@@ -521,7 +521,8 @@ export async function deleteConversationMessage(messageId: string) {
 
 export function subscribeToConversations(
   userId: string,
-  callback: (conversations: ConversationSummary[]) => void
+  callback: (conversations: ConversationSummary[]) => void,
+  onError?: (error: Error) => void
 ): ListenerCleanup {
   if (!db) {
     callback([]);
@@ -599,8 +600,8 @@ export function subscribeToConversations(
         })));
       });
     },
-    () => {
-      callback([]);
+    (error) => {
+      onError?.(error instanceof Error ? error : new Error("Unable to load conversations."));
     }
   );
 

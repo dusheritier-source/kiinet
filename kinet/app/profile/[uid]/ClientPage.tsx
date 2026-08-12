@@ -115,9 +115,11 @@ export default function PublicProfilePageContent() {
   const isSelf = user?.uid === uid;
   const isFollowing = Boolean(user && profile?.followers?.includes(user.uid));
   const isPrivate = profile?.settings?.privateAccount === true;
-  const canViewContent = isSelf || !isPrivate || isFollowing;
-  const canViewProfile = isSelf || !isPrivate || isFollowing;
-  const canViewConnections = canViewProfile && profile?.settings?.showFollowerCounts !== false;
+  const blockedByCurrentUser = Boolean(uid && currentProfile?.blockedUsers?.includes(uid));
+  const blockedByProfile = Boolean(user && profile?.blockedUsers?.includes(user.uid));
+  const isBlockedRelationship = !isSelf && (blockedByCurrentUser || blockedByProfile);
+  const canViewContent = !isBlockedRelationship && (isSelf || !isPrivate || isFollowing);
+  const canViewConnections = canViewContent && profile?.settings?.showFollowerCounts !== false;
 
   useEffect(() => {
     if (!uid || !canViewContent) {
@@ -171,8 +173,7 @@ export default function PublicProfilePageContent() {
   }
 
   const mutualCount = (profile.followers ?? []).filter((followerId) => currentProfile?.following?.includes(followerId)).length;
-  const temporaryAvatarActive = Boolean(profile.temporaryAvatarExpiresAt?.seconds && profile.temporaryAvatarExpiresAt.seconds * 1000 > Date.now());
-  const avatarUrl = temporaryAvatarActive ? (profile.photoURL || "") : (profile.previousPhotoURL || profile.photoURL || "");
+  const avatarUrl = profile.photoURL || "";
 
   const openConnections = async (title: string, ids: string[]) => {
     setConnectionTitle(title);
@@ -185,15 +186,14 @@ export default function PublicProfilePageContent() {
     }
   };
 
-  if (!canViewProfile) {
+  if (isBlockedRelationship) {
     return (
       <div className="mx-auto max-w-3xl py-8">
         <Card>
           <CardContent className="p-12 text-center">
-            <Lock className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h2 className="mt-4 text-xl font-semibold">This account is private</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Follow this account and wait for approval to see their profile and content.</p>
-            {followRequested ? <p className="mt-1 text-xs text-muted-foreground">Your follow request is pending approval.</p> : null}
+            <UserX className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h2 className="mt-4 text-xl font-semibold">Profile unavailable</h2>
+            <p className="mt-2 text-sm text-muted-foreground">This profile cannot be viewed or contacted.</p>
           </CardContent>
         </Card>
       </div>
@@ -274,6 +274,7 @@ export default function PublicProfilePageContent() {
                         setBlocking(true);
                         try {
                           await toggleBlockedUser(uid, false);
+                          setCurrentProfile((current) => current ? { ...current, blockedUsers: Array.from(new Set([...(current.blockedUsers ?? []), uid])) } : current);
                         } finally {
                           setBlocking(false);
                         }

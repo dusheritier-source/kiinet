@@ -523,8 +523,21 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
     return;
   }
 
+  const [currentBefore, targetBefore] = await Promise.all([
+    getDoc(doc(db, "users", currentUid)),
+    getDoc(doc(db, "users", targetUid)),
+  ]);
+  const currentBlockedUsers = currentBefore.exists() && Array.isArray(currentBefore.data().blockedUsers)
+    ? currentBefore.data().blockedUsers as string[]
+    : [];
+  const targetBlockedUsers = targetBefore.exists() && Array.isArray(targetBefore.data().blockedUsers)
+    ? targetBefore.data().blockedUsers as string[]
+    : [];
+  if (currentBlockedUsers.includes(targetUid) || targetBlockedUsers.includes(currentUid)) {
+    throw new Error("Following is unavailable because one of you has blocked the other.");
+  }
+
   if (!isFollowing) {
-    const targetBefore = await getDoc(doc(db, "users", targetUid));
     const targetSettings = targetBefore.exists() ? ((targetBefore.data().settings as Record<string, unknown> | undefined) ?? {}) : {};
     if (targetSettings.privateAccount === true || targetSettings.profileVisibility === "private") {
       const requestRef = doc(db, "followRequests", `${currentUid}_${targetUid}`);
@@ -668,15 +681,6 @@ export async function searchProfiles(searchTerm: string) {
       const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;
       return !auth.currentUser || !Array.isArray(targetBlocked) || !targetBlocked.includes(auth.currentUser.uid);
     })
-    .filter((profile: SearchProfile) => {
-      const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
-      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
-      if (!isPrivate) return true;
-      if (!auth.currentUser || profile.uid === auth.currentUser.uid) return true;
-      const followers = Array.isArray(profile.followers) ? profile.followers : [];
-      const following = Array.isArray(profile.following) ? profile.following : [];
-      return followers.includes(auth.currentUser.uid) && following.includes(auth.currentUser.uid);
-    })
     .map((profile: SearchProfile) => {
       const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
       const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
@@ -745,15 +749,11 @@ export async function getSuggestedProfiles(maxResults = 12) {
   const location = String(currentUser?.location ?? "").trim().toLowerCase();
 
   return profilesSnapshot.docs
-    .map((docSnapshot) => docSnapshot.data() as SearchProfile)
+    .map((docSnapshot) => ({ ...docSnapshot.data(), uid: docSnapshot.id }) as SearchProfile)
     .filter((profile) => profile.uid !== currentUserId && !blockedUsers.has(profile.uid))
     .filter((profile) => {
-      const settings = ((profile as unknown as Record<string, unknown>).settings ?? {}) as Record<string, unknown>;
-      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
-      if (!isPrivate) return true;
-      const followers = Array.isArray(profile.followers) ? profile.followers : [];
-      const following = Array.isArray(profile.following) ? profile.following : [];
-      return followers.includes(currentUserId) && following.includes(currentUserId);
+      const targetBlocked = (profile as unknown as Record<string, unknown>).blockedUsers;
+      return !Array.isArray(targetBlocked) || !targetBlocked.includes(currentUserId);
     })
     .map((profile) => {
       const mutualCount = (profile.followers ?? []).filter((uid) => following.has(uid)).length;

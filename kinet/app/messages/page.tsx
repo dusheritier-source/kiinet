@@ -116,6 +116,8 @@ function MessagesPageContent() {
   const [error, setError] = useState("");
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [conversationsError, setConversationsError] = useState("");
+  const [conversationsRetry, setConversationsRetry] = useState(0);
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [skeletonHeight, setSkeletonHeight] = useState<number | null>(null);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
@@ -319,19 +321,39 @@ function MessagesPageContent() {
   useEffect(() => {
     if (!user) return;
 
-    // Keep a loading flag until the first conversations batch arrives
+    setConversationsLoading(true);
+    setConversationsError("");
+
+    // Never leave the inbox skeleton visible indefinitely on a slow or failed connection.
     let first = true;
+    const loadingTimeout = window.setTimeout(() => {
+      if (!first) return;
+      first = false;
+      setConversationsLoading(false);
+      setConversationsError("Messages are taking too long to load. Check your connection and try again.");
+    }, 12_000);
+
     const handle = (items: ConversationSummary[]) => {
       setConversations(items);
+      setConversationsError("");
       if (first) {
+        window.clearTimeout(loadingTimeout);
         setConversationsLoading(false);
         first = false;
       }
     };
 
-    const cleanup = subscribeToConversations(user.uid, handle);
-    return cleanup;
-  }, [user]);
+    const cleanup = subscribeToConversations(user.uid, handle, () => {
+      window.clearTimeout(loadingTimeout);
+      first = false;
+      setConversationsLoading(false);
+      setConversationsError("Unable to load messages. Check your connection and try again.");
+    });
+    return () => {
+      window.clearTimeout(loadingTimeout);
+      cleanup();
+    };
+  }, [user, conversationsRetry]);
 
   useEffect(() => {
     if (!user) return;
@@ -1151,8 +1173,17 @@ function MessagesPageContent() {
 
             {creating ? <p className="text-sm text-muted-foreground">Starting conversation...</p> : null}
 
+            {conversationsError ? (
+              <div role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm">
+                <p>{conversationsError}</p>
+                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setConversationsRetry((current) => current + 1)}>
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
-              {!conversationsLoading && visibleConversations.length === 0 ? (
+              {!conversationsLoading && !conversationsError && visibleConversations.length === 0 ? (
                 <div className="rounded-3xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                   No conversations yet. Start one from a profile or reply to a story.
                 </div>

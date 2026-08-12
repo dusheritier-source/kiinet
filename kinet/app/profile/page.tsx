@@ -161,7 +161,7 @@ function ProfilePageContent() {
   }, [profile, user]);
 
   const initials = useMemo(() => {
-    const name = user?.displayName || profile?.displayName || "Kinet User";
+    const name = profile?.displayName || user?.displayName || "Kinet User";
     return name
       .split(" ")
       .slice(0, 2)
@@ -181,8 +181,7 @@ function ProfilePageContent() {
 
   const reposts = useMemo(() => posts.filter((post) => Boolean(post.originalPostId)), [posts]);
   const visibleContent = (contentView === "reels" ? reelPosts : contentView === "reposts" ? reposts : contentView === "tagged" ? taggedPosts : standardPosts).slice(0, visibleCount);
-  const temporaryAvatarActive = Boolean(profile?.temporaryAvatarExpiresAt?.seconds && profile.temporaryAvatarExpiresAt.seconds * 1000 > Date.now());
-  const avatarUrl = temporaryAvatarActive ? (profile?.photoURL || user?.photoURL || "") : (profile?.previousPhotoURL || profile?.photoURL || user?.photoURL || "");
+  const avatarUrl = profile?.photoURL || user?.photoURL || "";
   const completionItems = [{ label: "Profile photo", complete: Boolean(avatarUrl) }, { label: "Cover image", complete: Boolean(profile?.coverPhotoURL) }, { label: "Bio", complete: Boolean(profile?.bio) }, { label: "Location", complete: Boolean(profile?.location) }, { label: "Link", complete: Boolean(profile?.website || profile?.socialLinks?.length) }, { label: "Image descriptions", complete: Boolean(profile?.avatarAlt && profile?.coverAlt) }];
   const completion = Math.round(completionItems.filter((item) => item.complete).length / completionItems.length * 100);
 
@@ -257,7 +256,7 @@ function ProfilePageContent() {
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
                     <h1 className="break-words text-3xl font-bold leading-tight">
-                      {user.displayName || profile?.displayName || "Kinet User"}
+                      {profile?.displayName || user.displayName || "Kinet User"}
                     </h1>
                     {profile?.verified ? (
                       <Badge variant="secondary" className="gap-1"><BadgeCheck className="h-3 w-3 text-primary" />Verified</Badge>
