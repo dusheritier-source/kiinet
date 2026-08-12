@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -68,13 +69,14 @@ import {
 } from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { isMutualFollow, searchProfiles, type SearchProfile } from "@/lib/user-profile";
-import { setUserOffline, setUserOnline, setupPresenceListener, type UserPresence } from "@/lib/realtime-db";
+import type { UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
-import CallPanel from "@/components/CallPanel";
-import VoiceNotePlayer from "@/components/VoiceNotePlayer";
-import VoiceNoteRecorder from "@/components/VoiceNoteRecorder";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { getCurrentUserSettings, updateCurrentUserSettings, type UserSettings } from "@/lib/settings";
+
+const CallPanel = dynamic(() => import("@/components/CallPanel"), { ssr: false });
+const VoiceNotePlayer = dynamic(() => import("@/components/VoiceNotePlayer"), { ssr: false });
+const VoiceNoteRecorder = dynamic(() => import("@/components/VoiceNoteRecorder"), { ssr: false });
 
 interface QueuedMessage {
   id: string;
@@ -333,8 +335,19 @@ function MessagesPageContent() {
 
   useEffect(() => {
     if (!user) return;
-    void setUserOnline();
-    return () => { void setUserOffline(); };
+    let disposed = false;
+    let markOffline: (() => void) | undefined;
+
+    void import("@/lib/realtime-db").then(({ setUserOffline, setUserOnline }) => {
+      if (disposed) return;
+      void setUserOnline();
+      markOffline = () => { void setUserOffline(); };
+    });
+
+    return () => {
+      disposed = true;
+      markOffline?.();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -546,7 +559,18 @@ function MessagesPageContent() {
       setOtherPresence(null);
       return;
     }
-    return setupPresenceListener(activeOtherUserId, setOtherPresence) ?? undefined;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void import("@/lib/realtime-db").then(({ setupPresenceListener }) => {
+      if (disposed) return;
+      unsubscribe = setupPresenceListener(activeOtherUserId, setOtherPresence) ?? undefined;
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, [activeOtherUserId]);
 
   useEffect(() => {
