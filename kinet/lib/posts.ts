@@ -1133,49 +1133,57 @@ export function subscribeToFeed(
     return () => undefined;
   }
 
-  const feedQuery = query(
-    collection(db, "posts"),
-    where("contentType", "==", "post"),
-    orderBy("createdAt", "desc"),
-    limit(60)
-  );
-
   let stopped = false;
-  let snapshotVersion = 0;
-  let rawPosts: FeedPost[] = [];
+  let authorUnsubscribes: ListenerCleanup[] = [];
+  const postsByAuthor = new Map<string, FeedPost[]>();
   let viewerProfile: Awaited<ReturnType<typeof getCurrentAuthorProfile>> | null = null;
 
-  const publishFeed = async () => {
+  const publishFeed = () => {
     if (!viewerProfile) return;
-    const currentVersion = ++snapshotVersion;
-    try {
-      const profile = viewerProfile;
-      const viewerId = auth?.currentUser?.uid ?? "";
-      const preferredSport = profile.defaultSport ?? "";
-      const following = profile.following ?? [];
-      const blockedUsers = profile.blockedUsers ?? [];
-      const authorIds = [...new Set(rawPosts.map((post) => post.userId))];
-      const privacyMap = await getAuthorPrivacyMap(authorIds);
+    const profile = viewerProfile;
+    const viewerId = auth?.currentUser?.uid ?? "";
+    const following = profile.following ?? [];
+    const blockedUsers = profile.blockedUsers ?? [];
+    const visiblePosts = Array.from(postsByAuthor.values())
+      .flat()
+      .filter((post) => post.contentType === "post" && isVisiblePost(post) && canAccessPost(post, profile))
+      .filter((post) => post.userId === viewerId || (!blockedUsers.includes(post.userId) && matchesFeedPreferences(post, profile.profile)))
+      .map((post) => post.userId === viewerId ? { ...post, author: profile.author } : post);
+    callback(scorePosts(visiblePosts, following, profile.defaultSport ?? "").slice(0, 60));
+  };
 
-      if (!stopped && currentVersion === snapshotVersion) {
-        const visiblePosts = rawPosts.filter((post) => {
-          if (post.contentType !== "post" || !isVisiblePost(post) || !canAccessPost(post, profile)) return false;
-          if (post.userId === viewerId) return true;
-          return !blockedUsers.includes(post.userId)
-            && matchesFeedPreferences(post, profile.profile)
-            && canViewPrivateAuthorPost(post.userId, viewerId, following, privacyMap);
-        }).map((post) => post.userId === viewerId ? { ...post, author: profile.author } : post);
-        callback(
-          scorePosts(
-            visiblePosts,
-            following,
-            preferredSport
-          )
-        );
-      }
-    } catch (error) {
-      onError?.(error instanceof Error ? error : new Error("Could not load the feed."));
+  const subscribeToVisibleAuthors = () => {
+    authorUnsubscribes.forEach((unsubscribeAuthor) => unsubscribeAuthor());
+    authorUnsubscribes = [];
+    postsByAuthor.clear();
+    if (!viewerProfile) return;
+
+    const viewerId = auth?.currentUser?.uid ?? "";
+    const authorIds = Array.from(new Set([viewerId, ...(viewerProfile.following ?? [])]))
+      .filter((uid) => uid && !viewerProfile?.blockedUsers?.includes(uid))
+      .slice(0, 50);
+
+    if (!authorIds.length) {
+      callback([]);
+      return;
     }
+
+    authorIds.forEach((authorId) => {
+      const authorQuery = query(collection(db!, "posts"), where("userId", "==", authorId), limit(60));
+      const unsubscribeAuthor = onSnapshot(
+        authorQuery,
+        (snapshot) => {
+          postsByAuthor.set(authorId, snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data())));
+          if (!stopped) publishFeed();
+        },
+        (error) => {
+          postsByAuthor.set(authorId, []);
+          if (authorId === viewerId) onError?.(error);
+          if (!stopped) publishFeed();
+        }
+      );
+      authorUnsubscribes.push(unsubscribeAuthor);
+    });
   };
 
   const viewerId = auth?.currentUser?.uid ?? "";
@@ -1197,25 +1205,14 @@ export function subscribeToFeed(
           following: Array.isArray(profile.following) ? profile.following as string[] : [],
           blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers as string[] : [],
         };
-        void publishFeed();
+        subscribeToVisibleAuthors();
       }, (error) => onError?.(error))
     : () => undefined;
-
-  const unsubscribe = onSnapshot(
-    feedQuery,
-    (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
-      rawPosts = snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data()));
-      void publishFeed();
-    },
-    (error: Error) => {
-      onError?.(error);
-    }
-  );
 
   return () => {
     stopped = true;
     unsubscribeProfile();
-    unsubscribe();
+    authorUnsubscribes.forEach((unsubscribeAuthor) => unsubscribeAuthor());
   };
 }
 
