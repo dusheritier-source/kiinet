@@ -44,6 +44,7 @@ import {
   createGroupConversation,
   deleteConversationMessage,
   getOlderConversationMessages,
+  getConversationsOnce,
   markConversationRead,
   markConversationUnread,
   leaveGroupConversation,
@@ -68,7 +69,7 @@ import {
   subscribeToNotesForUsers,
 } from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
-import { isMutualFollow, searchProfiles, type SearchProfile } from "@/lib/user-profile";
+import { isMutualFollow, searchProfiles, subscribeToUserProfile, type SearchProfile } from "@/lib/user-profile";
 import type { UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
@@ -119,6 +120,7 @@ function MessagesPageContent() {
   const [conversationsError, setConversationsError] = useState("");
   const [conversationsSyncDelayed, setConversationsSyncDelayed] = useState(false);
   const [conversationsRetry, setConversationsRetry] = useState(0);
+  const [currentProfileName, setCurrentProfileName] = useState("");
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [skeletonHeight, setSkeletonHeight] = useState<number | null>(null);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
@@ -328,11 +330,7 @@ function MessagesPageContent() {
 
     // Never leave the inbox skeleton visible indefinitely on a slow or failed connection.
     let first = true;
-    const loadingTimeout = window.setTimeout(() => {
-      if (!first) return;
-      setConversationsLoading(false);
-      setConversationsSyncDelayed(true);
-    }, 12_000);
+    let loadingTimeout: number;
 
     const handle = (items: ConversationSummary[]) => {
       setConversations(items);
@@ -344,6 +342,13 @@ function MessagesPageContent() {
         first = false;
       }
     };
+
+    loadingTimeout = window.setTimeout(() => {
+      if (!first) return;
+      setConversationsLoading(false);
+      setConversationsSyncDelayed(true);
+      void getConversationsOnce(user.uid).then(handle).catch(() => undefined);
+    }, 12_000);
 
     const cleanup = subscribeToConversations(user.uid, handle, () => {
       window.clearTimeout(loadingTimeout);
@@ -357,6 +362,17 @@ function MessagesPageContent() {
       cleanup();
     };
   }, [user, conversationsRetry]);
+
+  useEffect(() => {
+    if (!user) {
+      setCurrentProfileName("");
+      return;
+    }
+    return subscribeToUserProfile(user.uid, (profile) => {
+      const displayName = typeof profile?.displayName === "string" ? profile.displayName.trim() : "";
+      setCurrentProfileName(displayName);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -1036,7 +1052,7 @@ function MessagesPageContent() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-muted-foreground">
-              {user.displayName || "Inbox"}
+              {currentProfileName || user.displayName || "Inbox"}
             </p>
             <h1 className="text-3xl font-bold">Messages</h1>
             <p className="text-sm text-muted-foreground">Story replies and direct messages, Instagram style.</p>

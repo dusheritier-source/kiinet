@@ -519,6 +519,52 @@ export async function deleteConversationMessage(messageId: string) {
   );
 }
 
+function mapConversationSummaries(
+  docs: Array<{ id: string; data: () => Record<string, unknown> }>
+): ConversationSummary[] {
+  return docs
+    .map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        participantIds: Array.isArray(data.participantIds) ? data.participantIds as string[] : [],
+        participantProfiles: Array.isArray(data.participantProfiles) ? data.participantProfiles as ConversationSummary["participantProfiles"] : [],
+        lastMessage: String(data.lastMessage ?? ""),
+        lastSenderId: data.lastSenderId ? String(data.lastSenderId) : null,
+        unreadBy: Array.isArray(data.unreadBy) ? data.unreadBy as string[] : [],
+        typingBy: Array.isArray(data.typingBy) ? data.typingBy as string[] : [],
+        mutedBy: Array.isArray(data.mutedBy) ? data.mutedBy as string[] : [],
+        archivedBy: Array.isArray(data.archivedBy) ? data.archivedBy as string[] : [],
+        pinnedBy: Array.isArray(data.pinnedBy) ? data.pinnedBy as string[] : [],
+        hiddenBy: Array.isArray(data.hiddenBy) ? data.hiddenBy as string[] : [],
+        requestStatus: data.requestStatus === "pending" || data.requestStatus === "declined" ? data.requestStatus : "accepted",
+        requestedBy: data.requestedBy ? String(data.requestedBy) : null,
+        kind: data.kind === "group" ? "group" : "direct",
+        groupName: data.groupName ? String(data.groupName) : null,
+        groupPhotoURL: data.groupPhotoURL ? String(data.groupPhotoURL) : null,
+        adminIds: Array.isArray(data.adminIds) ? data.adminIds as string[] : [],
+        createdBy: data.createdBy ? String(data.createdBy) : null,
+        leftBy: Array.isArray(data.leftBy) ? data.leftBy as string[] : [],
+        updatedAt: data.updatedAt as ConversationSummary["updatedAt"],
+      } satisfies ConversationSummary;
+    })
+    .sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0));
+}
+
+export async function getConversationsOnce(userId: string): Promise<ConversationSummary[]> {
+  const firebaseApp = (await import("@/lib/firebase")).default;
+  if (!firebaseApp) return [];
+  const firestoreLite = await import("firebase/firestore/lite");
+  const liteDb = firestoreLite.getFirestore(firebaseApp);
+  const conversationsQuery = firestoreLite.query(
+    firestoreLite.collection(liteDb, "conversations"),
+    firestoreLite.where("participantIds", "array-contains", userId),
+    firestoreLite.limit(30)
+  );
+  const snapshot = await firestoreLite.getDocs(conversationsQuery);
+  return mapConversationSummaries(snapshot.docs);
+}
+
 export function subscribeToConversations(
   userId: string,
   callback: (conversations: ConversationSummary[]) => void,
@@ -541,36 +587,8 @@ export function subscribeToConversations(
     conversationsQuery,
     (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       const version = ++snapshotVersion;
-      const mapped = snapshot.docs.map((docSnapshot) => {
-          const data = docSnapshot.data();
-          return {
-            id: docSnapshot.id,
-            participantIds: Array.isArray(data.participantIds) ? (data.participantIds as string[]) : [],
-            participantProfiles: Array.isArray(data.participantProfiles)
-              ? (data.participantProfiles as ConversationSummary["participantProfiles"])
-              : [],
-            lastMessage: String(data.lastMessage ?? ""),
-            lastSenderId: data.lastSenderId ? String(data.lastSenderId) : null,
-            unreadBy: Array.isArray(data.unreadBy) ? (data.unreadBy as string[]) : [],
-            typingBy: Array.isArray(data.typingBy) ? (data.typingBy as string[]) : [],
-            mutedBy: Array.isArray(data.mutedBy) ? (data.mutedBy as string[]) : [],
-            archivedBy: Array.isArray(data.archivedBy) ? (data.archivedBy as string[]) : [],
-            pinnedBy: Array.isArray(data.pinnedBy) ? (data.pinnedBy as string[]) : [],
-            hiddenBy: Array.isArray(data.hiddenBy) ? (data.hiddenBy as string[]) : [],
-            requestStatus: data.requestStatus === "pending" || data.requestStatus === "declined" ? data.requestStatus : "accepted",
-            requestedBy: data.requestedBy ? String(data.requestedBy) : null,
-            kind: data.kind === "group" ? "group" : "direct",
-            groupName: data.groupName ? String(data.groupName) : null,
-            groupPhotoURL: data.groupPhotoURL ? String(data.groupPhotoURL) : null,
-            adminIds: Array.isArray(data.adminIds) ? data.adminIds as string[] : [],
-            createdBy: data.createdBy ? String(data.createdBy) : null,
-            leftBy: Array.isArray(data.leftBy) ? data.leftBy as string[] : [],
-            updatedAt:
-              (data.updatedAt as { seconds?: number; nanoseconds?: number } | null | undefined) ??
-              null,
-          } satisfies ConversationSummary;
-        });
-      const sorted = mapped.sort((first, second) => (second.updatedAt?.seconds ?? 0) - (first.updatedAt?.seconds ?? 0));
+      const sorted = mapConversationSummaries(snapshot.docs);
+      const mapped = sorted;
 
       // Stored participant profiles are enough to paint the inbox immediately.
       // Fresh profile lookups should never block navigation or the first render.

@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getFirestore, initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from "firebase/database";
 
@@ -45,7 +45,9 @@ function initializeClientFirestore() {
   if (!app) return null;
   try {
     return initializeFirestore(app, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      // Avoid Safari serving an old profile/inbox indefinitely from IndexedDB
+      // when its Firestore connection cannot refresh the persistent cache.
+      localCache: memoryLocalCache(),
       // Forced long polling is more reliable than WebChannel streaming on
       // mobile Safari and networks/proxies that leave Firestore listeners open
       // without ever delivering their first snapshot.

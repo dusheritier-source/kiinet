@@ -1,4 +1,4 @@
-const CACHE_NAME = "hooplink-shell-v1";
+const CACHE_NAME = "kinet-shell-v2";
 const APP_SHELL = ["/", "/feed", "/reels", "/messages", "/search", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
