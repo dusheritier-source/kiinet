@@ -117,6 +117,7 @@ function MessagesPageContent() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [conversationsError, setConversationsError] = useState("");
+  const [conversationsSyncDelayed, setConversationsSyncDelayed] = useState(false);
   const [conversationsRetry, setConversationsRetry] = useState(0);
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [skeletonHeight, setSkeletonHeight] = useState<number | null>(null);
@@ -323,19 +324,20 @@ function MessagesPageContent() {
 
     setConversationsLoading(true);
     setConversationsError("");
+    setConversationsSyncDelayed(false);
 
     // Never leave the inbox skeleton visible indefinitely on a slow or failed connection.
     let first = true;
     const loadingTimeout = window.setTimeout(() => {
       if (!first) return;
-      first = false;
       setConversationsLoading(false);
-      setConversationsError("Messages are taking too long to load. Check your connection and try again.");
+      setConversationsSyncDelayed(true);
     }, 12_000);
 
     const handle = (items: ConversationSummary[]) => {
       setConversations(items);
       setConversationsError("");
+      setConversationsSyncDelayed(false);
       if (first) {
         window.clearTimeout(loadingTimeout);
         setConversationsLoading(false);
@@ -347,6 +349,7 @@ function MessagesPageContent() {
       window.clearTimeout(loadingTimeout);
       first = false;
       setConversationsLoading(false);
+      setConversationsSyncDelayed(false);
       setConversationsError("Unable to load messages. Check your connection and try again.");
     });
     return () => {
@@ -1180,6 +1183,12 @@ function MessagesPageContent() {
                   Retry
                 </Button>
               </div>
+            ) : null}
+
+            {conversationsSyncDelayed && !conversations.length ? (
+              <p role="status" className="px-2 text-xs text-muted-foreground">
+                Inbox is still syncing. New conversations will appear automatically.
+              </p>
             ) : null}
 
             <div className="space-y-2">

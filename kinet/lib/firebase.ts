@@ -46,7 +46,10 @@ function initializeClientFirestore() {
   try {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-      experimentalAutoDetectLongPolling: true,
+      // Forced long polling is more reliable than WebChannel streaming on
+      // mobile Safari and networks/proxies that leave Firestore listeners open
+      // without ever delivering their first snapshot.
+      experimentalForceLongPolling: true,
     });
   }
   catch { return getFirestore(app); }
