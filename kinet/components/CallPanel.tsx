@@ -30,12 +30,14 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const [history, setHistory] = useState<CallRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const [participantProfilesMap, setParticipantProfilesMap] = useState<Map<string, { displayName: string; photoURL?: string }>>(new Map());
   const cleanupsRef = useRef<Array<() => void>>([]);
 
@@ -65,6 +67,43 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     // clear remote video elements
     remoteVideosRef.current.forEach((el) => { try { el.srcObject = null; } catch {} }); remoteVideosRef.current.clear();
     remoteStreamsRef.current.clear();
+    pendingCandidatesRef.current.clear();
+    setAudioPlaybackBlocked(false);
+  };
+
+  const attachRemoteStream = (remoteId: string, stream: MediaStream) => {
+    remoteStreamsRef.current.set(remoteId, stream);
+    const element = remoteVideosRef.current.get(remoteId);
+    if (!element) return;
+    element.srcObject = stream;
+    element.muted = false;
+    element.volume = 1;
+    void element.play().then(() => setAudioPlaybackBlocked(false)).catch(() => setAudioPlaybackBlocked(true));
+  };
+
+  const enableRemoteAudio = () => {
+    const elements = Array.from(remoteVideosRef.current.values());
+    void Promise.all(elements.map(async (element) => {
+      element.muted = false;
+      element.volume = 1;
+      await element.play();
+    })).then(() => setAudioPlaybackBlocked(false)).catch(() => setError("Audio could not start. Check Safari microphone and speaker permissions."));
+  };
+
+  const addOrQueueCandidate = (peerId: string, peer: RTCPeerConnection, candidate: RTCIceCandidateInit) => {
+    if (peer.remoteDescription) {
+      void peer.addIceCandidate(candidate).catch(() => undefined);
+      return;
+    }
+    const pending = pendingCandidatesRef.current.get(peerId) ?? [];
+    pending.push(candidate);
+    pendingCandidatesRef.current.set(peerId, pending);
+  };
+
+  const flushCandidates = async (peerId: string, peer: RTCPeerConnection) => {
+    const pending = pendingCandidatesRef.current.get(peerId) ?? [];
+    pendingCandidatesRef.current.delete(peerId);
+    for (const candidate of pending) await peer.addIceCandidate(candidate).catch(() => undefined);
   };
 
   const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
@@ -82,9 +121,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       const stream = event.streams[0];
       const remoteId = (call?.participantIds ?? participantIds ?? []).find((id) => id !== currentUserId);
       if (remoteId && stream) {
-        remoteStreamsRef.current.set(remoteId, stream);
-        const remoteElement = remoteVideosRef.current.get(remoteId);
-        if (remoteElement) remoteElement.srcObject = stream;
+        attachRemoteStream(remoteId, stream);
       }
     };
     peer.onicecandidate = (event) => { if (event.candidate) { /* caller/callee will add candidate per-pair */ } };
@@ -182,9 +219,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         // add local tracks
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
         pc.ontrack = (event) => {
-          remoteStreamsRef.current.set(targetId, event.streams[0]);
-          const remoteEl = remoteVideosRef.current.get(targetId);
-          if (remoteEl) remoteEl.srcObject = event.streams[0];
+          if (event.streams[0]) attachRemoteStream(targetId, event.streams[0]);
         };
         pc.onicecandidate = (event) => { if (event.candidate) void addGroupCandidate(callId, currentUserId, targetId, event.candidate.toJSON()); };
         const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
@@ -193,11 +228,14 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         const cleanupAnswer = subscribeAnswers(callId, currentUserId, async (answerDoc) => {
           if (answerDoc.from !== targetId) return;
           const ans = answerDoc.answer as RTCSessionDescriptionInit;
-          if (ans && !pc.currentRemoteDescription) await pc.setRemoteDescription(ans);
+          if (ans && !pc.currentRemoteDescription) {
+            await pc.setRemoteDescription(ans);
+            await flushCandidates(targetId, pc);
+          }
         });
         cleanupsRef.current.push(cleanupAnswer);
         // subscribe for candidates from target->caller
-        const cleanupCandidates = subscribeGroupCandidates(callId, targetId, currentUserId, (candidate) => void pc.addIceCandidate(candidate).catch(() => undefined));
+        const cleanupCandidates = subscribeGroupCandidates(callId, targetId, currentUserId, (candidate) => addOrQueueCandidate(targetId, pc, candidate));
         cleanupsRef.current.push(cleanupCandidates);
       }));
       // mark call as ringing
@@ -264,16 +302,14 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         if (!localStreamRef.current) await preparePeer(incomingCall.type, groupCallId, "callee");
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
         pc.ontrack = (event) => {
-          remoteStreamsRef.current.set(callerId, event.streams[0]);
-          const el = remoteVideosRef.current.get(callerId);
-          if (el) el.srcObject = event.streams[0];
+          if (event.streams[0]) attachRemoteStream(callerId, event.streams[0]);
         };
         pc.onicecandidate = (event) => { if (event.candidate) void addGroupCandidate(groupCallId, currentUserId, callerId, event.candidate.toJSON()); };
         await pc.setRemoteDescription(offer as RTCSessionDescriptionInit);
         const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
         await addParticipantAnswer(groupCallId, currentUserId, callerId, { type: answer.type, sdp: answer.sdp });
         // subscribe to caller's candidates -> me
-        const cleanupCands = subscribeGroupCandidates(groupCallId, callerId, currentUserId, (candidate) => void pc.addIceCandidate(candidate).catch(() => undefined));
+        const cleanupCands = subscribeGroupCandidates(groupCallId, callerId, currentUserId, (candidate) => addOrQueueCandidate(callerId, pc, candidate));
         cleanupsRef.current.push(cleanupCands);
       } catch (cause) {
         stopMedia();
@@ -345,10 +381,11 @@ export default function CallPanel({ currentUserId, conversationId, participantId
           {call.participantIds.filter((id) => id !== currentUserId).length <= 1 ? (
             <>{call.participantIds.filter((id) => id !== currentUserId).map((id) => {
               const name = participantProfilesMap.get(id)?.displayName ?? "User";
-              return <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); el.srcObject = remoteStreamsRef.current.get(id) ?? null; } }} autoPlay playsInline className="h-full w-full object-cover" /><div className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full bg-black/60 px-3 py-1.5 text-sm font-medium">{name}</div></div>;
+              return <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); const stream = remoteStreamsRef.current.get(id); if (stream) attachRemoteStream(id, stream); } }} autoPlay playsInline className="h-full w-full object-cover" /><div className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full bg-black/60 px-3 py-1.5 text-sm font-medium">{name}</div></div>;
             })}</>
-          ) : <div className="grid h-full w-full grid-cols-2 gap-2 p-2">{call.participantIds.filter((id) => id !== currentUserId).map((id) => <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); el.srcObject = remoteStreamsRef.current.get(id) ?? null; } }} autoPlay playsInline className="h-full w-full rounded-xl object-cover" /><div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{participantProfilesMap.get(id)?.displayName ?? "User"}</div></div>)}</div>}
+          ) : <div className="grid h-full w-full grid-cols-2 gap-2 p-2">{call.participantIds.filter((id) => id !== currentUserId).map((id) => <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); const stream = remoteStreamsRef.current.get(id); if (stream) attachRemoteStream(id, stream); } }} autoPlay playsInline className="h-full w-full rounded-xl object-cover" /><div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{participantProfilesMap.get(id)?.displayName ?? "User"}</div></div>)}</div>}
           <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-4 right-4 h-36 w-28 rounded-2xl border border-white/30 bg-black object-cover shadow-xl" />
+          {audioPlaybackBlocked ? <Button type="button" className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full" onClick={enableRemoteAudio}><Mic className="mr-2 h-4 w-4" />Enable audio</Button> : null}
           <div className="pointer-events-none absolute top-[max(1rem,env(safe-area-inset-top))] text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{call.status === "ringing" ? "Ringing…" : call.status === "active" ? formatDuration(duration) : "Connecting…"}</p></div>
         </div>
         <div className="flex flex-wrap justify-center gap-3 bg-slate-950/95 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleAudio}>{muted ? <MicOff /> : <Mic />}</Button>{call.type === "video" ? <><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleVideo}>{cameraOff ? <VideoOff /> : <Video />}</Button><Button size="icon" variant="secondary" className="rounded-full" title="Switch camera" onClick={() => void switchCamera()}><RotateCw /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Share screen" onClick={() => void shareScreen()}><MonitorUp /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Picture in picture" onClick={() => void openPictureInPicture()}><PictureInPicture /></Button></> : null}<Button size="icon" variant="destructive" className="rounded-full" onClick={() => void endCall()}><PhoneOff /></Button></div>
