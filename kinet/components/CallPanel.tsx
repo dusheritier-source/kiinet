@@ -78,6 +78,30 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     void element.play().then(() => setAudioPlaybackBlocked(false)).catch(() => setAudioPlaybackBlocked(true));
   };
 
+  const receiveRemoteTrack = (remoteId: string, event: RTCTrackEvent) => {
+    const stream = event.streams[0] ?? remoteStreamsRef.current.get(remoteId) ?? new MediaStream();
+    if (!stream.getTracks().some((track) => track.id === event.track.id)) stream.addTrack(event.track);
+    event.track.enabled = true;
+    attachRemoteStream(remoteId, stream);
+    event.track.onunmute = () => attachRemoteStream(remoteId, stream);
+  };
+
+  const monitorPeer = (peer: RTCPeerConnection) => {
+    const update = () => {
+      setConnectionState(peer.connectionState);
+      if (peer.connectionState === "failed") setError(TURN_URL ? "The call connection failed. Please try again." : "The call could not carry audio across this network. Configure a TURN server for reliable calls.");
+      if (["disconnected", "failed"].includes(peer.connectionState) && reconnectAttemptsRef.current < 2) {
+        reconnectAttemptsRef.current += 1;
+        window.setTimeout(() => { if (peer.connectionState !== "connected" && peer.signalingState !== "closed") peer.restartIce(); }, 1500 * reconnectAttemptsRef.current);
+      }
+      if (peer.connectionState === "connected") reconnectAttemptsRef.current = 0;
+    };
+    peer.onconnectionstatechange = update;
+    peer.oniceconnectionstatechange = () => {
+      if (peer.iceConnectionState === "failed") update();
+    };
+  };
+
   const enableRemoteAudio = () => {
     const elements = Array.from(remoteVideosRef.current.values());
     void Promise.all(elements.map(async (element) => {
@@ -103,31 +127,25 @@ export default function CallPanel({ currentUserId, conversationId, participantId
     for (const candidate of pending) await peer.addIceCandidate(candidate).catch(() => undefined);
   };
 
-  const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
+  const prepareLocalMedia = async (type: CallType) => {
     const videoConstraints: boolean | MediaTrackConstraints = type === "video" ? (currentVideoDeviceId ? { deviceId: { exact: currentVideoDeviceId } } : true) : false;
-    // Ensure local stream exists and reuse it for multiple peers (star topology)
     if (!localStreamRef.current) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: videoConstraints });
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     }
+    return localStreamRef.current;
+  };
+
+  const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
+    const localStream = await prepareLocalMedia(type);
     const peer = new RTCPeerConnection(rtcConfig);
-    peer.onconnectionstatechange = () => {
-      setConnectionState(peer.connectionState);
-      if (["disconnected", "failed"].includes(peer.connectionState) && reconnectAttemptsRef.current < 2) {
-        reconnectAttemptsRef.current += 1;
-        window.setTimeout(() => { if (peer.connectionState !== "connected" && peer.signalingState !== "closed") peer.restartIce(); }, 1500 * reconnectAttemptsRef.current);
-      }
-      if (peer.connectionState === "connected") reconnectAttemptsRef.current = 0;
-    };
+    monitorPeer(peer);
     // add existing local tracks to the peer
-    localStreamRef.current.getTracks().forEach((track) => peer.addTrack(track, localStreamRef.current!));
+    localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
     peer.ontrack = (event) => {
-      const stream = event.streams[0];
       const remoteId = (call?.participantIds ?? participantIds ?? []).find((id) => id !== currentUserId);
-      if (remoteId && stream) {
-        attachRemoteStream(remoteId, stream);
-      }
+      if (remoteId) receiveRemoteTrack(remoteId, event);
     };
     peer.onicecandidate = (event) => { if (event.candidate) { /* caller/callee will add candidate per-pair */ } };
     return peer;
@@ -216,16 +234,15 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       // For each other participant create a peer and send an individual offer
       const others = participantIds.filter((id) => id !== currentUserId);
       // ensure local stream is prepared
-      await preparePeer(type, callId, "caller");
+      await prepareLocalMedia(type);
       // For each target, create a dedicated RTCPeerConnection, offer and write to offers collection
       await Promise.all(others.map(async (targetId) => {
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current.set(targetId, pc);
+        monitorPeer(pc);
         // add local tracks
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
-        pc.ontrack = (event) => {
-          if (event.streams[0]) attachRemoteStream(targetId, event.streams[0]);
-        };
+        pc.ontrack = (event) => receiveRemoteTrack(targetId, event);
         pc.onicecandidate = (event) => { if (event.candidate) void addGroupCandidate(callId, currentUserId, targetId, event.candidate.toJSON()); };
         const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
         await addParticipantOffer(callId, currentUserId, targetId, { type: offer.type, sdp: offer.sdp });
@@ -303,12 +320,11 @@ export default function CallPanel({ currentUserId, conversationId, participantId
         // create peer per callerId
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current.set(callerId, pc);
+        monitorPeer(pc);
         // ensure local stream
         if (!localStreamRef.current) await preparePeer(incomingCall.type, groupCallId, "callee");
         localStreamRef.current?.getTracks().forEach((t) => pc.addTrack(t, localStreamRef.current!));
-        pc.ontrack = (event) => {
-          if (event.streams[0]) attachRemoteStream(callerId, event.streams[0]);
-        };
+        pc.ontrack = (event) => receiveRemoteTrack(callerId, event);
         pc.onicecandidate = (event) => { if (event.candidate) void addGroupCandidate(groupCallId, currentUserId, callerId, event.candidate.toJSON()); };
         await pc.setRemoteDescription(offer as RTCSessionDescriptionInit);
         const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
