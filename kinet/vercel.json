@@ -4,5 +4,5 @@
   "installCommand": "npm install",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": ".next",
-  "crons": [{ "path": "/api/jobs/run", "schedule": "*/5 * * * *" }]
+  "crons": [{ "path": "/api/jobs/run", "schedule": "0 0 * * *" }]
 }
