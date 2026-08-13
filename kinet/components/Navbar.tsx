@@ -11,6 +11,7 @@ import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { subscribeToConversations, type ConversationSummary } from "@/lib/messaging";
 import OptimizedMedia from "@/components/OptimizedMedia";
+import InstallAppButton from "@/components/InstallAppButton";
 
 const primaryNav = [
   { href: "/feed", label: "Feed", icon: Home },
@@ -121,6 +122,8 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:block"><InstallAppButton /></div>
+          <div className="sm:hidden"><InstallAppButton compact /></div>
           {!loading && user && !isAuthPage ? (
             <>
               <div className="flex items-center gap-2 lg:hidden">

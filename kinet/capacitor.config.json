@@ -3,10 +3,10 @@
   "appName": "Kinet",
   "webDir": "public",
   "server": {
-    "url": "https://kinett.vercel.app",
+    "url": "https://kiinet-diha.vercel.app",
     "cleartext": false,
     "androidScheme": "https",
-    "allowNavigation": ["kinett.vercel.app", "*.supabase.co"]
+    "allowNavigation": ["kiinet-diha.vercel.app", "*.supabase.co"]
   },
   "android": {
     "allowMixedContent": false
