@@ -181,6 +181,7 @@ export async function shareRecruitBoard(recipientUid: string, targetIds: string[
   if (!auth?.currentUser || !db) {
     throw new Error("You must be signed in.");
   }
+  const database = db;
 
   const uniqueTargetIds = Array.from(new Set(targetIds.filter(Boolean)));
   if (!recipientUid || uniqueTargetIds.length === 0) {
@@ -198,7 +199,7 @@ export async function shareRecruitBoard(recipientUid: string, targetIds: string[
   await Promise.all(
     uniqueTargetIds.map((targetId) =>
       setDoc(
-        doc(db, "recruitTargets", targetId),
+        doc(database, "recruitTargets", targetId),
         { sharedWith: arrayUnion(recipientUid), updatedAt: serverTimestamp() },
         { merge: true }
       )

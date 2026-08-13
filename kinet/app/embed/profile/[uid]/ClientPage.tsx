@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 import { getUserProfileById } from "@/lib/user-profile";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 export default function EmbeddedProfileWidgetContent() {
   const params = useParams<{ uid: string }>();
@@ -36,7 +37,7 @@ export default function EmbeddedProfileWidgetContent() {
   return (
     <div className="h-full w-full rounded-2xl border bg-background p-4">
       <div className="flex items-center gap-3">
-        <img src={entry?.photoURL || "https://placehold.co/96x96?text=HL"} alt={entry?.displayName || "Profile"} className="h-16 w-16 rounded-full object-cover" />
+        <OptimizedMedia src={entry?.photoURL || "https://placehold.co/96x96?text=HL"} alt={entry?.displayName || "Profile"} width={64} height={64} sizes="64px" className="h-16 w-16 rounded-full object-cover" />
         <div>
           <p className="font-semibold">{entry?.displayName || "Kinet User"}</p>
           <p className="text-sm text-muted-foreground">{[entry?.role?.sport, entry?.role?.position, entry?.role?.team].filter(Boolean).join(" • ")}</p>

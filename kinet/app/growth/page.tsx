@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
@@ -57,7 +57,7 @@ function GrowthHubContent() {
   const [newsletterForm, setNewsletterForm] = useState({ title: "", body: "", subscriberOnly: true });
   const [blogForm, setBlogForm] = useState({ title: "", summary: "", body: "" });
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const snapshot = await getGrowthHubSnapshot();
     setGrowth(snapshot.growth);
     setFundraisers(snapshot.fundraisers);
@@ -69,12 +69,12 @@ function GrowthHubContent() {
     setPriorityInbox(snapshot.priorityInbox);
     setNewsletterIssues(await import("@/lib/phase6").then((mod) => mod.getCreatorNewsletterIssues(user?.uid || "")));
     setBlogPosts(await import("@/lib/phase6").then((mod) => mod.getCreatorBlogPosts(user?.uid || "")));
-  };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
     void refresh();
-  }, [user]);
+  }, [refresh, user]);
 
   if (!user || !growth) return null;
 

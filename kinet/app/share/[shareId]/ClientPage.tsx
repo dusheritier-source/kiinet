@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Public shares may reference dynamic user media hosts. */
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

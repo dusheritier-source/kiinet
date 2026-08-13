@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -68,6 +68,8 @@ function StudioPageContent() {
   const [cameraForm, setCameraForm] = useState({ label: "", angle: "", active: false });
   const [overlayForm, setOverlayForm] = useState({ headline: "", statLine: "" });
   const [filmForm, setFilmForm] = useState({ teamId: "", title: "", agenda: "" });
+  const filmTeamIdRef = useRef("");
+  filmTeamIdRef.current = filmForm.teamId;
   const [assignmentForm, setAssignmentForm] = useState({ athleteName: "", focus: "" });
   const [rubricForm, setRubricForm] = useState({ drillTitle: "", metrics: "Footwork:4,Reads:3,Finish:3" });
   const [voiceForm, setVoiceForm] = useState({ label: "", transcript: "" });
@@ -78,10 +80,10 @@ function StudioPageContent() {
   const [credentialForm, setCredentialForm] = useState({ requesterName: "", outlet: "" });
   const [graphicsForm, setGraphicsForm] = useState({ athlete: "Kinet Athlete", headline: "Locked in for game day", stat: "24 PTS • 8 AST", matchup: "Hoopers vs Rivals", tipoff: "7:00 PM", venue: "Downtown Arena", posterTitle: "Big Night", posterSubtitle: "Built for the moment", posterCallout: "Show up loud.", countdownLabel: "Showcase Weekend", countdownDate: "2026-04-20" });
 
-  const refresh = async (roomId = selectedRoomId, postId = selectedPostId) => {
+  const refresh = useCallback(async (roomId = "", postId = "", teamId = filmTeamIdRef.current) => {
     const [nextRooms, nextFilmSessions, nextRubrics, nextVoiceNotes, nextBoards] = await Promise.all([
       getLiveRooms(),
-      filmForm.teamId ? getFilmSessions(filmForm.teamId) : Promise.resolve([]),
+      teamId ? getFilmSessions(teamId) : Promise.resolve([]),
       getDrillRubrics(),
       getVoiceNotes(),
       getCollaborationBoards(),
@@ -124,11 +126,11 @@ function StudioPageContent() {
       setVideoTasks([]);
       setThreads([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    void refresh();
-  }, []);
+    void refresh("", "", "");
+  }, [refresh]);
 
   useEffect(() => {
     if (!selectedRoomId && rooms[0]) {
@@ -137,16 +139,10 @@ function StudioPageContent() {
   }, [rooms, selectedRoomId]);
 
   useEffect(() => {
-    if (selectedRoomId) {
-      void refresh(selectedRoomId, selectedPostId);
+    if (selectedRoomId || selectedPostId) {
+      void refresh(selectedRoomId, selectedPostId, filmForm.teamId);
     }
-  }, [selectedRoomId]);
-
-  useEffect(() => {
-    if (selectedPostId) {
-      void refresh(selectedRoomId, selectedPostId);
-    }
-  }, [selectedPostId]);
+  }, [filmForm.teamId, refresh, selectedPostId, selectedRoomId]);
 
   useEffect(() => {
     if (!user) {

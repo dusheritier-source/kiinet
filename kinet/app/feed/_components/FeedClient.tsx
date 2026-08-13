@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Legacy inline feed renderer supports dynamic user media hosts. */
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -10,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { addPostComment, createPost, deletePostComment, editPostComment, formatTimeAgo, quotePost, recordPostShare, repostPost, subscribeToComments, subscribeToFeed, toggleCommentReaction, togglePinnedComment, togglePollVote, togglePostLike, toggleSavePost, type FeedPost, type PostComment } from "@/lib/posts";
 import { subscribeToUserProfile } from "@/lib/user-profile";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 type FeedMode = "for_you" | "following" | "latest";
 
@@ -94,7 +96,7 @@ export default function FeedClient() {
     setAssistantLoading(task);
     setError("");
     try {
-      const response = await fetch("/api/media-assist", {
+      const response = await authenticatedFetch("/api/media-assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

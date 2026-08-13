@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export default function LandingPageClient() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="mb-8 flex items-center justify-center gap-3">
-              <img src="/icon-192.png" alt="Kinet logo" width={80} height={80} className="h-20 w-20 rounded-[22px] object-cover shadow-lg shadow-black/40" />
+              <Image src="/icon-192.png" alt="Kinet logo" width={80} height={80} priority className="h-20 w-20 rounded-[22px] object-cover shadow-lg shadow-black/40" />
               <span className="text-6xl font-bold text-white">Kinet</span>
             </div>
 
@@ -74,6 +75,7 @@ export default function LandingPageClient() {
           </div>
 
           {/* Features Grid */}
+          <h2 className="sr-only">Platform features</h2>
           <div className="mt-24 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-sm">
               <CardContent className="p-6">

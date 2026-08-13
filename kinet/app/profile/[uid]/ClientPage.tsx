@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import OptimizedMedia from "@/components/OptimizedMedia";
 import { useParams } from "next/navigation";
 import { BadgeCheck, Globe2, Grid3X3, Heart, Lock, Mail, MapPin, Music2, PlaySquare, Repeat2, Share2, ShieldAlert, Star, Tag, UserX } from "lucide-react";
 
@@ -206,7 +207,7 @@ export default function PublicProfilePageContent() {
         <CardContent className="p-6">
           <div className={`-mx-6 -mt-6 mb-6 h-40 overflow-hidden bg-gradient-to-r ${getProfileThemeClass(profile.profileTheme)}`} style={profile.accentColor ? { backgroundImage: `linear-gradient(135deg, ${profile.accentColor}, #111827)` } : undefined}>
             {profile.coverPhotoURL ? (
-              <img src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} fetchPriority="high" className="h-full w-full object-cover" />
+              <OptimizedMedia src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} width={1600} height={480} sizes="100vw" priority className="h-full w-full object-cover" />
             ) : null}
           </div>
           <div className="flex flex-col gap-6 sm:flex-row">
@@ -304,9 +305,9 @@ export default function PublicProfilePageContent() {
           </div>
         </CardContent>
       </Card>
-      {canViewContent && highlights.length ? <Card className="mt-6"><CardContent className="p-5"><h2 className="mb-4 font-semibold">Story highlights</h2><div className="flex gap-4 overflow-x-auto pb-2">{highlights.map((highlight) => <Link key={highlight.id} href={`/highlights/${highlight.id}`} className="w-24 shrink-0 text-center"><img src={highlight.coverUrl} alt={highlight.title} loading="lazy" className="mx-auto h-20 w-20 rounded-full border-4 object-cover" style={{ borderColor: profile.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-sm font-medium">{highlight.title}</p></Link>)}</div></CardContent></Card> : null}
+      {canViewContent && highlights.length ? <Card className="mt-6"><CardContent className="p-5"><h2 className="mb-4 font-semibold">Story highlights</h2><div className="flex gap-4 overflow-x-auto pb-2">{highlights.map((highlight) => <Link key={highlight.id} href={`/highlights/${highlight.id}`} className="w-24 shrink-0 text-center"><OptimizedMedia src={highlight.coverUrl} alt={highlight.title} width={80} height={80} sizes="80px" className="mx-auto h-20 w-20 rounded-full border-4 object-cover" style={{ borderColor: profile.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-sm font-medium">{highlight.title}</p></Link>)}</div></CardContent></Card> : null}
 
-      {canViewContent && profile.pinnedPosts?.length ? <section className="mt-6 rounded-2xl border p-4"><h2 className="mb-3 font-semibold">Pinned posts</h2><div className="grid grid-cols-3 gap-2">{posts.filter((post) => profile.pinnedPosts?.includes(post.id)).slice(0, 3).map((post) => <Link key={post.id} href={`/post/${post.id}`} className="aspect-square overflow-hidden rounded-xl bg-muted">{post.mediaType === "video" ? <video src={post.mediaUrl} muted className="h-full w-full object-cover" /> : <img src={post.mediaUrl} alt={post.caption} className="h-full w-full object-cover" />}</Link>)}</div></section> : null}
+      {canViewContent && profile.pinnedPosts?.length ? <section className="mt-6 rounded-2xl border p-4"><h2 className="mb-3 font-semibold">Pinned posts</h2><div className="grid grid-cols-3 gap-2">{posts.filter((post) => profile.pinnedPosts?.includes(post.id)).slice(0, 3).map((post) => <Link key={post.id} href={`/post/${post.id}`} className="aspect-square overflow-hidden rounded-xl bg-muted">{post.mediaType === "video" ? <video src={post.mediaUrl} muted className="h-full w-full object-cover" /> : <OptimizedMedia src={post.mediaUrl} alt={post.caption} width={480} height={480} sizes="33vw" className="h-full w-full object-cover" />}</Link>)}</div></section> : null}
 
       <div className="mt-6 rounded-xl border p-4">
         {!canViewContent ? <div className="py-14 text-center"><Lock className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-3 font-semibold">This account is private</h2><p className="mt-1 text-sm text-muted-foreground">Follow this account to see its posts and videos.</p></div> : <>
@@ -335,7 +336,7 @@ export default function PublicProfilePageContent() {
                 {post.mediaType === "video" ? (
                   <video src={post.mediaUrl} className="h-full w-full object-cover" />
                 ) : (
-                  <img src={post.mediaUrl} alt={post.caption} className="h-full w-full object-cover" />
+                  <OptimizedMedia src={post.mediaUrl} alt={post.caption} width={640} height={640} sizes="(min-width: 768px) 33vw, 50vw" className="h-full w-full object-cover" />
                 )}
                 {post.contentType === "reel" ? (
                   <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">

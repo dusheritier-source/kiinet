@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
+import { limitForUser } from "@/lib/api-security";
+import { getFirebaseClientConfig } from "@/lib/env";
 
 type FirestoreValue = Record<string, unknown>;
 
@@ -35,6 +37,8 @@ function toFirestoreValue(value: unknown, key = ""): FirestoreValue {
 export async function POST(request: Request) {
   const user = await getFirebaseUserFromRequest(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = limitForUser(request, user.uid, "post-create", 10, 60_000);
+  if (limited) return limited;
   const authorization = request.headers.get("authorization") || "";
   const data = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!data || data.userId !== user.uid) return NextResponse.json({ error: "Invalid post data." }, { status: 400 });
@@ -44,7 +48,8 @@ export async function POST(request: Request) {
   // Vercel project variables producing PERMISSION_DENIED.
   const projectId = getTokenProject(authorization);
   if (!projectId) return NextResponse.json({ error: "Invalid Firebase project token." }, { status: 401 });
-  const configuredProjectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kinet-3a9b6").trim().split(/\s+/)[0];
+  const firebaseConfig = getFirebaseClientConfig();
+  const configuredProjectId = firebaseConfig.projectId;
   if (configuredProjectId !== projectId) {
     return NextResponse.json(
       {
@@ -53,7 +58,7 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE";
+  const apiKey = firebaseConfig.apiKey;
   const id = crypto.randomUUID().replace(/-/g, "");
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value, key)]));
   const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/posts?documentId=${id}&key=${encodeURIComponent(apiKey)}`, {

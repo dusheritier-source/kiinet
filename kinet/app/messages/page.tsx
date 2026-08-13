@@ -69,6 +69,7 @@ import {
   subscribeToNotesForUsers,
 } from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
+import OptimizedMedia from "@/components/OptimizedMedia";
 import { isMutualFollow, searchProfiles, subscribeToUserProfile, type SearchProfile } from "@/lib/user-profile";
 import type { UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
@@ -1393,7 +1394,7 @@ function MessagesPageContent() {
                     <p className="mb-2 text-sm font-medium">Shared media and files</p>
                     <div className="grid max-h-52 grid-cols-3 gap-2 overflow-y-auto md:grid-cols-5">
                       {messages.filter((message) => message.attachmentUrl).map((message) => message.attachmentType?.startsWith("image/") ? (
-                        <a key={message.id} href={message.attachmentUrl!} target="_blank" rel="noreferrer"><img src={message.attachmentUrl!} alt={message.attachmentName || "Shared image"} className="aspect-square w-full rounded-lg object-cover" /></a>
+                        <a key={message.id} href={message.attachmentUrl!} target="_blank" rel="noreferrer"><OptimizedMedia src={message.attachmentUrl!} alt={message.attachmentName || "Shared image"} width={320} height={320} sizes="160px" className="aspect-square w-full rounded-lg object-cover" /></a>
                       ) : (
                         <a key={message.id} href={message.attachmentUrl!} target="_blank" rel="noreferrer" className="flex aspect-square items-center justify-center rounded-lg border bg-background p-2 text-center text-xs">{message.attachmentName || "Open file"}</a>
                       ))}
@@ -1495,9 +1496,12 @@ function MessagesPageContent() {
                           ) : null}
                           {message.attachmentUrl ? (
                             message.attachmentType?.startsWith("image/") ? (
-                                <img
+                                <OptimizedMedia
                                 src={message.attachmentUrl}
                                 alt="Attachment"
+                                width={640}
+                                height={480}
+                                sizes="(min-width: 768px) 50vw, 75vw"
                                 className="mb-2 max-h-64 rounded-3xl object-cover shadow-sm"
                                   onLoad={() => { if (initialScrollPendingRef.current || isNearBottom) scrollToLatest("auto"); }}
                               />

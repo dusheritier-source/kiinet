@@ -21,7 +21,7 @@ import {
   type ManagedUserRecord,
 } from "@/lib/admin";
 import { subscribeToWaitlistEntries, type WaitlistEntryRecord } from "@/lib/business";
-import { isCurrentUserAdmin } from "@/lib/moderation";
+import { useAdminClaim } from "@/hooks/useAdminClaim";
 import {
   createAdminAnnouncement,
   createSuspiciousAlert,
@@ -37,6 +37,7 @@ import {
 import { formatTimeAgo } from "@/lib/posts";
 
 function AdminPageContent() {
+  const { isAdmin, checking } = useAdminClaim();
   const [settings, setSettings] = useState<AppAccessSettings | null>(null);
   const [users, setUsers] = useState<ManagedUserRecord[]>([]);
   const [inviteCodes, setInviteCodes] = useState<InviteCodeRecord[]>([]);
@@ -53,6 +54,7 @@ function AdminPageContent() {
   const [userNotes, setUserNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (!isAdmin) return;
     void getAppAccessSettings().then(setSettings);
     const unsubscribeUsers = subscribeToManagedUsers(setUsers);
     const unsubscribeCodes = subscribeToInviteCodes(setInviteCodes);
@@ -70,9 +72,9 @@ function AdminPageContent() {
       unsubscribeAlerts();
       unsubscribeTrusted();
     };
-  }, []);
+  }, [isAdmin]);
 
-  if (!isCurrentUserAdmin()) {
+  if (checking || !isAdmin) {
     return (
       <ProtectedRoute>
         <div className="mx-auto max-w-2xl py-8">

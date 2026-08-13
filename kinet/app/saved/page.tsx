@@ -11,6 +11,7 @@ import { createSavedCollection, getSavedCollections, togglePostInCollection, typ
 import { getPostsByIds, type FeedPost } from "@/lib/posts";
 import { getCurrentUserSettings } from "@/lib/settings";
 import { getCurrentUserProfile } from "@/lib/user-profile";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 function SavedPageContent() {
   const { user } = useAuthContext();
@@ -102,7 +103,7 @@ function SavedPageContent() {
                           {post.mediaType === "video" ? (
                             <video src={post.mediaUrl} className="h-48 w-full object-cover" />
                           ) : (
-                            <img src={post.mediaUrl} alt={post.caption || post.sport} className="h-48 w-full object-cover" />
+                            <OptimizedMedia src={post.mediaUrl} alt={post.caption || post.sport} width={640} height={192} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="h-48 w-full object-cover" />
                           )}
                           {post.contentType === "reel" ? (
                             <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">

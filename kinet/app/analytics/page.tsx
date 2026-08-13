@@ -6,6 +6,7 @@ import { BarChart3, Bookmark, Eye, MessageCircle, PlayCircle, Repeat2, Users } f
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import OptimizedMedia from "@/components/OptimizedMedia";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCreatorAnalytics, type CreatorAnalytics } from "@/lib/analytics";
@@ -161,7 +162,7 @@ function AnalyticsPageContent() {
                       {post.mediaType === "video" ? (
                         <video src={post.mediaUrl} className="h-20 w-20 rounded-xl object-cover" />
                       ) : (
-                        <img src={post.mediaUrl} alt={post.caption || "Recent post"} className="h-20 w-20 rounded-xl object-cover" />
+                        <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Recent post"} width={80} height={80} sizes="80px" className="h-20 w-20 rounded-xl object-cover" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{post.caption || "Untitled upload"}</p>

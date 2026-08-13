@@ -1,7 +1,9 @@
+import { getFirebaseApiKey } from "@/lib/env";
+
 export async function verifyFirebaseIdToken(idToken: string) {
   // Firebase web API keys are public identifiers. Keep this fallback aligned
   // with the client configuration so production can verify the same tokens.
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCBuRIXM36SnhoNaPZi1Wl9dWdXzZjN7CE";
+  const apiKey = getFirebaseApiKey();
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -9,9 +11,11 @@ export async function verifyFirebaseIdToken(idToken: string) {
     cache: "no-store",
   });
   if (!response.ok) return null;
-  const data = await response.json() as { users?: Array<{ localId?: string; email?: string }> };
+  const data = await response.json() as { users?: Array<{ localId?: string; email?: string; customAttributes?: string }> };
   const account = data.users?.[0];
-  return account?.localId ? { uid: account.localId, email: account.email ?? null } : null;
+  let claims: Record<string, unknown> = {};
+  try { claims = account?.customAttributes ? JSON.parse(account.customAttributes) : {}; } catch { claims = {}; }
+  return account?.localId ? { uid: account.localId, email: account.email ?? null, claims } : null;
 }
 
 export async function getFirebaseUserFromRequest(request: Request) {

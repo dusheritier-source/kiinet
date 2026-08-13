@@ -7,7 +7,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { isCurrentUserAdmin } from "@/lib/moderation";
+import { useAdminClaim } from "@/hooks/useAdminClaim";
 import { deleteNotificationTemplate, dispatchDueNotificationBroadcasts, getNotificationAnalytics, getNotificationTemplates, saveNotificationTemplate, scheduleNotificationBroadcast, type NotificationAnalytics, type NotificationTemplate } from "@/lib/notification-admin";
 
 function NotificationAdminContent() {
@@ -15,7 +15,7 @@ function NotificationAdminContent() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [form, setForm] = useState({ title: "", body: "", targetUrl: "/notifications", segment: "all" as "all" | "verified" | "active", scheduledFor: "" });
   const [status, setStatus] = useState("");
-  const admin = isCurrentUserAdmin();
+  const { isAdmin: admin } = useAdminClaim();
   const refresh = async () => { setTemplates(await getNotificationTemplates()); setAnalytics(await getNotificationAnalytics()); };
 
   useEffect(() => { if (admin) void dispatchDueNotificationBroadcasts().then(refresh).catch((error) => setStatus(error instanceof Error ? error.message : "Admin data could not be loaded.")); }, [admin]);

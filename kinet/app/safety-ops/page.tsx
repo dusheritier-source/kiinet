@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -58,22 +58,20 @@ function SafetyOpsPageContent() {
   const [sosForm, setSosForm] = useState({ senderName: "", locationLabel: "", message: "" });
   const [incidentForm, setIncidentForm] = useState({ incidentTitle: "", eventTime: "", note: "" });
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const nextSnapshot = await getSafetyHubSnapshot();
       setSnapshot(nextSnapshot);
-      if (!teamId && nextSnapshot.teamOptions[0]) {
-        setTeamId(nextSnapshot.teamOptions[0].id);
-      }
+      setTeamId((current) => current || nextSnapshot.teamOptions[0]?.id || "");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   const submit = async (action: () => Promise<void>, message: string, reset?: () => void) => {
     await action();

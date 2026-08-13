@@ -17,6 +17,12 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
+async function createServerSession(user: FirebaseUser) {
+  const token = await user.getIdToken();
+  const response = await fetch("/api/auth/session", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error("Your secure session could not be created.");
+}
+
 async function ensureSearchableUserProfile(user: FirebaseUser) {
   if (!db) return;
   const reference = doc(db, "users", user.uid);
@@ -60,6 +66,7 @@ export const signInWithEmail = async (email: string, password: string) => {
   
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
+    await createServerSession(result.user);
     void ensureSearchableUserProfile(result.user).catch((error) => console.warn("Could not create searchable user profile:", error));
     return { user: result.user, error: null };
   } catch (error: unknown) {
@@ -74,6 +81,7 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
   
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
+    await createServerSession(result.user);
     
     // Update profile with display name if provided
     if (displayName && result.user) {
@@ -94,6 +102,7 @@ export const signInWithGoogle = async () => {
   
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    await createServerSession(result.user);
     void ensureSearchableUserProfile(result.user).catch((error) => console.warn("Could not create searchable user profile:", error));
     return { user: result.user, error: null };
   } catch (error: unknown) {
@@ -107,6 +116,7 @@ export const signOut = async () => {
   }
   
   try {
+    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
     await firebaseSignOut(auth);
     return { error: null };
   } catch (error: unknown) {

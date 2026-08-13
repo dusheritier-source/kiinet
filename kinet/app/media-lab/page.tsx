@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import OptimizedMedia from "@/components/OptimizedMedia";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -295,7 +296,7 @@ function MediaLabContent() {
                       {post.mediaType === "video" ? (
                         <video src={post.mediaUrl} className="aspect-video w-full bg-black object-cover" muted />
                       ) : (
-                        <img src={post.mediaUrl} alt={post.caption || "Clip"} className="aspect-video w-full object-cover" />
+                        <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Clip"} width={640} height={360} sizes="(min-width: 768px) 50vw, 100vw" className="aspect-video w-full object-cover" />
                       )}
                       <div className="space-y-1 p-3">
                         <p className="line-clamp-2 text-sm font-medium">{post.caption || "Untitled clip"}</p>
@@ -374,7 +375,7 @@ function MediaLabContent() {
                           {post.mediaType === "video" ? (
                             <video src={post.mediaUrl} controls className="aspect-video w-full bg-black object-cover" />
                           ) : (
-                            <img src={post.mediaUrl} alt={post.caption || "Clip"} className="aspect-video w-full object-cover" />
+                            <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Clip"} width={640} height={360} sizes="(min-width: 768px) 50vw, 100vw" className="aspect-video w-full object-cover" />
                           )}
                           <div className="p-3 text-sm">
                             <p className="font-medium">{post.caption || "Untitled clip"}</p>

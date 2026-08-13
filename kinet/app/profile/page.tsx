@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Legacy inline highlight controls support dynamic user hosts. */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -19,6 +20,7 @@ import { getProfilesByIds, getSuggestedSocialProfiles, getTaggedProfilePosts, re
 import { createProfileHighlight, deleteProfileHighlight, getProfileStories, moveProfileHighlight, renameProfileHighlight, subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
 import type { StoryItem } from "@/lib/stories";
 import { useSearchParams } from "next/navigation";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 interface StoredProfile {
   uid?: string;
@@ -239,7 +241,7 @@ function ProfilePageContent() {
         <div className="px-4 pt-4">
           <div className={`relative h-52 overflow-hidden rounded-[28px] bg-gradient-to-r ${getProfileThemeClass(profile?.profileTheme)}`} style={profile?.accentColor ? { backgroundImage: `linear-gradient(135deg, ${profile.accentColor}, #111827)` } : undefined}>
             {profile?.coverPhotoURL ? (
-              <img src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+              <OptimizedMedia src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} width={1600} height={480} sizes="100vw" priority className="absolute inset-0 h-full w-full object-cover" />
             ) : null}
             <div className="absolute inset-0 bg-black/25" />
           </div>
@@ -407,7 +409,7 @@ function ProfilePageContent() {
                         {post.mediaType === "video" ? (
                           <video src={post.mediaUrl} className="aspect-square w-full object-cover" />
                         ) : (
-                          <img src={post.mediaUrl} alt={post.caption || "Pinned post"} className="aspect-square w-full object-cover" />
+                          <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Pinned post"} width={480} height={480} sizes="33vw" className="aspect-square w-full object-cover" />
                         )}
                       </div>
                     ))}
@@ -471,7 +473,7 @@ function ProfilePageContent() {
                           ) : null}
                         </>
                       ) : (
-                        <img src={post.mediaUrl} alt={post.caption || "Post media"} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110" />
+                        <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Post media"} width={640} height={640} sizes="(min-width: 768px) 33vw, 50vw" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110" />
                       )}
                       <button
                         type="button"

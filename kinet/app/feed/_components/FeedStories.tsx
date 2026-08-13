@@ -7,15 +7,17 @@ import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/components/AuthProvider";
 import { getActiveStories, type StoryItem } from "@/lib/stories";
 import { subscribeToUserProfile } from "@/lib/user-profile";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 export default function FeedStories() {
   const { user } = useAuthContext();
   const router = useRouter();
+  const userId = user?.uid;
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [profileAvatar, setProfileAvatar] = useState("");
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let active = true;
     const refreshStories = () => {
       void getActiveStories(true).then((items) => {
@@ -40,7 +42,7 @@ export default function FeedStories() {
       window.removeEventListener("kinet:story-created", refreshStories);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [user?.uid]);
+  }, [userId]);
 
   useEffect(() => {
     if (!user) return;
@@ -71,7 +73,7 @@ export default function FeedStories() {
         <span className="mt-1 block truncate text-[11px]">Your story</span>
       </button>
       {creators.map((story) => <button key={story.userId} type="button" onClick={() => openStory(story.id)} className="w-16 shrink-0 text-center">
-        <span className="mx-auto block rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2px]"><span className="block rounded-full bg-background p-[2px]"><img src={(story.userId === user.uid ? profileAvatar : story.authorAvatar) || story.thumbnailUrl || story.mediaUrl} alt={`${story.authorName}'s story`} className="h-12 w-12 rounded-full object-cover" /></span></span>
+        <span className="mx-auto block rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2px]"><span className="block rounded-full bg-background p-[2px]"><OptimizedMedia src={(story.userId === user.uid ? profileAvatar : story.authorAvatar) || story.thumbnailUrl || story.mediaUrl} alt={`${story.authorName}'s story`} width={48} height={48} sizes="48px" className="h-12 w-12 rounded-full object-cover" /></span></span>
         <span className="mt-1 block truncate text-[11px]">{story.userId === user.uid ? "Your story" : story.authorName}</span>
       </button>)}
     </div>

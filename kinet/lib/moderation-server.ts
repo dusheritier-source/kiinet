@@ -108,12 +108,12 @@ export async function moderateOrThrow(input: {
   const result = input.text !== undefined
     ? await moderateText(input.text)
     : await moderateMedia(input.buffer ?? Buffer.alloc(0), input.contentType ?? "");
-  // still record the event but do not block
   await logModerationEvent({
     userId: input.userId,
     status: result.status,
     kind: input.text !== undefined ? "text" : input.contentType?.startsWith("video/") ? "video" : "image",
     purpose: input.purpose,
   });
+  if (result.status === "blocked") throw new ModerationBlockedError();
   return result;
 }

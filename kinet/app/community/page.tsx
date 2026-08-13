@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -53,7 +53,7 @@ function CommunityPageContent() {
     setTeamId((current) => current || nextTeams[0]?.id || "");
   }), []);
 
-  const refresh = async (nextTeamId = teamId) => {
+  const refresh = useCallback(async (nextTeamId: string) => {
     if (!nextTeamId) return;
     const [spaces, nextFeedback, nextReflections, nextMvpVotes, nextAwardVotes, nextPredictions, nextFantasy] = await Promise.all([
       getAudioSpaces(nextTeamId),
@@ -71,11 +71,11 @@ function CommunityPageContent() {
     setAwardVotes(nextAwardVotes);
     setPredictions(nextPredictions);
     setFantasyLeagues(nextFantasy);
-  };
+  }, []);
 
   useEffect(() => {
     void refresh(teamId);
-  }, [teamId]);
+  }, [refresh, teamId]);
 
   return (
     <ProtectedRoute>

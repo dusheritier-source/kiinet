@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Full-screen story media may use dynamic user hosts. */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";

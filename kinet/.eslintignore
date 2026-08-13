@@ -1,0 +1,4 @@
+.next/
+node_modules/
+android/**/build/
+app/build/

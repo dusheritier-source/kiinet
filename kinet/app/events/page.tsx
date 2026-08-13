@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -46,7 +46,7 @@ function EventsPageContent() {
   const [internalNotes, setInternalNotes] = useState<EventInternalNote[]>([]);
   const [status, setStatus] = useState("");
 
-  const refresh = async (nextCity = city, nextEventId = selectedEventId) => {
+  const refresh = useCallback(async (nextCity = "", nextEventId = "") => {
     const [nextEvents, nextProfiles, nextTickets, nextCertificates] = await Promise.all([
       getEventDiscovery(nextCity),
       searchProfiles(""),
@@ -69,11 +69,11 @@ function EventsPageContent() {
       setStaffAssignments([]);
       setInternalNotes([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void Promise.all([refresh(), getMyShowcaseRegistrations()]);
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (!selectedEventId) {
@@ -82,7 +82,7 @@ function EventsPageContent() {
       return;
     }
     void refresh(city, selectedEventId);
-  }, [selectedEventId]);
+  }, [city, refresh, selectedEventId]);
 
   return (
     <ProtectedRoute>

@@ -13,7 +13,6 @@ export default function VoiceNotePlayer({ url, duration, isOwn = false }: VoiceN
   const [currentTime, setCurrentTime] = useState(0);
   const [displayDuration, setDisplayDuration] = useState(duration ?? 0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
     const audio = new Audio(url);
@@ -35,9 +34,6 @@ export default function VoiceNotePlayer({ url, duration, isOwn = false }: VoiceN
     return () => {
       audio.pause();
       audio.src = "";
-      if (animationRef.current) {
-        window.cancelAnimationFrame(animationRef.current);
-      }
     };
   }, [url, duration]);
 

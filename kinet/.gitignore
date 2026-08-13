@@ -14,7 +14,10 @@
 .cxx
 local.properties
 .next/
+.cache/
 
 .vercel
 .env*
+!.env.example
+!.env.*.example
 .gradle-user-home/

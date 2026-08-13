@@ -1,4 +1,5 @@
 import * as React from "react";
+/* eslint-disable @next/next/no-img-element -- This primitive forwards native image props and refs. */
 import { cn } from "@/lib/utils";
 
 interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {

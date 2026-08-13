@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -35,7 +35,7 @@ function LivePageContent() {
   const [questionDraft, setQuestionDraft] = useState("");
   const [replayForm, setReplayForm] = useState({ title: "", startSec: "0", endSec: "30" });
 
-  const refresh = async (roomId = activeRoomId) => {
+  const refresh = useCallback(async (roomId = "") => {
     const nextRooms = await getLiveRooms();
     setRooms(nextRooms);
     if (roomId) {
@@ -46,11 +46,11 @@ function LivePageContent() {
       setQuestions(nextQuestions);
       setReplayClips(nextReplays);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (!activeRoomId && rooms[0]) {
@@ -65,7 +65,7 @@ function LivePageContent() {
     }
     void refresh(activeRoomId);
     return subscribeToLiveChat(activeRoomId, setChatMessages);
-  }, [activeRoomId]);
+  }, [activeRoomId, refresh]);
 
   const activeRoom = useMemo(() => rooms.find((room) => room.id === activeRoomId) ?? null, [activeRoomId, rooms]);
 

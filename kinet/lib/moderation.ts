@@ -119,14 +119,10 @@ export async function getBlockedUsers() {
   return Array.isArray(data.blockedUsers) ? (data.blockedUsers as string[]) : [];
 }
 
-export function isCurrentUserAdmin() {
-  const currentUid = auth?.currentUser?.uid;
-  const raw = process.env.NEXT_PUBLIC_KINET_ADMIN_UIDS ?? "";
-  const allowed = raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  return Boolean(currentUid && allowed.includes(currentUid));
+export async function isCurrentUserAdmin() {
+  if (!auth?.currentUser) return false;
+  const token = await auth.currentUser.getIdTokenResult();
+  return token.claims.admin === true || token.claims.moderator === true;
 }
 
 export function subscribeToReports(

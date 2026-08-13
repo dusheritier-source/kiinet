@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 async function getRecipientNotificationPreferences(recipientId: string) {
   if (!db) {
@@ -471,7 +472,7 @@ export async function getPushDevices() {
 }
 
 export async function sendTestEmailDigest(recipientEmail: string, digest: NotificationDigest) {
-  const response = await fetch("/api/notifications/digest", {
+  const response = await authenticatedFetch("/api/notifications/digest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -492,7 +493,7 @@ export async function sendTestPushAlert(input: {
   title: string;
   body: string;
 }) {
-  const response = await fetch("/api/notifications/push", {
+  const response = await authenticatedFetch("/api/notifications/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

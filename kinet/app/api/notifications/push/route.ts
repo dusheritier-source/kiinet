@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { limitForUser, requireApiUser } from "@/lib/api-security";
+import { enqueueJob } from "@/lib/job-queue";
 
 export async function POST(request: Request) {
+  const authResult = await requireApiUser(request);
+  if (authResult.response) return authResult.response;
+  const limited = limitForUser(request, authResult.user.uid, "push", 10, 60_000);
+  if (limited) return limited;
   const body = (await request.json().catch(() => ({}))) as {
     token?: string;
     title?: string;
@@ -14,31 +20,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "token is required." }, { status: 400 });
   }
 
-  if (!process.env.PUSH_DELIVERY_WEBHOOK_URL) {
-    return NextResponse.json({
-      ok: true,
-      simulated: true,
-      message: "PUSH_DELIVERY_WEBHOOK_URL is not set, so the push payload was generated but not delivered.",
-      payload: body,
-    });
-  }
-
-  const response = await fetch(process.env.PUSH_DELIVERY_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const payload = {
       token: body.token.trim(),
       title: body.title?.trim() || "Kinet",
       body: body.body?.trim() || "You have a new alert.",
       link: body.link?.trim() || "/notifications",
       icon: body.icon?.trim() || "/icon.svg",
       tag: body.tag?.trim() || "kinet-notification",
-    }),
-  });
-
-  if (!response.ok) {
-    return NextResponse.json({ error: "Push delivery failed." }, { status: 502 });
-  }
-
-  return NextResponse.json({ ok: true });
+  };
+  const jobId = await enqueueJob("push", payload, `${authResult.user.uid}:${payload.token}:${payload.tag}:${payload.body}`);
+  return NextResponse.json({ ok: true, queued: true, jobId }, { status: 202 });
 }

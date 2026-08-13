@@ -24,6 +24,10 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthChange((firebaseUser) => {
       if (firebaseUser) {
+        void firebaseUser.getIdToken().then((token) => fetch("/api/auth/session", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        })).catch(() => undefined);
         setState({
           user: {
             uid: firebaseUser.uid,
@@ -34,6 +38,7 @@ export function useAuth() {
           loading: false,
         });
       } else {
+        void fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
         setState({
           user: null,
           loading: false,

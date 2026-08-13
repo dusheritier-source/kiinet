@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -81,7 +81,7 @@ function PlatformPageContent() {
   const [bulkImportForm, setBulkImportForm] = useState({ teamId: "", csv: "Jane Doe,jane@example.com,player" });
   const [releaseForm, setReleaseForm] = useState({ version: "", title: "", summary: "" });
 
-  const refresh = async (nextOrgId = orgId) => {
+  const refresh = useCallback(async (nextOrgId = "default-org") => {
     const [
       nextPreferences,
       nextSchools,
@@ -119,11 +119,11 @@ function PlatformPageContent() {
     setReleaseNotes(nextNotes);
     setPaidTools(nextPaidTools);
     applyHighContrastPreference(nextPreferences.highContrast);
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     return subscribeToOrgNotes(orgId, setOrgNotes);

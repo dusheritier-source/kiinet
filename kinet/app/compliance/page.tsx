@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -22,18 +22,18 @@ function CompliancePageContent() {
   const [teamId, setTeamId] = useState("");
   const [docForm, setDocForm] = useState({ title: "", body: "" });
 
-  const refresh = async (nextTeamId = teamId) => {
+  const refresh = useCallback(async (nextTeamId = "") => {
     setConsents(await getSignedConsents());
     if (nextTeamId) {
       setTeamDocuments(await getTeamDocuments(nextTeamId));
     } else {
       setTeamDocuments([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   return (
     <ProtectedRoute>

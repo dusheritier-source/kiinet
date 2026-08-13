@@ -7,17 +7,12 @@ import { Button } from "@/components/ui/button";
 import { acceptCallRecord, addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, addParticipantOffer, subscribeOffers, addParticipantAnswer, subscribeAnswers, addGroupCandidate, subscribeGroupCandidates, type CallRecord, type CallType } from "@/lib/calls";
 import { getUserProfileById } from "@/lib/user-profile";
 import { sendConversationMessage } from "@/lib/messaging";
+import { buildRtcConfiguration } from "@/lib/rtc-config";
 
 const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL || "";
 const TURN_USERNAME = process.env.NEXT_PUBLIC_TURN_USERNAME || "";
 const TURN_CREDENTIAL = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || "";
-const rtcConfig: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    ...(TURN_URL ? [{ urls: TURN_URL, username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
-  ],
-};
+const rtcConfig = buildRtcConfiguration({ turnUrl: TURN_URL, username: TURN_USERNAME, credential: TURN_CREDENTIAL });
 
 export default function CallPanel({ currentUserId, conversationId, participantIds, title }: { currentUserId: string; conversationId?: string; participantIds?: string[]; title: string }) {
   const [call, setCall] = useState<CallRecord | null>(null);
@@ -31,6 +26,8 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const [showHistory, setShowHistory] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
+  const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
+  const reconnectAttemptsRef = useRef(0);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -115,6 +112,14 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     }
     const peer = new RTCPeerConnection(rtcConfig);
+    peer.onconnectionstatechange = () => {
+      setConnectionState(peer.connectionState);
+      if (["disconnected", "failed"].includes(peer.connectionState) && reconnectAttemptsRef.current < 2) {
+        reconnectAttemptsRef.current += 1;
+        window.setTimeout(() => { if (peer.connectionState !== "connected" && peer.signalingState !== "closed") peer.restartIce(); }, 1500 * reconnectAttemptsRef.current);
+      }
+      if (peer.connectionState === "connected") reconnectAttemptsRef.current = 0;
+    };
     // add existing local tracks to the peer
     localStreamRef.current.getTracks().forEach((track) => peer.addTrack(track, localStreamRef.current!));
     peer.ontrack = (event) => {
@@ -386,7 +391,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
           ) : <div className="grid h-full w-full grid-cols-2 gap-2 p-2">{call.participantIds.filter((id) => id !== currentUserId).map((id) => <div key={id} className="relative h-full w-full"><video ref={(el) => { if (el) { remoteVideosRef.current.set(id, el); const stream = remoteStreamsRef.current.get(id); if (stream) attachRemoteStream(id, stream); } }} autoPlay playsInline className="h-full w-full rounded-xl object-cover" /><div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs font-medium">{participantProfilesMap.get(id)?.displayName ?? "User"}</div></div>)}</div>}
           <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-4 right-4 h-36 w-28 rounded-2xl border border-white/30 bg-black object-cover shadow-xl" />
           {audioPlaybackBlocked ? <Button type="button" className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full" onClick={enableRemoteAudio}><Mic className="mr-2 h-4 w-4" />Enable audio</Button> : null}
-          <div className="pointer-events-none absolute top-[max(1rem,env(safe-area-inset-top))] text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{call.status === "ringing" ? "Ringing…" : call.status === "active" ? formatDuration(duration) : "Connecting…"}</p></div>
+          <div className="pointer-events-none absolute top-[max(1rem,env(safe-area-inset-top))] text-center"><p className="font-semibold">{title}</p><p className="text-sm text-white/70">{connectionState === "disconnected" || connectionState === "failed" ? "Reconnecting…" : call.status === "ringing" ? "Ringing…" : call.status === "active" ? formatDuration(duration) : "Connecting…"}</p></div>
         </div>
         <div className="flex flex-wrap justify-center gap-3 bg-slate-950/95 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleAudio}>{muted ? <MicOff /> : <Mic />}</Button>{call.type === "video" ? <><Button size="icon" variant="secondary" className="rounded-full" onClick={toggleVideo}>{cameraOff ? <VideoOff /> : <Video />}</Button><Button size="icon" variant="secondary" className="rounded-full" title="Switch camera" onClick={() => void switchCamera()}><RotateCw /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Share screen" onClick={() => void shareScreen()}><MonitorUp /></Button><Button size="icon" variant="secondary" className="hidden rounded-full sm:inline-flex" title="Picture in picture" onClick={() => void openPictureInPicture()}><PictureInPicture /></Button></> : null}<Button size="icon" variant="destructive" className="rounded-full" onClick={() => void endCall()}><PhoneOff /></Button></div>
       </div>

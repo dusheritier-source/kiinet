@@ -6,10 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, Clapperboard, CirclePlay, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
 import { markNotificationDelivered, subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
-import { isCurrentUserAdmin } from "@/lib/moderation";
+import { useAdminClaim } from "@/hooks/useAdminClaim";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { subscribeToConversations, type ConversationSummary } from "@/lib/messaging";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 const primaryNav = [
   { href: "/feed", label: "Feed", icon: Home },
@@ -22,6 +23,7 @@ const primaryNav = [
 ];
 
 export default function Navbar() {
+  const { isAdmin } = useAdminClaim();
   const { user, loading } = useAuthContext();
   const pathname = usePathname();
   const router = useRouter();
@@ -114,7 +116,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         <Link href={user ? "/feed" : "/"} aria-label="Kinet home" className="flex items-center gap-2">
-          <img src="/icon-192.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl object-cover shadow-sm" />
+          <OptimizedMedia src="/icon-192.png" alt="" width={36} height={36} priority className="h-9 w-9 rounded-xl object-cover shadow-sm" />
           <span className="hidden text-2xl font-bold gradient-text sm:inline">Kinet</span>
         </Link>
 
@@ -171,7 +173,7 @@ export default function Navbar() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 border-t pt-3">
-                        {isCurrentUserAdmin() ? (
+                        {isAdmin ? (
                           <Button variant="ghost" size="sm" asChild className="justify-start">
                             <Link href="/admin">
                               <Shield className="mr-2 h-4 w-4" />
@@ -217,7 +219,7 @@ export default function Navbar() {
                   <Link href="/upload">Create</Link>
                 </Button>
               </div>
-              {isCurrentUserAdmin() ? (
+              {isAdmin ? (
                 <Button variant="ghost" size="sm" asChild className="hidden xl:inline-flex">
                   <Link href="/admin">
                     <Shield className="mr-2 h-4 w-4" />

@@ -16,6 +16,7 @@ import {
   saveCoachEntry,
   type CoachEntry,
 } from "@/lib/ai-tools";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 type ChatMessage = {
   role: "ai" | "user";
@@ -27,7 +28,7 @@ async function requestCoach(input: {
   mode: "chat" | "plan" | "profile";
   context?: string;
 }) {
-  const response = await fetch("/api/ai-coach", {
+  const response = await authenticatedFetch("/api/ai-coach", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

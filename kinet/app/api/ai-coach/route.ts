@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { limitForUser, requireApiUser } from "@/lib/api-security";
 
 const systemPrompt = [
   "You are Kinet AI Coach, a supportive sports performance assistant.",
@@ -9,6 +10,10 @@ const systemPrompt = [
 ].join(" ");
 
 export async function POST(request: Request) {
+  const authResult = await requireApiUser(request);
+  if (authResult.response) return authResult.response;
+  const limited = limitForUser(request, authResult.user.uid, "ai-coach", 12, 60_000);
+  if (limited) return limited;
   const body = (await request.json().catch(() => ({}))) as {
     message?: string;
     mode?: "chat" | "plan" | "profile";

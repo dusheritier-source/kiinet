@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { subscribeToUserPosts, type FeedPost } from "@/lib/posts";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 export default function EmbeddedHighlightsContent() {
   const params = useParams<{ uid: string }>();
@@ -22,7 +23,7 @@ export default function EmbeddedHighlightsContent() {
           {post.mediaType === "video" ? (
             <video src={post.mediaUrl} controls className="aspect-video w-full bg-black object-cover" />
           ) : (
-            <img src={post.mediaUrl} alt={post.caption || "Highlight"} className="aspect-video w-full object-cover" />
+            <OptimizedMedia src={post.mediaUrl} alt={post.caption || "Highlight"} width={640} height={360} sizes="100vw" className="aspect-video w-full object-cover" />
           )}
           <div className="p-2 text-xs">{post.caption}</div>
         </div>

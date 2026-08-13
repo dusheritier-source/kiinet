@@ -6,7 +6,8 @@ import { AuthProvider, useAuthContext } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { escalateReport, isCurrentUserAdmin, reviewReport, subscribeToAllReports, type ReportRecord } from "@/lib/moderation";
+import { escalateReport, reviewReport, subscribeToAllReports, type ReportRecord } from "@/lib/moderation";
+import { useAdminClaim } from "@/hooks/useAdminClaim";
 import {
   createShadowBanCase,
   reviewBanAppeal,
@@ -50,33 +51,34 @@ function ModerationPageContent() {
   const [banAppeals, setBanAppeals] = useState<BanAppealRecord[]>([]);
   const [shadowBanCases, setShadowBanCases] = useState<ShadowBanCaseRecord[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const { isAdmin } = useAdminClaim();
 
   useEffect(() => {
-    if (!user || !isCurrentUserAdmin()) {
+    if (!user || !isAdmin) {
       return;
     }
 
     return subscribeToAllReports(setReports);
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
-    if (!user || !isCurrentUserAdmin()) {
+    if (!user || !isAdmin) {
       return;
     }
 
     return subscribeToAllVerificationRequests(setVerificationRequests);
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
-    if (!user || !isCurrentUserAdmin()) {
+    if (!user || !isAdmin) {
       return;
     }
 
     return subscribeToVerificationAppeals(setVerificationAppeals);
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
-    if (!user || !isCurrentUserAdmin()) {
+    if (!user || !isAdmin) {
       return;
     }
 
@@ -86,13 +88,13 @@ function ModerationPageContent() {
       unsubscribeAppeals();
       unsubscribeShadowCases();
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   if (!user) {
     return null;
   }
 
-  if (!isCurrentUserAdmin()) {
+  if (!isAdmin) {
     return (
       <ProtectedRoute>
         <div className="mx-auto max-w-2xl py-8">
@@ -103,7 +105,7 @@ function ModerationPageContent() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Add your UID to `NEXT_PUBLIC_Kinet_ADMIN_UIDS` to access this workflow.
+                Ask an administrator to grant the Firebase <code>admin</code> or <code>moderator</code> custom claim.
               </p>
             </CardContent>
           </Card>

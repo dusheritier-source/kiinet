@@ -52,6 +52,12 @@ export default function VoiceNoteRecorder({ onSend, onCancel, conversationId: _c
     }
   }, [previewUrl, stopStreamAndTimer]);
 
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
+
   const startRecording = useCallback(async () => {
     if (state === "recording" || state === "preview" || state === "sending") {
       return;
@@ -82,12 +88,13 @@ export default function VoiceNoteRecorder({ onSend, onCancel, conversationId: _c
         const url = URL.createObjectURL(blob);
 
         setPreviewUrl(url);
-        setPreviewDuration(recordingSeconds);
+        const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTimeRef.current) / 1000));
+        setPreviewDuration(elapsedSeconds);
 
         const audio = new Audio(url);
         audioRef.current = audio;
         audio.addEventListener("loadedmetadata", () => {
-          setPreviewDuration(audio.duration || recordingSeconds);
+          setPreviewDuration(audio.duration || elapsedSeconds);
         });
 
         stopStreamAndTimer();
@@ -109,13 +116,7 @@ export default function VoiceNoteRecorder({ onSend, onCancel, conversationId: _c
     } catch {
       onCancel();
     }
-  }, [cleanup, onCancel, recordingSeconds, stopStreamAndTimer]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
+  }, [onCancel, state, stopRecording, stopStreamAndTimer]);
 
   useEffect(() => {
     if (state === "idle") {

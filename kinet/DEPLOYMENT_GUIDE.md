@@ -1,288 +1,58 @@
-# Kinet - Deployment Guide
+# Kinet deployment guide
 
-Complete guide to deploy the Kinet social media platform to production.
+## 1. Provision isolated production services
 
-## 📋 Prerequisites
+- Create a production Firebase project with Authentication, Firestore, Realtime Database, Cloud Messaging, and authorized production domains.
+- Create a production Supabase project and a public `kinet-media` storage bucket.
+- Do not reuse development service-role keys in production.
 
-- Node.js 18+ installed
-- PostgreSQL database (Supabase or Neon)
-- Cloudflare R2 account for file storage
-- Google OAuth credentials (optional)
-- Vercel account (recommended for deployment)
+## 2. Configure environment variables
 
-## 🚀 Step-by-Step Deployment
+Copy the variable names from `.env.production.example` and `.env.example` into the hosting provider. Required values are:
 
-### 1. Clone and Install
+- all Firebase client variables;
+- `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
+- `KINET_SESSION_SECRET` with at least 32 random bytes;
+- `CRON_SECRET` with at least 32 random bytes;
+- Firebase Admin service credentials using `FIREBASE_SERVICE_ACCOUNT_KEY` or the three split credential variables;
+- `NEXT_PUBLIC_SITE_URL` using the canonical HTTPS origin.
 
-```bash
-git clone <your-repo-url>
-cd kinet
-npm install
-```
+Configure push, email, AI, and TURN variables only when those integrations are enabled. Keep `TEST_ALLOW_BYPASS=false` and `DISABLE_MODERATION=false`.
 
-### 2. Database Setup
+## 3. Configure staff access
 
-#### Option A: Supabase (Recommended)
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to Settings → Database → Connection string
-3. Copy the "Connection pooler" URL (port 6543)
-4. Update your `.env` file:
+Grant staff accounts Firebase custom claims such as `{ admin: true }` or `{ moderator: true }`. Sign out and back in after changing claims so Firebase issues a refreshed ID token.
 
-```env
-DATABASE_URL="postgresql://postgres:[password]@[host]:6543/postgres?pgbouncer=true"
-```
-
-#### Option B: Neon
-1. Create account at [neon.tech](https://neon.tech)
-2. Create a new project
-3. Copy the connection string
-4. Update `.env`:
-
-```env
-DATABASE_URL="postgresql://[user]:[password]@[host]/[database]"
-```
-
-### 3. Initialize Database
+## 4. Deploy security configuration
 
 ```bash
-# Generate Prisma client
-npm run db:generate
-
-# Push schema to database
-npm run db:push
-
-# Or create and run migrations
-npm run db:migrate
+firebase deploy --only firestore:rules,firestore:indexes,storage,database
 ```
 
-### 4. Cloudflare R2 Setup
+Review rule changes in a non-production Firebase project before promoting them.
 
-1. Create R2 bucket at [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. Create API token with R2 permissions
-3. Note your endpoint, access key, and secret
-4. Update `.env`:
-
-```env
-R2_ENDPOINT="https://[account-id].r2.cloudflarestorage.com"
-R2_ACCESS_KEY_ID="your-access-key"
-R2_SECRET_ACCESS_KEY="your-secret-key"
-R2_BUCKET_NAME="kinet-bucket"
-R2_PUBLIC_URL="https://[your-domain].com"
-```
-
-5. Set up custom domain (optional but recommended):
-   - In R2 dashboard, go to your bucket
-   - Settings → Public access → Connect custom domain
-   - Add your domain (e.g., `cdn.kinet.com`)
-
-### 5. Google OAuth Setup (Optional)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create new project or select existing
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URIs:
-   - `http://localhost:3000/api/auth/callback/google` (dev)
-   - `https://your-domain.vercel.app/api/auth/callback/google` (prod)
-6. Update `.env`:
-
-```env
-GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="your-client-secret"
-```
-
-### 6. NextAuth Configuration
-
-Generate a secret key:
+## 5. Validate the release
 
 ```bash
-openssl rand -base64 32
+npm ci
+npm run test:security
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-Update `.env`:
+Load the real production environment locally or in a protected deployment job, then run `npm run release:check`. It fails on missing credentials, weak secrets, insecure origins, unsafe test switches, and incomplete TURN settings.
 
-```env
-NEXTAUTH_URL="http://localhost:3000"  # Change to production URL
-NEXTAUTH_SECRET="your-generated-secret"
-```
+## 6. Deploy Next.js
 
-### 7. Environment Variables
+Deploy the `kinet` directory to Vercel or another Next.js-compatible host. The build command is `npm run vercel-build` and the output is `.next`.
 
-Create `.env.local` in the `kinet/` directory:
+After deployment, verify sign-in, signed navigation sessions, Firestore access, moderated uploads, admin claims, notifications, and account sign-out. Confirm that `/test-env` and `/test-realtime` return 404.
 
-```env
-# Database
-DATABASE_URL="postgresql://..."
+Configure uptime monitoring against `GET /api/health`. A `200` response means the required server configuration and Firestore connection are healthy; `503` means the deployment must be investigated. Forward JSON application logs to the hosting provider's alerting system and alert on `jobs.failed` and repeated `health.firestore_failed` events.
 
-# NextAuth
-NEXTAUTH_URL="https://your-domain.vercel.app"
-NEXTAUTH_SECRET="..."
+Verify that Vercel Cron calls `/api/jobs/run` every five minutes and that queued jobs transition to `completed`. Deploy the new Firestore indexes before enabling the worker. Production calling should use a credentialed `turn:` or `turns:` relay; STUN-only calls are not considered production-ready.
 
-# Google OAuth (optional)
-GOOGLE_CLIENT_ID="..."
-GOOGLE_CLIENT_SECRET="..."
+## Rollback
 
-# Cloudflare R2
-R2_ENDPOINT="..."
-R2_ACCESS_KEY_ID="..."
-R2_SECRET_ACCESS_KEY="..."
-R2_BUCKET_NAME="kinet-bucket"
-R2_PUBLIC_URL="https://cdn.your-domain.com"
-
-# Optional: Real-time
-NEXT_PUBLIC_SUPABASE_URL="..."
-NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
-```
-
-### 8. Deploy to Vercel
-
-#### Option A: Via CLI
-```bash
-npm install -g vercel
-vercel
-```
-
-#### Option B: Via GitHub
-1. Push code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Import repository
-4. Add environment variables
-5. Deploy
-
-### 9. Post-Deployment
-
-#### Update Next.js Config
-Edit `next.config.js` to allow R2 images:
-
-```javascript
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'cdn.your-domain.com',
-      },
-    ],
-  },
-};
-
-module.exports = nextConfig;
-```
-
-#### Run Database Migrations (if using migrations)
-```bash
-# On Vercel, add to package.json scripts:
-vercel env pull .env.local
-npm run db:migrate
-```
-
-## 🔍 Verification Checklist
-
-- [ ] Database connection successful
-- [ ] Prisma client generated
-- [ ] All tables created in database
-- [ ] R2 bucket accessible
-- [ ] File upload working
-- [ ] Authentication working (signup/login)
-- [ ] Feed loading with posts
-- [ ] Like/save functionality working
-- [ ] Landing page accessible
-- [ ] Middleware protecting routes
-
-## 🐛 Common Issues
-
-### Issue: "Cannot find module 'next-auth'"
-**Solution**: Run `npm install` to install all dependencies
-
-### Issue: Database connection timeout
-**Solution**: 
-- Check DATABASE_URL is correct
-- Ensure database is running
-- For Supabase, use connection pooler (port 6543)
-
-### Issue: R2 upload failing
-**Solution**:
-- Verify R2 credentials
-- Check bucket permissions
-- Ensure CORS is configured on R2 bucket
-
-### Issue: Google OAuth not working
-**Solution**:
-- Verify redirect URIs match exactly
-- Check client ID and secret
-- Ensure Google+ API is enabled
-
-## 📊 Performance Optimization
-
-### Database
-```bash
-# Run ANALYZE on tables after initial data load
-npm run db:studio  # Use Prisma Studio to verify
-```
-
-### Caching
-- Enable Vercel Edge Cache for static assets
-- Configure CDN for R2 bucket
-- Set appropriate cache headers in API routes
-
-### Monitoring
-- Enable Vercel Analytics
-- Set up database monitoring (Supabase/Neon)
-- Monitor R2 usage and costs
-
-## 🔒 Security Checklist
-
-- [ ] NEXTAUTH_SECRET is strong and random
-- [ ] Database credentials are secure
-- [ ] R2 bucket has appropriate permissions
-- [ ] API routes validate authentication
-- [ ] Input validation on all forms
-- [ ] CORS configured correctly
-- [ ] HTTPS enabled (automatic on Vercel)
-
-## 📈 Scaling Considerations
-
-### Database
-- Use connection pooling (PgBouncer)
-- Monitor query performance
-- Add read replicas if needed
-- Consider database partitioning for large datasets
-
-### Storage
-- R2 scales automatically
-- Monitor egress costs
-- Use CDN for frequently accessed assets
-
-### Application
-- Enable Vercel Pro for better performance
-- Use Edge Functions for low-latency routes
-- Implement Redis for session caching (optional)
-
-## 🚨 Backup Strategy
-
-### Database
-```bash
-# Supabase: Automated backups available
-# Neon: Branch-based backups
-# Manual backup:
-pg_dump $DATABASE_URL > backup.sql
-```
-
-### Files
-- R2 has versioning (enable in settings)
-- Regular exports recommended for critical data
-
-## 📞 Support
-
-If you encounter issues:
-1. Check Vercel logs
-2. Check database logs
-3. Review environment variables
-4. Consult README.md for architecture details
-
----
-
-**Deployment completed!** 🎉
-
-Your Kinet app should now be live at `https://your-app.vercel.app`
+Keep the prior application deployment and prior Firebase ruleset available. If authorization failures spike, roll back the application and rules together to avoid client/rule schema mismatches.

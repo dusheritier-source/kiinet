@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { limitForUser, requireApiUser } from "@/lib/api-security";
+import { enqueueJob } from "@/lib/job-queue";
 
 export async function POST(request: Request) {
+  const authResult = await requireApiUser(request);
+  if (authResult.response) return authResult.response;
+  const limited = limitForUser(request, authResult.user.uid, "digest", 5, 60_000);
+  if (limited) return limited;
   const body = (await request.json().catch(() => ({}))) as {
     recipientEmail?: string;
     digest?: {
@@ -13,6 +19,9 @@ export async function POST(request: Request) {
   if (!body.recipientEmail?.trim()) {
     return NextResponse.json({ error: "recipientEmail is required." }, { status: 400 });
   }
+  if (!authResult.user.email || body.recipientEmail.trim().toLowerCase() !== authResult.user.email.toLowerCase()) {
+    return NextResponse.json({ error: "You can only send a digest to your account email." }, { status: 403 });
+  }
 
   const digest = body.digest ?? { total: 0, unread: 0, byType: [] };
   const text = [
@@ -23,29 +32,12 @@ export async function POST(request: Request) {
     ...(digest.byType ?? []).map((entry) => `${entry.type}: ${entry.count}`),
   ].join("\n");
 
-  if (!process.env.EMAIL_DIGEST_WEBHOOK_URL) {
-    return NextResponse.json({
-      ok: true,
-      simulated: true,
-      message: "EMAIL_DIGEST_WEBHOOK_URL is not set, so the digest was generated but not delivered.",
-      payload: { to: body.recipientEmail, text },
-    });
-  }
-
-  const response = await fetch(process.env.EMAIL_DIGEST_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const payload = {
       to: body.recipientEmail.trim(),
       subject: "Your Kinet Digest",
       text,
       digest,
-    }),
-  });
-
-  if (!response.ok) {
-    return NextResponse.json({ error: "Digest delivery failed." }, { status: 502 });
-  }
-
-  return NextResponse.json({ ok: true });
+  };
+  const jobId = await enqueueJob("email_digest", payload, `${authResult.user.uid}:${payload.to}:${digest.total}:${digest.unread}`);
+  return NextResponse.json({ ok: true, queued: true, jobId }, { status: 202 });
 }

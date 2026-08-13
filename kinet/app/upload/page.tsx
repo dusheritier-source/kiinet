@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { getOwnedPremiumGroups, type PremiumGroupRecord } from "@/lib/creator-hub";
 import { deleteUploadDraft, getUploadDrafts, saveUploadDraft } from "@/lib/drafts";
 import { createPost, getPostById } from "@/lib/posts";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import OptimizedMedia from "@/components/OptimizedMedia";
 
 function UploadPageContent() {
   const { user, loading } = useAuthContext();
@@ -176,7 +178,7 @@ function UploadPageContent() {
     setAssistantLoading(task);
     setError("");
     try {
-      const response = await fetch("/api/media-assist", {
+      const response = await authenticatedFetch("/api/media-assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -383,7 +385,7 @@ function UploadPageContent() {
                         ) : (
                           <div className="grid h-full w-full grid-cols-2 gap-2 p-2">
                             {previewUrls.slice(0, 6).map((previewUrlItem, index) => (
-                              <img key={previewUrlItem} src={previewUrlItem} alt={`Upload preview ${index + 1}`} className="h-full w-full rounded-xl object-cover" />
+                              <OptimizedMedia key={previewUrlItem} src={previewUrlItem} alt={`Upload preview ${index + 1}`} width={640} height={640} sizes="(min-width: 640px) 50vw, 100vw" className="h-full w-full rounded-xl object-cover" />
                             ))}
                           </div>
                         )
@@ -603,7 +605,7 @@ function UploadPageContent() {
                       type="button"
                       variant="outline"
                       onClick={async () => {
-                        const response = await fetch("/api/highlight-analysis", {
+                        const response = await authenticatedFetch("/api/highlight-analysis", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ caption, contentType, autoCaption }),

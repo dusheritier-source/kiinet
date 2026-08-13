@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getFirebaseUserFromRequest } from "@/lib/serverAuth";
 import { ModerationBlockedError, isModerationDisabled, moderateOrThrow } from "@/lib/moderation-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { limitForUser } from "@/lib/api-security";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
   try {
     const user = await getFirebaseUserFromRequest(request);
     if (!user?.uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const limited = limitForUser(request, user.uid, "upload", 12, 60_000);
+    if (limited) return limited;
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "No file was provided." }, { status: 400 });
@@ -95,6 +98,8 @@ export async function DELETE(request: Request) {
   try {
     const user = await getFirebaseUserFromRequest(request);
     if (!user?.uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const limited = limitForUser(request, user.uid, "upload-delete", 20, 60_000);
+    if (limited) return limited;
     const input = await request.json() as { path?: string };
     const uploadPath = String(input.path ?? "");
     if (!uploadPath || uploadPath.includes("..") || !uploadPath.split("/").includes(user.uid)) {

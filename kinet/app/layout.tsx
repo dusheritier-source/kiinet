@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import PWARegistrar from "@/components/PWARegistrar";
 import ThemeSync from "@/components/ThemeSync";
@@ -10,8 +8,6 @@ import { AuthProvider } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import ReactQueryProvider from "@/components/ReactQueryProvider";
 import BottomNav from "@/components/BottomNav";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
@@ -43,9 +39,7 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
-  userScalable: false,
   themeColor: "#22d3ee",
   colorScheme: "dark",
 };
@@ -57,15 +51,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <Script
-          id="google-adsense"
-          strategy="lazyOnload"
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6169342782691776"
-          crossOrigin="anonymous"
-        />
-      </head>
-      <body className={`${inter.className} bg-background text-foreground`}>
+      <body className="bg-background font-sans text-foreground">
         <ReactQueryProvider>
           <AuthProvider>
             <PWARegistrar />

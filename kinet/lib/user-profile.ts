@@ -281,10 +281,10 @@ function logFirestoreError(operation: string, err: unknown, extra?: Record<strin
     // eslint-disable-next-line no-console
     console.error(`[Firestore:${operation}]`, err instanceof Error ? err.message : err, extra ?? {});
     // If error has a code (FirebaseError), log it specifically
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (err && typeof err === "object" && (err as any).code) {
+    const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code ?? "") : "";
+    if (code) {
       // eslint-disable-next-line no-console
-      console.error(`[Firestore:${operation}] code=`, (err as any).code);
+      console.error(`[Firestore:${operation}] code=`, code);
     }
   } catch {}
 }

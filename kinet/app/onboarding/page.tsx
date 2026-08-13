@@ -80,7 +80,7 @@ export default function OnboardingPage() {
               <User className="h-12 w-12 text-primary mr-3" />
               <div>
                 <CardTitle className="text-2xl">Welcome to Kinet!</CardTitle>
-                <CardDescription>Let's set up your profile</CardDescription>
+                <CardDescription>Let&apos;s set up your profile</CardDescription>
               </div>
             </div>
           </CardHeader>

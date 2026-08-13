@@ -28,7 +28,7 @@ export async function createCallRecord(conversationId: string, participantIds: s
     conversationId, participantIds: uniqueParticipantIds, callerId, type,
     answeredBy: [callerId],
     pendingParticipantIds: uniqueParticipantIds.filter((uid) => uid !== callerId),
-    status: "preparing", offer: null, answer: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    status: "preparing", offer: null, answer: null, ringExpiresAt: new Date(Date.now() + 30_000), createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
   uniqueParticipantIds.filter((uid) => uid !== callerId).forEach((uid) => {
     void createNotification({
