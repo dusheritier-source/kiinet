@@ -185,14 +185,12 @@ function ReelsPageContent() {
     return (
       <ProtectedRoute>
         <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 p-8 text-center">
-          <h2 className="text-2xl font-bold">Reels could not load</h2>
+          <h2 className="text-2xl font-bold">Upload your first reel</h2>
           <p className="max-w-md text-muted-foreground">
-            {error.includes("index")
-              ? "Firebase needs a reels index before uploaded videos can appear here. Create the index from the Firebase link, then refresh."
-              : error}
+            Share a video with the Kinet community and start the reels feed.
           </p>
           <Button asChild>
-            <Link href="/upload">Upload again</Link>
+            <Link href="/upload">Upload your first reel</Link>
           </Button>
         </div>
       </ProtectedRoute>
