@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Clapperboard, CirclePlay, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users } from "lucide-react";
+import { Bell, Clapperboard, CirclePlay, Compass, GraduationCap, Home, LineChart, LogIn, LogOut, Map, Menu, MessageCircle, Newspaper, Plus, Radio, Search, Settings, Shield, UserPlus, Users, X } from "lucide-react";
 import { markNotificationDelivered, subscribeToNotifications, type AppNotification } from "@/lib/notifications";
 import { getCurrentUserSettings } from "@/lib/settings";
 import { useAdminClaim } from "@/hooks/useAdminClaim";
@@ -31,10 +31,20 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const previousNotificationIds = useRef<string[]>([]);
   const deliveredNotificationIds = useRef<Set<string>>(new Set());
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
+
+  useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileMenuOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     if (!user) return;
@@ -150,11 +160,13 @@ export default function Navbar() {
                     ) : null}
                   </Link>
                 </Button>
-                <details className="relative lg:hidden">
-                  <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-md border">
-                    <Menu className="h-5 w-5" />
-                  </summary>
-                  <div className="absolute right-0 top-12 z-50 w-[min(92vw,380px)] rounded-2xl border bg-background p-4 shadow-lg">
+                <div className="lg:hidden">
+                  <button type="button" aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation-menu" onClick={() => setMobileMenuOpen((open) => !open)} className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
+                    {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                  </button>
+                  {mobileMenuOpen ? <>
+                  <button type="button" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 top-16 z-40 bg-black/35 backdrop-blur-[1px]" />
+                  <div id="mobile-navigation-menu" className="fixed inset-x-3 top-[4.5rem] z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border bg-background p-4 shadow-2xl sm:left-auto sm:right-4 sm:w-[380px]">
                     <div className="space-y-4">
                       <div>
                         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -165,7 +177,7 @@ export default function Navbar() {
                             const Icon = item.icon;
                             return (
                               <Button key={item.href} variant="ghost" size="sm" asChild className="justify-start">
-                                <Link href={item.href}>
+                                <Link href={item.href} onClick={() => setMobileMenuOpen(false)}>
                                   {Icon ? <Icon className="mr-2 h-4 w-4" /> : null}
                                   {item.label}
                                 </Link>
@@ -178,20 +190,20 @@ export default function Navbar() {
                       <div className="grid grid-cols-2 gap-2 border-t pt-3">
                         {isAdmin ? (
                           <Button variant="ghost" size="sm" asChild className="justify-start">
-                            <Link href="/admin">
+                            <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
                               <Shield className="mr-2 h-4 w-4" />
                               Admin
                             </Link>
                           </Button>
                         ) : null}
                         <Button variant="ghost" size="sm" asChild className="justify-start">
-                          <Link href="/settings">
+                          <Link href="/settings" onClick={() => setMobileMenuOpen(false)}>
                             <Settings className="mr-2 h-4 w-4" />
                             Settings
                           </Link>
                         </Button>
                         <Button variant="outline" size="sm" className="col-span-2" asChild>
-                          <Link href="/feed">
+                          <Link href="/feed" onClick={() => setMobileMenuOpen(false)}>
                             Continue
                             <LogOut className="ml-2 h-4 w-4" />
                           </Link>
@@ -199,7 +211,8 @@ export default function Navbar() {
                       </div>
                     </div>
                   </div>
-                </details>
+                  </> : null}
+                </div>
               </div>
               <div className="hidden items-center gap-1 lg:flex">
                 {primaryNav.map((item) => {
