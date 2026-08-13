@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { saveInstallPrompt, type KinetInstallPrompt } from "@/lib/pwa-install";
 
 export default function PWARegistrar() {
   useEffect(() => {
@@ -9,6 +10,17 @@ export default function PWARegistrar() {
     }
 
     void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    const captureInstall = (event: Event) => {
+      event.preventDefault();
+      saveInstallPrompt(event as KinetInstallPrompt);
+    };
+    const clearInstall = () => saveInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", captureInstall);
+    window.addEventListener("appinstalled", clearInstall);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", captureInstall);
+      window.removeEventListener("appinstalled", clearInstall);
+    };
   }, []);
 
   return null;

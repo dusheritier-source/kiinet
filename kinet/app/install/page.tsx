@@ -7,40 +7,35 @@ import { Bell, CheckCircle2, Clapperboard, Download, MessageCircle, Monitor, Sea
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-interface InstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { getInstallPrompt, saveInstallPrompt, type KinetInstallPrompt } from "@/lib/pwa-install";
 
 export default function InstallPage() {
-  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<KinetInstallPrompt | null>(null);
   const [installed, setInstalled] = useState(false);
   const [isIos, setIsIos] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
     setInstalled(window.matchMedia("(display-mode: standalone)").matches || Boolean(navigatorWithStandalone.standalone));
     setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent));
+    setInstallPrompt(getInstallPrompt());
 
-    const capturePrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
-    };
+    const capturePrompt = (event: Event) => setInstallPrompt((event as CustomEvent<KinetInstallPrompt | null>).detail);
     const handleInstalled = () => { setInstalled(true); setInstallPrompt(null); };
-    window.addEventListener("beforeinstallprompt", capturePrompt);
+    window.addEventListener("kinet:install-prompt", capturePrompt);
     window.addEventListener("appinstalled", handleInstalled);
     return () => {
-      window.removeEventListener("beforeinstallprompt", capturePrompt);
+      window.removeEventListener("kinet:install-prompt", capturePrompt);
       window.removeEventListener("appinstalled", handleInstalled);
     };
   }, []);
 
   const install = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) { setShowInstructions(true); return; }
     await installPrompt.prompt();
     const result = await installPrompt.userChoice;
-    if (result.outcome === "accepted") setInstallPrompt(null);
+    if (result.outcome === "accepted") { saveInstallPrompt(null); setInstallPrompt(null); }
   };
 
   return <main className="mx-auto flex min-h-[75svh] max-w-3xl items-center px-4 py-10">
@@ -51,7 +46,7 @@ export default function InstallPage() {
         <CardDescription className="mx-auto max-w-xl text-base">Share your story, discover inspiring people, and stay close to the communities that matter to you—all in one social app.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6 sm:p-8">
-        {installed ? <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 p-4 text-green-500"><CheckCircle2 className="h-5 w-5" /><span className="font-medium">Kinet is installed on this device.</span></div> : installPrompt ? <Button size="lg" className="w-full" onClick={() => void install()}><Download className="mr-2 h-5 w-5" />Install Kinet</Button> : isIos ? <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Share className="h-5 w-5" />Install on iPhone or iPad</p><p className="mt-2 text-sm text-muted-foreground">Open this page in Safari, tap Share, then choose <strong>Add to Home Screen</strong>.</p></div> : <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Download className="h-5 w-5" />Install from your browser</p><p className="mt-2 text-sm text-muted-foreground">Open this page in Chrome or Edge, then use the browser menu and select <strong>Install Kinet</strong> or <strong>Add to Home screen</strong>.</p></div>}
+        {installed ? <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 p-4 text-green-500"><CheckCircle2 className="h-5 w-5" /><span className="font-medium">Kinet is installed on this device.</span></div> : <><Button size="lg" className="w-full" onClick={() => void install()}><Download className="mr-2 h-5 w-5" />Install Kinet</Button>{showInstructions || !installPrompt ? isIos ? <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Share className="h-5 w-5" />Install on iPhone or iPad</p><p className="mt-2 text-sm text-muted-foreground">Open this page in Safari, tap the Share button, scroll down, then choose <strong>Add to Home Screen</strong> and tap <strong>Add</strong>.</p></div> : <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Download className="h-5 w-5" />Install from your browser</p><p className="mt-2 text-sm text-muted-foreground">In Chrome or Edge, open the browser menu and select <strong>Install Kinet</strong> or <strong>Add to Home screen</strong>. If Kinet is already installed, open it from your apps list.</p></div> : null}</>}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border p-4"><Smartphone className="h-6 w-6 text-primary" /><p className="mt-2 font-semibold">Phone and tablet</p><p className="mt-1 text-sm text-muted-foreground">Adds Kinet to your home screen and opens it like an app.</p></div>
