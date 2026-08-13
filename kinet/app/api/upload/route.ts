@@ -16,6 +16,34 @@ const allowedDocuments = new Set([
   "text/vtt",
 ]);
 const maxFileSize = 50 * 1024 * 1024;
+const allowedExtensions = new Set(["jpg", "jpeg", "png", "gif", "webp", "mp4", "webm", "mp3", "wav", "ogg", "pdf", "doc", "docx", "txt", "vtt"]);
+
+function hasPrefix(bytes: Uint8Array, prefix: number[], offset = 0) {
+  return prefix.every((value, index) => bytes[offset + index] === value);
+}
+
+function hasExpectedSignature(file: File, bytes: Uint8Array) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!allowedExtensions.has(extension)) return false;
+  const ascii = new TextDecoder("ascii").decode(bytes.slice(0, 16));
+  const signatures: Record<string, boolean> = {
+    "image/jpeg": hasPrefix(bytes, [0xff, 0xd8, 0xff]),
+    "image/png": hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    "image/gif": ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a"),
+    "image/webp": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP",
+    "video/mp4": ascii.slice(4, 8) === "ftyp",
+    "video/webm": hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]),
+    "audio/mpeg": ascii.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0),
+    "audio/wav": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE",
+    "audio/ogg": ascii.startsWith("OggS"),
+    "application/pdf": ascii.startsWith("%PDF-"),
+    "application/msword": hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]),
+    "text/plain": !bytes.includes(0),
+    "text/vtt": !bytes.includes(0) && new TextDecoder().decode(bytes.slice(0, 64)).trimStart().startsWith("WEBVTT"),
+  };
+  return signatures[file.type] === true;
+}
 
 function getStorageBucket() {
   const configured = process.env.SUPABASE_STORAGE_BUCKET
@@ -57,11 +85,13 @@ export async function POST(request: Request) {
     const contentType = file.type;
     if (!allowedTypes.test(contentType) && !allowedDocuments.has(contentType)) return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
     if (!file.size || file.size > maxFileSize) return NextResponse.json({ error: "Files must be smaller than 50 MB." }, { status: 400 });
+    const signatureBytes = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+    if (!hasExpectedSignature(file, signatureBytes)) return NextResponse.json({ error: "The file contents do not match an allowed file type." }, { status: 400 });
     const path = buildStoragePath(formData.get("folder"), String(user.uid), file.name);
 
     // Validate path for Supabase storage: no leading slashes, no consecutive slashes, no traversal, reasonable length
-    if (path.includes("//") || path.includes("..")) return NextResponse.json({ error: "Invalid upload path", path }, { status: 400 });
-    if (path.length > 1024) return NextResponse.json({ error: "Upload path too long", path }, { status: 400 });
+    if (path.includes("//") || path.includes("..")) return NextResponse.json({ error: "Invalid upload path." }, { status: 400 });
+    if (path.length > 1024) return NextResponse.json({ error: "Upload path is too long." }, { status: 400 });
     const bucket = getStorageBucket();
     const admin = getSupabaseAdmin();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -80,17 +110,17 @@ export async function POST(request: Request) {
         upsert: false,
       });
       if (error) {
-        return NextResponse.json({ error: error.message || String(error), bucket, path }, { status: 500 });
+        return NextResponse.json({ error: "The file could not be stored." }, { status: 502 });
       }
-    } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : String(err), bucket, path }, { status: 500 });
+    } catch {
+      return NextResponse.json({ error: "The file could not be stored." }, { status: 502 });
     }
 
     const { data: publicData } = admin.storage.from(bucket).getPublicUrl(path);
     return NextResponse.json({ bucket, path, publicUrl: publicData.publicUrl, status: "allowed" });
   } catch (error) {
     if (error instanceof ModerationBlockedError) return NextResponse.json({ error: error.message, status: "blocked" }, { status: 422 });
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not prepare upload." }, { status: 500 });
+    return NextResponse.json({ error: "Could not prepare upload." }, { status: 500 });
   }
 }
 
@@ -107,9 +137,9 @@ export async function DELETE(request: Request) {
     }
     const bucket = getStorageBucket();
     const { error } = await getSupabaseAdmin().storage.from(bucket).remove([uploadPath]);
-    if (error) return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
+    if (error) return NextResponse.json({ error: "The file could not be removed." }, { status: 502 });
     return NextResponse.json({ status: "deleted" });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not remove the upload." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not remove the upload." }, { status: 500 });
   }
 }

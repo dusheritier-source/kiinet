@@ -35,6 +35,9 @@ const nextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
         { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+        { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+        { key: 'Origin-Agent-Cluster', value: '?1' },
+        { key: 'X-DNS-Prefetch-Control', value: 'off' },
         { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
       ],
     }];
