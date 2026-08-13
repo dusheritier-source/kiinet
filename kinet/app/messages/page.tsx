@@ -1056,7 +1056,7 @@ function MessagesPageContent() {
               {currentProfileName || user.displayName || "Inbox"}
             </p>
             <h1 className="text-3xl font-bold">Messages</h1>
-            <p className="text-sm text-muted-foreground">Story replies and direct messages, Instagram style.</p>
+            <p className="text-sm text-muted-foreground">Private conversations, story replies, voice notes, and calls—all in Kinet.</p>
           </div>
           <Button variant="outline" size="icon" onClick={() => setShowNewMessage(true)} aria-label="New message">
             <Pencil className="h-4 w-4" />

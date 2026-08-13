@@ -7,12 +7,7 @@ import { Button } from "@/components/ui/button";
 import { acceptCallRecord, addCallCandidate, createCallRecord, markCallMissedIfRinging, subscribeCall, subscribeCallCandidates, subscribeCallHistory, subscribeIncomingCalls, updateCallRecord, addParticipantOffer, subscribeOffers, addParticipantAnswer, subscribeAnswers, addGroupCandidate, subscribeGroupCandidates, type CallRecord, type CallType } from "@/lib/calls";
 import { getUserProfileById } from "@/lib/user-profile";
 import { sendConversationMessage } from "@/lib/messaging";
-import { buildRtcConfiguration } from "@/lib/rtc-config";
-
-const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL || "";
-const TURN_USERNAME = process.env.NEXT_PUBLIC_TURN_USERNAME || "";
-const TURN_CREDENTIAL = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || "";
-const rtcConfig = buildRtcConfiguration({ turnUrl: TURN_URL, username: TURN_USERNAME, credential: TURN_CREDENTIAL });
+import { rtcConfiguration } from "@/lib/rtc-config";
 
 export default function CallPanel({ currentUserId, conversationId, participantIds, title }: { currentUserId: string; conversationId?: string; participantIds?: string[]; title: string }) {
   const [call, setCall] = useState<CallRecord | null>(null);
@@ -89,7 +84,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
   const monitorPeer = (peer: RTCPeerConnection) => {
     const update = () => {
       setConnectionState(peer.connectionState);
-      if (peer.connectionState === "failed") setError(TURN_URL ? "The call connection failed. Please try again." : "The call could not carry audio across this network. Configure a TURN server for reliable calls.");
+      if (peer.connectionState === "failed") setError("The call could not connect across this network. Please try another network or try again.");
       if (["disconnected", "failed"].includes(peer.connectionState) && reconnectAttemptsRef.current < 2) {
         reconnectAttemptsRef.current += 1;
         window.setTimeout(() => { if (peer.connectionState !== "connected" && peer.signalingState !== "closed") peer.restartIce(); }, 1500 * reconnectAttemptsRef.current);
@@ -139,7 +134,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
 
   const preparePeer = async (type: CallType, callId: string, side: "caller" | "callee") => {
     const localStream = await prepareLocalMedia(type);
-    const peer = new RTCPeerConnection(rtcConfig);
+    const peer = new RTCPeerConnection(rtcConfiguration);
     monitorPeer(peer);
     // add existing local tracks to the peer
     localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
@@ -237,7 +232,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       await prepareLocalMedia(type);
       // For each target, create a dedicated RTCPeerConnection, offer and write to offers collection
       await Promise.all(others.map(async (targetId) => {
-        const pc = new RTCPeerConnection(rtcConfig);
+        const pc = new RTCPeerConnection(rtcConfiguration);
         peersRef.current.set(targetId, pc);
         monitorPeer(pc);
         // add local tracks
@@ -318,7 +313,7 @@ export default function CallPanel({ currentUserId, conversationId, participantId
       try {
         const { from: callerId, offer } = offerDoc;
         // create peer per callerId
-        const pc = new RTCPeerConnection(rtcConfig);
+        const pc = new RTCPeerConnection(rtcConfiguration);
         peersRef.current.set(callerId, pc);
         monitorPeer(pc);
         // ensure local stream

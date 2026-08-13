@@ -18,8 +18,6 @@ const adminConfigured = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) || Boo
 if (!adminConfigured) problems.push("Firebase Admin credentials are missing");
 if (process.env.DISABLE_MODERATION === "true") problems.push("DISABLE_MODERATION must not be true in production");
 if (process.env.TEST_ALLOW_BYPASS === "true") problems.push("TEST_ALLOW_BYPASS must not be true in production");
-if (process.env.NEXT_PUBLIC_TURN_URL && !/^turns?:/i.test(process.env.NEXT_PUBLIC_TURN_URL)) problems.push("NEXT_PUBLIC_TURN_URL must use turn: or turns:");
-if (process.env.NEXT_PUBLIC_TURN_URL && (!process.env.NEXT_PUBLIC_TURN_USERNAME || !process.env.NEXT_PUBLIC_TURN_CREDENTIAL)) problems.push("TURN username and credential are required when TURN is enabled");
 
 if (problems.length) {
   console.error(`Release configuration failed:\n- ${problems.join("\n- ")}`);

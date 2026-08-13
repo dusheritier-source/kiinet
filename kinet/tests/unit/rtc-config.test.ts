@@ -1,18 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRtcConfiguration } from "../../lib/rtc-config";
+import { buildRtcConfiguration, rtcConfiguration } from "../../lib/rtc-config";
 
-test("uses STUN-only configuration when TURN is absent", () => {
-  assert.equal(buildRtcConfiguration({}).iceServers?.length, 2);
+test("uses Google's public STUN server for calls", () => {
+  assert.deepEqual(rtcConfiguration.iceServers, [{ urls: "stun:stun.l.google.com:19302" }]);
+  assert.equal(rtcConfiguration.iceCandidatePoolSize, 10);
 });
 
-test("adds a credentialed TURN relay", () => {
-  const config = buildRtcConfiguration({ turnUrl: "turns:relay.example.com:5349", username: "user", credential: "secret" });
-  assert.equal(config.iceServers?.length, 3);
-  assert.equal(config.iceCandidatePoolSize, 10);
-});
-
-test("rejects incomplete or invalid TURN configuration", () => {
-  assert.throws(() => buildRtcConfiguration({ turnUrl: "https://relay.example.com", username: "user", credential: "secret" }));
-  assert.throws(() => buildRtcConfiguration({ turnUrl: "turn:relay.example.com" }));
+test("allows a future relay fallback without changing call code", () => {
+  const relay = { urls: "turns:relay.example.com:5349", username: "user", credential: "secret" };
+  assert.deepEqual(buildRtcConfiguration([relay]).iceServers, [
+    { urls: "stun:stun.l.google.com:19302" },
+    relay,
+  ]);
 });
