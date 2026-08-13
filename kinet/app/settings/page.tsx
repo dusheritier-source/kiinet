@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Bell, ChevronRight, CircleUserRound, LockKeyhole, LogOut, Search, ShieldCheck, UserRoundCog } from "lucide-react";
+import { Bell, ChevronRight, CircleUserRound, Download, LockKeyhole, LogOut, Search, ShieldCheck, UserRoundCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { AuthProvider } from "@/components/AuthProvider";
@@ -226,6 +226,7 @@ function SettingsPageContent() {
                 {saving ? "Saving..." : "Save settings"}
               </Button>
               <div className="grid gap-2 border-t pt-5 sm:grid-cols-2">
+                <Link href="/install" className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-3 text-sm font-semibold text-primary hover:bg-primary/10"><Download className="h-4 w-4" />Install Kinet</Link>
                 <Link href="/platform" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Accessibility and language</Link>
                 <Link href="/intelligence" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">AI features</Link>
                 <Link href="/feed/preferences" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Content preferences</Link>
