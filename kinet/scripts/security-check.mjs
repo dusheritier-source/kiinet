@@ -5,6 +5,7 @@ const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8
 const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
 const pushRoute = readFileSync(new URL("../app/api/notifications/push/route.ts", import.meta.url), "utf8");
 const digestRoute = readFileSync(new URL("../app/api/notifications/digest/route.ts", import.meta.url), "utf8");
+const deliveryRoute = readFileSync(new URL("../app/api/notifications/deliver/route.ts", import.meta.url), "utf8");
 const uploadRoute = readFileSync(new URL("../app/api/upload/route.ts", import.meta.url), "utf8");
 const nextConfig = readFileSync(new URL("../next.config.js", import.meta.url), "utf8");
 
@@ -17,6 +18,8 @@ assert.match(middleware, /kinet_session/);
 assert.match(middleware, /test-env/);
 assert.match(pushRoute, /requireApiUser/);
 assert.match(digestRoute, /requireApiUser/);
+assert.match(deliveryRoute, /requireApiUser/);
+assert.match(deliveryRoute, /actorId[\s\S]{0,100}authResult\.user\.uid/);
 assert.match(uploadRoute, /hasExpectedSignature/);
 assert.doesNotMatch(uploadRoute, /error\.message[^\n]*bucket[^\n]*path/);
 assert.match(nextConfig, /Cross-Origin-Resource-Policy/);

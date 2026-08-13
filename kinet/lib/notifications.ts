@@ -233,6 +233,11 @@ export async function createNotification(input: {
     createdAt: serverTimestamp(),
   }, { merge: true }));
   await recordNotificationEvent(notificationId, "sent");
+  void authenticatedFetch("/api/notifications/deliver", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notificationId }),
+  }).catch(() => undefined);
 }
 
 async function recordNotificationEvent(notificationId: string, event: "sent" | "delivered" | "opened" | "dismissed") {
