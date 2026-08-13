@@ -42,19 +42,10 @@ service cloud.firestore {
     match /managedDevices/{docId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
-          && request.resource.data.likes.removeAll([request.auth.uid]) == resource.data.get('likes', []).removeAll([request.auth.uid]))
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saves'])
-          && request.resource.data.saves.removeAll([request.auth.uid]) == resource.data.get('saves', []).removeAll([request.auth.uid]))
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shares'])
-          && request.resource.data.shares == resource.data.get('shares', 0) + 1)
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount'])
-          && request.resource.data.commentsCount >= 0
-          && (request.resource.data.commentsCount == resource.data.get('commentsCount', 0) + 1
-            || request.resource.data.commentsCount == resource.data.get('commentsCount', 0) - 1))
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']));
-      allow delete: if false;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Guardian links - users can read/write their own guardian links
@@ -500,6 +491,69 @@ service cloud.firestore {
 
     match /notificationBroadcasts/{broadcastId} {
       allow read, write: if isAdmin();
+    }
+
+    // Creator/business records. Public catalog data is readable by signed-in
+    // members, while all mutations remain scoped to the record owner.
+    match /brandCampaigns/{campaignId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /campaignApplications/{applicationId} {
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.applicantId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.applicantId == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin())
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.applicantId == resource.data.applicantId;
+      allow delete: if false;
+    }
+
+    match /premiumGroups/{groupId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid && request.auth.uid in request.resource.data.memberIds;
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && request.auth.uid in request.resource.data.memberIds));
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /{collectionName}/{recordId} {
+      allow read, create, update, delete: if collectionName in [
+          'contracts', 'invoices', 'discountCodes', 'membershipTiers',
+          'teamBundles', 'sponsorBadgeRequests', 'campaignDeliverables'
+        ] && isSignedIn()
+        && ((resource != null && resource.data.ownerId == request.auth.uid)
+          || (request.resource != null && request.resource.data.ownerId == request.auth.uid)
+          || isAdmin());
+    }
+
+    match /creatorTips/{tipId} {
+      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.targetUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /marketplaceReviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // Badge verification requests are private to their owner and administrators.
+    match /verificationRequests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /verificationAppeals/{appealId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     match /collections/{collectionId} {

@@ -1,9 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { sendEmailVerification } from "firebase/auth";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,6 +16,7 @@ import {
 } from "@/lib/recruiting";
 
 function VerifyPageContent() {
+  const [emailStatus, setEmailStatus] = useState("");
   const [category, setCategory] = useState("athlete");
   const [details, setDetails] = useState("");
   const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
@@ -44,6 +47,15 @@ function VerifyPageContent() {
           <h1 className="text-3xl font-bold">Verification</h1>
           <p className="text-muted-foreground">Submit your role, achievements, and supporting context to request a verified badge.</p>
         </div>
+
+        <Card>
+          <CardHeader><CardTitle>Email verification</CardTitle><CardDescription>Confirm that you control the email address connected to this account.</CardDescription></CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <span className="text-sm">{auth.currentUser?.emailVerified ? "Email verified" : "Email not verified"}</span>
+            {!auth.currentUser?.emailVerified ? <Button type="button" onClick={() => { if (!auth.currentUser) return; void sendEmailVerification(auth.currentUser).then(() => setEmailStatus("Verification email sent. Check your inbox and spam folder.")).catch(() => setEmailStatus("Could not send the verification email. Please try again shortly.")); }}>Send verification email</Button> : null}
+            {emailStatus ? <p role="status" className="w-full text-sm text-muted-foreground">{emailStatus}</p> : null}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-[0.95fr,1.05fr]">
           <Card>
