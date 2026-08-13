@@ -502,6 +502,26 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /collections/{collectionId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.postIds is list
+        && request.resource.data.postIds.size() <= 500;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.postIds is list
+        && request.resource.data.postIds.size() <= 500;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     match /backgroundJobs/{jobId} {
       allow read, write: if false;
     }

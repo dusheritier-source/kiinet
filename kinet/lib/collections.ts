@@ -27,9 +27,14 @@ export async function createSavedCollection(name: string) {
     throw new Error("You must be signed in.");
   }
 
+  const trimmedName = name.trim().slice(0, 60);
+  if (!trimmedName) {
+    throw new Error("Enter a collection name.");
+  }
+
   await addDoc(collection(db, "collections"), {
     userId: auth.currentUser.uid,
-    name: name.trim(),
+    name: trimmedName,
     postIds: [],
     createdAt: serverTimestamp(),
   });
