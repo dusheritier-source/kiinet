@@ -9,7 +9,10 @@ export default function PWARegistrar() {
       return;
     }
 
-    void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    void navigator.serviceWorker
+      .register("/sw.js", { updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => undefined);
     const captureInstall = (event: Event) => {
       event.preventDefault();
       saveInstallPrompt(event as KinetInstallPrompt);

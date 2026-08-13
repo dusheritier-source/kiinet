@@ -24,7 +24,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav aria-label="Primary mobile navigation" className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.35)] md:hidden">
+    <nav aria-label="Primary mobile navigation" className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.35)] lg:hidden">
       <div className="mx-auto grid min-h-[4.5rem] w-full max-w-lg grid-cols-5 items-center px-2 pt-1">
         {items.map((item) => {
           const active = pathname === item.href || (item.href !== "/feed" && pathname.startsWith(`${item.href}/`));
