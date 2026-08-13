@@ -540,10 +540,12 @@ service cloud.firestore {
 
     // Drafts - users can read/write their own drafts
     match /drafts/{draftId} {
-      allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.authorId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Reports - authenticated users can create, can read their own

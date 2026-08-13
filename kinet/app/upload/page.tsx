@@ -141,6 +141,19 @@ function UploadPageContent() {
       setThumbnailHint(draft.thumbnailHint ?? "");
       setClipStartSec(draft.clipStartSec ? String(draft.clipStartSec) : "");
       setClipEndSec(draft.clipEndSec ? String(draft.clipEndSec) : "");
+      setMusicTitle(draft.musicTitle ?? "");
+      setMusicSourceUrl(draft.musicSourceUrl ?? "");
+      setOriginalVolume(draft.originalVolume ?? 1);
+      setMusicVolume(draft.musicVolume ?? 0.7);
+      setPlaybackRate(draft.playbackRate ?? 1);
+      setVisualFilter(draft.visualFilter ?? "none");
+      setRotation(draft.rotation ?? 0);
+      setOverlayText(draft.overlayText ?? "");
+      setOverlayPosition(draft.overlayPosition ?? "bottom");
+      setSticker(draft.sticker ?? "");
+      setCommentsEnabled(draft.commentsEnabled !== false);
+      setAllowRemix(draft.allowRemix !== false);
+      setBlockedCommentWords(draft.blockedCommentWords ?? "");
       setWatermarkEnabled(Boolean(draft.watermarkEnabled));
       setDownloadProtected(Boolean(draft.downloadProtected));
       setRightClickProtected(Boolean(draft.rightClickProtected));
@@ -695,6 +708,19 @@ function UploadPageContent() {
                       thumbnailHint,
                       clipStartSec: clipStartSec ? Number(clipStartSec) : undefined,
                       clipEndSec: clipEndSec ? Number(clipEndSec) : undefined,
+                      musicTitle,
+                      musicSourceUrl,
+                      originalVolume,
+                      musicVolume,
+                      playbackRate,
+                      visualFilter,
+                      rotation,
+                      overlayText,
+                      overlayPosition,
+                      sticker,
+                      commentsEnabled,
+                      allowRemix,
+                      blockedCommentWords,
                       watermarkEnabled,
                       downloadProtected,
                       rightClickProtected,

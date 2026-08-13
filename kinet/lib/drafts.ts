@@ -36,6 +36,19 @@ export interface UploadDraft {
   thumbnailHint?: string;
   clipStartSec?: number;
   clipEndSec?: number;
+  musicTitle?: string;
+  musicSourceUrl?: string;
+  originalVolume?: number;
+  musicVolume?: number;
+  playbackRate?: number;
+  visualFilter?: "none" | "warm" | "cool" | "mono" | "vivid";
+  rotation?: 0 | 90 | 180 | 270;
+  overlayText?: string;
+  overlayPosition?: "top" | "center" | "bottom";
+  sticker?: string;
+  commentsEnabled?: boolean;
+  allowRemix?: boolean;
+  blockedCommentWords?: string;
   watermarkEnabled?: boolean;
   downloadProtected?: boolean;
   rightClickProtected?: boolean;
@@ -65,6 +78,19 @@ export async function saveUploadDraft(input: {
   thumbnailHint?: string;
   clipStartSec?: number;
   clipEndSec?: number;
+  musicTitle?: string;
+  musicSourceUrl?: string;
+  originalVolume?: number;
+  musicVolume?: number;
+  playbackRate?: number;
+  visualFilter?: UploadDraft["visualFilter"];
+  rotation?: UploadDraft["rotation"];
+  overlayText?: string;
+  overlayPosition?: UploadDraft["overlayPosition"];
+  sticker?: string;
+  commentsEnabled?: boolean;
+  allowRemix?: boolean;
+  blockedCommentWords?: string;
   watermarkEnabled?: boolean;
   downloadProtected?: boolean;
   rightClickProtected?: boolean;
@@ -97,6 +123,19 @@ export async function saveUploadDraft(input: {
     thumbnailHint: input.thumbnailHint?.trim() ?? "",
     clipStartSec: typeof input.clipStartSec === "number" ? input.clipStartSec : null,
     clipEndSec: typeof input.clipEndSec === "number" ? input.clipEndSec : null,
+    musicTitle: input.musicTitle?.trim().slice(0, 80) ?? "",
+    musicSourceUrl: input.musicSourceUrl?.trim() ?? "",
+    originalVolume: Math.max(0, Math.min(1, input.originalVolume ?? 1)),
+    musicVolume: Math.max(0, Math.min(1, input.musicVolume ?? 0.7)),
+    playbackRate: [0.5, 0.75, 1, 1.25, 1.5, 2].includes(input.playbackRate ?? 1) ? input.playbackRate : 1,
+    visualFilter: input.visualFilter ?? "none",
+    rotation: input.rotation ?? 0,
+    overlayText: input.overlayText?.trim().slice(0, 120) ?? "",
+    overlayPosition: input.overlayPosition ?? "bottom",
+    sticker: input.sticker?.slice(0, 8) ?? "",
+    commentsEnabled: input.commentsEnabled !== false,
+    allowRemix: input.allowRemix !== false,
+    blockedCommentWords: input.blockedCommentWords?.trim().slice(0, 500) ?? "",
     watermarkEnabled: Boolean(input.watermarkEnabled),
     downloadProtected: Boolean(input.downloadProtected),
     rightClickProtected: Boolean(input.rightClickProtected),
@@ -149,6 +188,19 @@ export async function getUploadDrafts() {
       clipStartSec:
         typeof data.clipStartSec === "number" ? data.clipStartSec : undefined,
       clipEndSec: typeof data.clipEndSec === "number" ? data.clipEndSec : undefined,
+      musicTitle: String(data.musicTitle ?? ""),
+      musicSourceUrl: String(data.musicSourceUrl ?? ""),
+      originalVolume: typeof data.originalVolume === "number" ? data.originalVolume : 1,
+      musicVolume: typeof data.musicVolume === "number" ? data.musicVolume : 0.7,
+      playbackRate: typeof data.playbackRate === "number" ? data.playbackRate : 1,
+      visualFilter: data.visualFilter === "warm" || data.visualFilter === "cool" || data.visualFilter === "mono" || data.visualFilter === "vivid" ? data.visualFilter : "none",
+      rotation: data.rotation === 90 || data.rotation === 180 || data.rotation === 270 ? data.rotation : 0,
+      overlayText: String(data.overlayText ?? ""),
+      overlayPosition: data.overlayPosition === "top" || data.overlayPosition === "center" ? data.overlayPosition : "bottom",
+      sticker: String(data.sticker ?? ""),
+      commentsEnabled: data.commentsEnabled !== false,
+      allowRemix: data.allowRemix !== false,
+      blockedCommentWords: String(data.blockedCommentWords ?? ""),
       watermarkEnabled: Boolean(data.watermarkEnabled),
       downloadProtected: Boolean(data.downloadProtected),
       rightClickProtected: Boolean(data.rightClickProtected),
