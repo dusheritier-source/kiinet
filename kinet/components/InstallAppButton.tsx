@@ -25,5 +25,5 @@ export default function InstallAppButton({ compact = false }: { compact?: boolea
   }, []);
 
   if (!prompt || installed) return null;
-  return <Button type="button" variant="outline" size={compact ? "icon" : "sm"} aria-label="Install Kinet app" title="Install Kinet app" onClick={async () => { await prompt.prompt(); const choice = await prompt.userChoice; if (choice.outcome === "accepted") { saveInstallPrompt(null); setPrompt(null); } }}><Download className={compact ? "h-5 w-5" : "mr-2 h-4 w-4"} />{compact ? null : "Install app"}</Button>;
+  return <Button type="button" variant="outline" size={compact ? "icon" : "sm"} aria-label="Install Kinet app" title="Install Kinet app" onClick={async () => { try { await prompt.prompt(); await prompt.userChoice; } finally { saveInstallPrompt(null); setPrompt(null); } }}><Download className={compact ? "h-5 w-5" : "mr-2 h-4 w-4"} />{compact ? null : "Install app"}</Button>;
 }

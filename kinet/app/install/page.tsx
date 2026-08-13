@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, CheckCircle2, Clapperboard, Download, MessageCircle, Monitor, Search, Share, ShieldCheck, Smartphone, Sparkles, Users } from "lucide-react";
+import { Bell, CheckCircle2, Clapperboard, Download, MessageCircle, Monitor, Search, Share, ShieldCheck, Smartphone, Sparkles, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ export default function InstallPage() {
   const [installed, setInstalled] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
@@ -33,9 +34,20 @@ export default function InstallPage() {
 
   const install = async () => {
     if (!installPrompt) { setShowInstructions(true); return; }
-    await installPrompt.prompt();
-    const result = await installPrompt.userChoice;
-    if (result.outcome === "accepted") { saveInstallPrompt(null); setInstallPrompt(null); }
+    setInstalling(true);
+    try {
+      await installPrompt.prompt();
+      const result = await installPrompt.userChoice;
+      saveInstallPrompt(null);
+      setInstallPrompt(null);
+      if (result.outcome !== "accepted") setShowInstructions(true);
+    } catch {
+      saveInstallPrompt(null);
+      setInstallPrompt(null);
+      setShowInstructions(true);
+    } finally {
+      setInstalling(false);
+    }
   };
 
   return <main className="mx-auto flex min-h-[75svh] max-w-3xl items-center px-4 py-10">
@@ -46,7 +58,7 @@ export default function InstallPage() {
         <CardDescription className="mx-auto max-w-xl text-base">Share your story, discover inspiring people, and stay close to the communities that matter to you—all in one social app.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6 sm:p-8">
-        {installed ? <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 p-4 text-green-500"><CheckCircle2 className="h-5 w-5" /><span className="font-medium">Kinet is installed on this device.</span></div> : <><Button size="lg" className="w-full" onClick={() => void install()}><Download className="mr-2 h-5 w-5" />Install Kinet</Button>{showInstructions || !installPrompt ? isIos ? <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Share className="h-5 w-5" />Install on iPhone or iPad</p><p className="mt-2 text-sm text-muted-foreground">Open this page in Safari, tap the Share button, scroll down, then choose <strong>Add to Home Screen</strong> and tap <strong>Add</strong>.</p></div> : <div className="rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold"><Download className="h-5 w-5" />Install from your browser</p><p className="mt-2 text-sm text-muted-foreground">In Chrome or Edge, open the browser menu and select <strong>Install Kinet</strong> or <strong>Add to Home screen</strong>. If Kinet is already installed, open it from your apps list.</p></div> : null}</>}
+        {installed ? <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 p-4 text-green-500"><CheckCircle2 className="h-5 w-5" /><span className="font-medium">Kinet is installed on this device.</span></div> : <><Button size="lg" className="w-full text-base" disabled={installing} onClick={() => void install()}><Download className="mr-2 h-5 w-5" />{installing ? "Opening installer…" : "Install Kinet now"}</Button><p className="text-center text-xs text-muted-foreground">Free installation. No app-store account is required.</p></>}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border p-4"><Smartphone className="h-6 w-6 text-primary" /><p className="mt-2 font-semibold">Phone and tablet</p><p className="mt-1 text-sm text-muted-foreground">Adds Kinet to your home screen and opens it like an app.</p></div>
@@ -79,5 +91,6 @@ export default function InstallPage() {
         <Button variant="outline" className="w-full" asChild><Link href="/">Continue on the website</Link></Button>
       </CardContent>
     </Card>
+    {showInstructions ? <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title" onClick={() => setShowInstructions(false)}><div className="w-full max-w-md rounded-t-3xl border bg-background p-6 shadow-2xl sm:rounded-3xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h2 id="install-help-title" className="text-xl font-bold">Install Kinet</h2><p className="mt-1 text-sm text-muted-foreground">Follow these steps on this device.</p></div><Button type="button" size="icon" variant="ghost" aria-label="Close installation instructions" onClick={() => setShowInstructions(false)}><X className="h-5 w-5" /></Button></div>{isIos ? <ol className="mt-5 space-y-4 text-sm"><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">1</span><span>Open this page in <strong>Safari</strong>.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">2</span><span>Tap the <strong>Share</strong> button <Share className="ml-1 inline h-4 w-4" /> at the bottom of Safari.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">3</span><span>Scroll and tap <strong>Add to Home Screen</strong>.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">4</span><span>Tap <strong>Add</strong>. Kinet will appear with your other apps.</span></li></ol> : <ol className="mt-5 space-y-4 text-sm"><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">1</span><span>Open this page in <strong>Chrome</strong> or <strong>Microsoft Edge</strong>.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">2</span><span>Open the browser menu <strong>⋮</strong>.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">3</span><span>Choose <strong>Install app</strong>, <strong>Install Kinet</strong>, or <strong>Add to Home screen</strong>.</span></li><li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">4</span><span>Confirm <strong>Install</strong>.</span></li></ol>}<Button type="button" className="mt-6 w-full" onClick={() => setShowInstructions(false)}>I understand</Button></div></div> : null}
   </main>;
 }
