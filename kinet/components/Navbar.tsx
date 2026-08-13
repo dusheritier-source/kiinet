@@ -124,7 +124,7 @@ export default function Navbar() {
     : 0;
 
   return (
-    <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="sticky top-0 z-50 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         <Link href={user ? "/feed" : "/"} aria-label="Kinet home" className="flex items-center gap-2">
           <OptimizedMedia src="/icon-192.png" alt="" width={36} height={36} priority className="h-9 w-9 rounded-xl object-cover shadow-sm" />
