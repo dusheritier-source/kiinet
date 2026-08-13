@@ -8,6 +8,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import ReactQueryProvider from "@/components/ReactQueryProvider";
 import BottomNav from "@/components/BottomNav";
+import NavigationFeedback from "@/components/NavigationFeedback";
 
 export const metadata: Metadata = {
   title: {
@@ -55,6 +56,7 @@ export default function RootLayout({
         <ReactQueryProvider>
           <AuthProvider>
             <PWARegistrar />
+            <Suspense fallback={null}><NavigationFeedback /></Suspense>
             <ThemeSync />
             <StoriesOverlay />
             <Navbar />

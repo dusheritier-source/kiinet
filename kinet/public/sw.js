@@ -1,5 +1,5 @@
-const CACHE_NAME = "kinet-shell-v2";
-const APP_SHELL = ["/", "/feed", "/reels", "/messages", "/search", "/manifest.webmanifest"];
+const CACHE_NAME = "kinet-shell-v3";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,28 +29,25 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/feed"))
+      fetch(request).catch(() => caches.match("/"))
     );
     return;
   }
 
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/_next/") || request.headers.get("RSC") === "1") {
+    return;
+  }
+
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-
-      return fetch(request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type !== "basic") {
-            return response;
-          }
-
+    fetch(request)
+      .then((response) => {
+        if (response && response.status === 200 && response.type === "basic") {
           const responseClone = response.clone();
           void caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-          return response;
-        })
-        .catch(() => cached);
-    })
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || Response.error()))
   );
 });

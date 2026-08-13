@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes navigation-progress {
+  0% { transform: translateX(-110%); }
+  55% { transform: translateX(85%); }
+  100% { transform: translateX(220%); }
+}
+
 @layer base {
   :root {
     --background: 220 32% 8%;
