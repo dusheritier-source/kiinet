@@ -112,6 +112,15 @@
   button, a, input, select, textarea {
     touch-action: manipulation;
   }
+
+  /* iOS zooms the entire web view when a form control smaller than 16px is
+     focused. Keep mobile controls at the zoom-safe size so chat stays fixed
+     in place when the keyboard opens. Desktop sizing is restored below. */
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer utilities {

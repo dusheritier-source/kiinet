@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Example attachments may use arbitrary hosts. */
 
 import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
@@ -11,7 +12,7 @@ import {
   togglePostLike,
   setupPresenceListener,
   setUserOnline,
-  RTDBMessage,
+  RTDBMessage,   
   TypingStatus,
   LikeStatus,
   UserPresence,
@@ -147,7 +148,7 @@ export function RealtimeLikesExample({ postId }: { postId: string }) {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [postId]);
+  }, [currentUser, postId]);
 
   const handleToggleLike = async () => {
     if (!currentUser) return;
