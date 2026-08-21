@@ -66,7 +66,6 @@ import { formatTimeAgo } from "@/lib/posts";
 import {
   createNote,
   type NoteItem,
-  subscribeToNotesForUsers,
 } from "@/lib/notes";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import OptimizedMedia from "@/components/OptimizedMedia";
@@ -75,6 +74,7 @@ import type { UserPresence } from "@/lib/realtime-db";
 import { validateMessageAttachment } from "@/lib/message-attachments";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { getCurrentUserSettings, updateCurrentUserSettings, type UserSettings } from "@/lib/settings";
+import KinetDrops from "@/app/feed/_components/KinetDrops";
 
 const CallPanel = dynamic(() => import("@/components/CallPanel"), { ssr: false });
 const VoiceNotePlayer = dynamic(() => import("@/components/VoiceNotePlayer"), { ssr: false });
@@ -148,7 +148,6 @@ function MessagesPageContent() {
   const [expiresInSeconds, setExpiresInSeconds] = useState<number | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [showSummary, setShowSummary] = useState(false);
-  const [notes, setNotes] = useState<NoteItem[]>([]);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteAudience, setNoteAudience] = useState<NoteItem["audience"]>("everyone");
@@ -441,18 +440,6 @@ function MessagesPageContent() {
   useEffect(() => {
     void getCurrentUserSettings().then((settings) => setMessagePrivacy(settings.messagePrivacy));
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const participantIds = conversations
-      .flatMap((conversation) => conversation.participantIds)
-      .filter((uid) => uid !== user.uid);
-    const uniqueIds = Array.from(new Set(participantIds)).slice(0, 20);
-    const cleanup = subscribeToNotesForUsers(uniqueIds, user.uid, (notesMap) => {
-      setNotes(Array.from(notesMap.values()).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
-    });
-    return cleanup ?? undefined;
-  }, [user, conversations]);
 
   useEffect(() => {
     return () => {
@@ -1063,6 +1050,8 @@ function MessagesPageContent() {
           </Button>
         </div>
 
+        {!showConversationPane ? <KinetDrops /> : null}
+
         {error ? (
           <div className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <span>{error}</span>
@@ -1105,25 +1094,6 @@ function MessagesPageContent() {
         ) : null}
 
         <div className="mb-6">
-          {notes.length > 0 ? (
-            <div className="mb-4 flex gap-3 overflow-x-auto overflow-y-hidden pb-1">
-              {notes.map((note) => {
-                const noteUser = note.userId === currentUserId ? user : visibleConversations.flatMap((c) => c.participantProfiles).find((p) => p.uid === note.userId);
-                return (
-                  <div key={note.id} className="flex w-[140px] shrink-0 flex-col gap-1 rounded-2xl border bg-muted/40 p-3">
-                    <div className="flex items-center gap-2">
-                      <ProfileAvatar src={noteUser?.photoURL} username={noteUser?.displayName || "User"} alt={noteUser?.displayName || "User"} className="h-6 w-6" />
-                      <span className="truncate text-xs font-medium">{noteUser?.displayName || "User"}</span>
-                    </div>
-                    <p className="text-sm leading-snug">{note.text}</p>
-                    <span className="text-[10px] text-muted-foreground">
-                      {note.expiresAt?.seconds ? `${Math.max(1, Math.floor((note.expiresAt.seconds * 1000 - Date.now()) / 1000 / 60))}m left` : "24h"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold">Active people</p>
             <div className="flex gap-2">
@@ -1692,7 +1662,7 @@ function MessagesPageContent() {
                    {showComposerMenu ? <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
                        <div className="grid grid-cols-3 gap-2 text-xs">
                          <label className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-muted p-3"><ImagePlus className="h-5 w-5" />Send photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0] ?? null; if (!file) return setAttachment(null); try { validateMessageAttachment(file); setError(""); setAttachment(file); setShowComposerMenu(false); } catch (validationError) { setAttachment(null); setError(validationError instanceof Error ? validationError.message : "Invalid attachment."); event.target.value = ""; } }} /></label>
-                        <button type="button" onClick={() => { setShowNoteComposer(true); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><StickyNote className="h-5 w-5" />Note</button>
+                        <button type="button" onClick={() => { setShowNoteComposer(true); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><StickyNote className="h-5 w-5" />Kinet Drop</button>
                         <button type="button" onClick={() => { setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Mic className="h-5 w-5" />Voice note</button>
                         <Link href="/reels" className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><Forward className="h-5 w-5" />Share reel</Link>
                          <button type="button" onClick={() => { shareLocation(); setShowComposerMenu(false); }} className="flex flex-col items-center gap-1 rounded-xl bg-muted p-3"><MapPin className="h-5 w-5" />Location</button>
@@ -1717,7 +1687,7 @@ function MessagesPageContent() {
                     {showNoteComposer ? (
                       <div className="mb-3 rounded-2xl border bg-background p-3 shadow-lg">
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium">New note</p>
+                          <p className="text-sm font-medium">New Kinet Drop</p>
                           <button type="button" onClick={() => { setShowNoteComposer(false); setNoteText(""); }}><X className="h-4 w-4" /></button>
                         </div>
                         <textarea
@@ -1731,13 +1701,13 @@ function MessagesPageContent() {
                         <div className="mt-2 flex items-center justify-between">
                           <select value={noteAudience} onChange={(event) => setNoteAudience(event.target.value as NoteItem["audience"])} className="h-8 rounded-md border bg-background px-2 text-xs">
                             <option value="everyone">Everyone</option>
-                            <option value="following">Following</option>
+                            <option value="following">People who follow you</option>
                             <option value="close_friends">Close friends</option>
                           </select>
                           <span className="text-xs text-muted-foreground">{noteText.length}/60</span>
                         </div>
                         <Button type="button" size="sm" className="mt-2 w-full" onClick={() => void handleCreateNote()} disabled={!noteText.trim()}>
-                          Share note
+                          Share Drop
                         </Button>
                       </div>
                     ) : null}
