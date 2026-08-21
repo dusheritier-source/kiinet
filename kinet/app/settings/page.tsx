@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Bell, ChevronRight, CircleUserRound, Download, LockKeyhole, LogOut, Search, ShieldCheck, UserRoundCog } from "lucide-react";
+import { Bell, ChevronRight, CircleUserRound, Download, FileText, HelpCircle, Info, LockKeyhole, LogOut, Mail, Search, ShieldCheck, UserRoundCog, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { AuthProvider } from "@/components/AuthProvider";
@@ -80,7 +80,8 @@ function SettingsPageContent() {
           <CardContent>
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-3">
-                <h3 className="font-semibold">Availability</h3>
+                <h3 className="font-semibold">Kinet Signal</h3>
+                <p className="text-xs text-muted-foreground">Show people your social energy without using a plain online dot.</p>
                 <select
                   value={settings.availabilityStatus}
                   onChange={(event) =>
@@ -90,9 +91,9 @@ function SettingsPageContent() {
                   }
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="available">Available</option>
-                  <option value="locked_in">Locked In</option>
-                  <option value="recovering">Recovering</option>
+                  <option value="available">Open to connect</option>
+                  <option value="locked_in">In the zone</option>
+                  <option value="recovering">Recharging</option>
                 </select>
                 <input
                   value={settings.headline}
@@ -232,6 +233,23 @@ function SettingsPageContent() {
                 <Link href="/feed/preferences" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Content preferences</Link>
                 <Link href="/feed/safety" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Hidden words and safety</Link>
                 <Link href="/feed/creator" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted/40">Creator tools</Link>
+              </div>
+              <div className="border-t pt-5">
+                <p className="font-semibold">Support and information</p>
+                <p className="mb-3 text-sm text-muted-foreground">Get help and learn how Kinet works.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { href: "/help", label: "Help Center", icon: HelpCircle },
+                    { href: "/contact", label: "Contact us", icon: Mail },
+                    { href: "/about", label: "About Kinet", icon: Info },
+                    { href: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
+                    { href: "/terms", label: "Terms of Use", icon: FileText },
+                    { href: "/community-guidelines", label: "Community Guidelines", icon: UsersRound },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-xl border px-3 py-3 text-sm hover:bg-muted/40"><Icon className="h-4 w-4 text-primary" /><span className="flex-1">{item.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>;
+                  })}
+                </div>
               </div>
               <div className="border-t pt-5">
                 <p className="mb-1 font-semibold">Login</p>

@@ -221,6 +221,14 @@ export default function LandingPageClient() {
 
           {/* Footer */}
           <footer className="mt-24 border-t border-cyan-500/10 pt-8 text-center">
+            <nav aria-label="Company links" className="mb-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-gray-300">
+              <Link href="/about" className="hover:text-cyan-300">About</Link>
+              <Link href="/contact" className="hover:text-cyan-300">Contact</Link>
+              <Link href="/help" className="hover:text-cyan-300">Help</Link>
+              <Link href="/privacy" className="hover:text-cyan-300">Privacy</Link>
+              <Link href="/terms" className="hover:text-cyan-300">Terms</Link>
+              <Link href="/community-guidelines" className="hover:text-cyan-300">Guidelines</Link>
+            </nav>
             <p className="text-sm text-gray-400">
               © 2026 Kinet Technologies. All rights reserved.
             </p>

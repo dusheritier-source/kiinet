@@ -1,5 +1,5 @@
 import {
-  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -75,7 +75,7 @@ export async function hideNote(noteId: string) {
     return;
   }
   await setDoc(doc(db, "notes", noteId), {
-    hiddenBy: arrayRemove(auth.currentUser.uid),
+    hiddenBy: arrayUnion(auth.currentUser.uid),
   }, { merge: true });
 }
 

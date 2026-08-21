@@ -21,11 +21,12 @@ import {
 } from "@/lib/notifications";
 import { formatTimeAgo } from "@/lib/posts";
 
-type NotificationTab = "all" | "unread" | "mentions" | "messages";
+type NotificationTab = "all" | "unread" | "mentions";
 type NotificationGroup = { key: string; notifications: AppNotification[]; latest: AppNotification };
 
 const mentionTypes = new Set(["mention", "tag", "comment_reply", "story_mention", "collaboration_invite"]);
 const messageTypes = new Set(["message", "message_reply", "message_reaction", "group_message", "call", "missed_call", "story_reply"]);
+const inboxMessageTypes = new Set(["message", "message_reply", "message_reaction", "group_message"]);
 
 function dateSection(notification: AppNotification) {
   const seconds = notification.createdAt?.seconds ?? 0;
@@ -68,13 +69,13 @@ function NotificationsPageContent() {
     return subscribeToNotifications(user.uid, (next) => { setNotifications(next); setLoading(false); });
   }, [user]);
 
-  const unreadCount = notifications.filter((item) => !item.readBy?.includes(user?.uid ?? "")).length;
-  const availableTypes = useMemo(() => Array.from(new Set(notifications.map((item) => item.type))).filter(Boolean).sort(), [notifications]);
-  const filtered = useMemo(() => notifications.filter((notification) => {
+  const activityNotifications = useMemo(() => notifications.filter((item) => !inboxMessageTypes.has(item.type)), [notifications]);
+  const unreadCount = activityNotifications.filter((item) => !item.readBy?.includes(user?.uid ?? "")).length;
+  const availableTypes = useMemo(() => Array.from(new Set(activityNotifications.map((item) => item.type))).filter(Boolean).sort(), [activityNotifications]);
+  const filtered = useMemo(() => activityNotifications.filter((notification) => {
     const unread = !notification.readBy?.includes(user?.uid ?? "");
     if (tab === "unread" && !unread) return false;
     if (tab === "mentions" && !mentionTypes.has(notification.type)) return false;
-    if (tab === "messages" && !messageTypes.has(notification.type)) return false;
     if (typeFilter !== "all" && notification.type !== typeFilter) return false;
     if (priorityFilter !== "all" && notification.priority !== priorityFilter) return false;
     const query = search.trim().toLowerCase();
@@ -83,7 +84,7 @@ function NotificationsPageContent() {
     const weight = { critical: 4, high: 3, normal: 2, low: 1 };
     const priorityDifference = weight[right.priority ?? "normal"] - weight[left.priority ?? "normal"];
     return priorityDifference || (right.createdAt?.seconds ?? 0) - (left.createdAt?.seconds ?? 0);
-  }), [notifications, priorityFilter, search, tab, typeFilter, user?.uid]);
+  }), [activityNotifications, priorityFilter, search, tab, typeFilter, user?.uid]);
 
   const sections = useMemo(() => {
     const visible = filtered.slice(0, visibleCount);
@@ -103,10 +104,10 @@ function NotificationsPageContent() {
   if (!user) return null;
 
   return <ProtectedRoute><main className="mx-auto min-h-screen max-w-3xl px-4 py-6 md:px-6">
-    <header className="mb-6 flex items-start justify-between gap-4"><div><h1 className="text-3xl font-bold">Notifications</h1><p className="mt-1 text-sm text-muted-foreground">Keep up with conversations and activity around your account.</p></div>{unreadCount ? <Button variant="outline" size="sm" onClick={() => void markAllNotificationsRead(notifications)}><CheckCheck className="mr-2 h-4 w-4" />Mark all read</Button> : null}</header>
+    <header className="mb-6 flex items-start justify-between gap-4"><div><h1 className="text-3xl font-bold">Notifications</h1><p className="mt-1 text-sm text-muted-foreground">Account activity appears here. New messages stay in your Messages inbox.</p></div>{unreadCount ? <Button variant="outline" size="sm" onClick={() => void markAllNotificationsRead(activityNotifications)}><CheckCheck className="mr-2 h-4 w-4" />Mark all read</Button> : null}</header>
 
     <section className="mb-5 rounded-2xl border bg-background p-3 shadow-sm">
-      <div className="flex gap-2 overflow-x-auto pb-2">{(["all", "unread", "mentions", "messages"] as const).map((value) => <button key={value} type="button" onClick={() => { setTab(value); setVisibleCount(20); }} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium capitalize ${tab === value ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{value}{value === "unread" && unreadCount ? ` ${unreadCount}` : ""}</button>)}</div>
+      <div className="flex gap-2 overflow-x-auto pb-2">{(["all", "unread", "mentions"] as const).map((value) => <button key={value} type="button" onClick={() => { setTab(value); setVisibleCount(20); }} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium capitalize ${tab === value ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{value}{value === "unread" && unreadCount ? ` ${unreadCount}` : ""}</button>)}</div>
       <div className="grid gap-2 border-t pt-3 sm:grid-cols-[1fr_180px_150px]"><label className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search notifications" className="h-9 w-full rounded-full bg-muted pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary" /></label><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm"><option value="all">All activity types</option>{availableTypes.map((type) => <option key={type} value={type}>{type.replace(/_/g, " ")}</option>)}</select><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm"><option value="all">All priorities</option><option value="critical">Critical</option><option value="high">Important</option><option value="normal">Normal</option><option value="low">Suggestions</option></select></div>
     </section>
 

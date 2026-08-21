@@ -76,7 +76,7 @@ export default function InstallPage() {
               { icon: Clapperboard, title: "Share your moments", text: "Publish photos, multi-photo posts, videos, reels, stories, and ideas." },
               { icon: MessageCircle, title: "Chat and connect", text: "Keep conversations going through direct messages and community interactions." },
               { icon: Search, title: "Discover more", text: "Find creators, people, topics, and content that match your interests." },
-              { icon: Users, title: "Build community", text: "Follow people, join conversations, and grow meaningful connections." },
+              { icon: Users, title: "Build community", text: "Kinet With people, join conversations, and grow meaningful connections." },
               { icon: Sparkles, title: "Create with confidence", text: "Use helpful creative tools for captions, media, and content ideas." },
               { icon: Bell, title: "Stay up to date", text: "Receive timely alerts for the activity and conversations you care about." },
             ].map(({ icon: Icon, title, text }) => <div key={title} className="flex gap-3 rounded-xl bg-muted/45 p-4"><Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-5 text-muted-foreground">{text}</p></div></div>)}

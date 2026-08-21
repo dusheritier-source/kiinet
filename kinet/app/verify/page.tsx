@@ -14,6 +14,10 @@ import {
   submitVerificationAppeal,
   submitVerificationRequest,
 } from "@/lib/recruiting";
+import { getCurrentUserProfile } from "@/lib/user-profile";
+import KinetVerifiedBadge from "@/components/KinetVerifiedBadge";
+
+const MINIMUM_FOLLOWERS = 50;
 
 function VerifyPageContent() {
   const [emailStatus, setEmailStatus] = useState("");
@@ -23,16 +27,19 @@ function VerifyPageContent() {
   const [appeals, setAppeals] = useState<Array<Record<string, unknown>>>([]);
   const [appealRequestId, setAppealRequestId] = useState("");
   const [appealMessage, setAppealMessage] = useState("");
+  const [followerCount, setFollowerCount] = useState<number | null>(null);
 
   useEffect(() => {
     void Promise.all([getVerificationRequests(), getVerificationAppeals()]).then(([nextRequests, nextAppeals]) => {
       setRequests(nextRequests);
       setAppeals(nextAppeals);
     });
+    void getCurrentUserProfile().then((profile) => setFollowerCount(Array.isArray(profile?.followers) ? profile.followers.length : 0));
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if ((followerCount ?? 0) < MINIMUM_FOLLOWERS) return;
     await submitVerificationRequest({ category, details });
     setDetails("");
     const [nextRequests, nextAppeals] = await Promise.all([getVerificationRequests(), getVerificationAppeals()]);
@@ -47,6 +54,13 @@ function VerifyPageContent() {
           <h1 className="text-3xl font-bold">Verification</h1>
           <p className="text-muted-foreground">Submit your role, achievements, and supporting context to request a verified badge.</p>
         </div>
+
+        <Card className="overflow-hidden rounded-[28px_28px_28px_9px] border-white/15 bg-gradient-to-br from-white/10 to-transparent">
+          <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[26px_26px_26px_8px] bg-slate-950"><KinetVerifiedBadge showLabel={false} /></div>
+            <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Kinet trust mark</p><h2 className="mt-1 text-xl font-bold">White Kinet Verification</h2><p className="mt-1 text-sm text-muted-foreground">Profiles with at least {MINIMUM_FOLLOWERS} followers can request review. Approval confirms authenticity—the follower count alone never creates the badge.</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.min(100, ((followerCount ?? 0) / MINIMUM_FOLLOWERS) * 100)}%` }} /></div><p className="mt-2 text-xs font-medium">{followerCount === null ? "Checking eligibility…" : followerCount >= MINIMUM_FOLLOWERS ? `${followerCount} followers · Eligible for review` : `${followerCount}/${MINIMUM_FOLLOWERS} followers · ${MINIMUM_FOLLOWERS - followerCount} more needed`}</p></div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader><CardTitle>Email verification</CardTitle><CardDescription>Confirm that you control the email address connected to this account.</CardDescription></CardHeader>
@@ -65,14 +79,15 @@ function VerifyPageContent() {
             </CardHeader>
             <CardContent>
               <form className="space-y-3" onSubmit={handleSubmit}>
-                <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <select disabled={(followerCount ?? 0) < MINIMUM_FOLLOWERS} value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50">
                   <option value="athlete">Athlete</option>
                   <option value="coach">Coach</option>
                   <option value="scout">Scout</option>
                   <option value="organization">Organization</option>
+                  <option value="creator">Creator</option>
                 </select>
-                <textarea value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Share school, club, achievements, links, or official context." className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-                <Button type="submit" disabled={!details.trim()}>Submit request</Button>
+                <textarea disabled={(followerCount ?? 0) < MINIMUM_FOLLOWERS} value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Share school, club, achievements, links, or official context." className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50" />
+                <Button type="submit" disabled={!details.trim() || (followerCount ?? 0) < MINIMUM_FOLLOWERS}>Submit request</Button>
               </form>
             </CardContent>
           </Card>

@@ -5,6 +5,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -302,6 +303,12 @@ export async function submitVerificationRequest(input: {
 }) {
   if (!auth?.currentUser || !db) {
     throw new Error("You must be signed in to request verification.");
+  }
+
+  const profileSnapshot = await getDoc(doc(db, "users", auth.currentUser.uid));
+  const followers = profileSnapshot.exists() && Array.isArray(profileSnapshot.data().followers) ? profileSnapshot.data().followers as string[] : [];
+  if (followers.length < 50) {
+    throw new Error("Kinet verification review opens when your profile reaches 50 followers.");
   }
 
   await addDoc(collection(db, "verificationRequests"), {

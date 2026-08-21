@@ -28,7 +28,7 @@ export async function respondToFollowRequest(request: FollowRequest, accept: boo
   batch.set(requestRef, { status: accept ? "accepted" : "rejected", respondedAt: serverTimestamp() }, { merge: true });
   if (accept) { batch.set(doc(db, "users", request.recipientId), { followers: arrayUnion(request.requesterId), updatedAt: serverTimestamp() }, { merge: true }); batch.set(doc(db, "users", request.requesterId), { following: arrayUnion(request.recipientId), updatedAt: serverTimestamp() }, { merge: true }); }
   await batch.commit();
-  if (accept) await createNotification({ type: "follow_request_accepted", recipientId: request.requesterId, actorId: request.recipientId, actorName: auth.currentUser.displayName || "Someone", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} accepted your follow request.` });
+  if (accept) await createNotification({ type: "follow_request_accepted", recipientId: request.requesterId, actorId: request.recipientId, actorName: auth.currentUser.displayName || "Someone", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} accepted your Kinet request.` });
 }
 
 export async function removeFollower(followerId: string) {

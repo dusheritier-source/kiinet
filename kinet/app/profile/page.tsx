@@ -21,6 +21,8 @@ import { createProfileHighlight, deleteProfileHighlight, getProfileStories, move
 import type { StoryItem } from "@/lib/stories";
 import { useSearchParams } from "next/navigation";
 import OptimizedMedia from "@/components/OptimizedMedia";
+import KinetSignal from "@/components/KinetSignal";
+import KinetVerifiedBadge from "@/components/KinetVerifiedBadge";
 
 interface StoredProfile {
   uid?: string;
@@ -260,9 +262,7 @@ function ProfilePageContent() {
                     <h1 className="break-words text-3xl font-bold leading-tight">
                       {profile?.displayName || user.displayName || "Kinet User"}
                     </h1>
-                    {profile?.verified ? (
-                      <Badge variant="secondary" className="gap-1"><BadgeCheck className="h-3 w-3 text-primary" />Verified</Badge>
-                    ) : null}
+                    {profile?.verified ? <KinetVerifiedBadge /> : null}
                   </div>
                   <p className="text-sm text-muted-foreground">@{profile?.username || user.uid.slice(0, 8)}</p>
                   {profile?.status ? <p className="text-sm font-medium" style={{ color: profile.accentColor }}>{profile.status}</p> : null}
@@ -270,6 +270,7 @@ function ProfilePageContent() {
                 </div>
 
                 {settings?.headline ? <p className="text-sm font-medium text-primary">{settings.headline}</p> : null}
+                {settings?.showActivityStatus ? <div className="flex justify-center md:justify-start"><KinetSignal state={settings.availabilityStatus} isOnline /></div> : null}
 
                 <p className="mx-auto max-w-2xl text-sm leading-7 text-muted-foreground md:mx-0 md:text-base">
                   {profile?.bio || profile?.role?.bio || "Add a bio to tell people about yourself."}
@@ -280,13 +281,13 @@ function ProfilePageContent() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <button type="button" onClick={() => void openConnections("Followers", profile?.followers ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
+              <button type="button" onClick={() => void openConnections("With You", profile?.followers ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
                 <div className="text-2xl font-bold text-primary">{profile?.followers?.length ?? 0}</div>
-                <div className="text-sm text-muted-foreground">Followers</div>
+                <div className="text-sm text-muted-foreground">With You</div>
               </button>
-              <button type="button" onClick={() => void openConnections("Following", profile?.following ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
+              <button type="button" onClick={() => void openConnections("You’re With", profile?.following ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
                 <div className="text-2xl font-bold">{profile?.following?.length ?? 0}</div>
-                <div className="text-sm text-muted-foreground">Following</div>
+                <div className="text-sm text-muted-foreground">You’re With</div>
               </button>
               <div className="rounded-2xl bg-muted/70 p-4 text-center">
                 <div className="text-2xl font-bold">{standardPosts.length}</div>

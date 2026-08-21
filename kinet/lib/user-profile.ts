@@ -582,7 +582,7 @@ export async function toggleFollowUser(targetUid: string, isFollowing: boolean) 
       actorId: currentUid,
       actorName: auth.currentUser.displayName || "Kinet User",
       actorAvatar: auth.currentUser.photoURL || "",
-      message: `${auth.currentUser.displayName || "Someone"} followed you.`,
+      message: `${auth.currentUser.displayName || "Someone"} wants to Kinet With you.`,
     }).catch(() => undefined);
   }
   return isFollowing ? "unfollowed" as const : "following" as const;

@@ -104,7 +104,7 @@ export default function FeedDiscovery() {
                       )
                     }
                   >
-                    Follow
+                    Kinet With
                   </Button>
                 </div>
               ))}
@@ -115,4 +115,3 @@ export default function FeedDiscovery() {
     </section>
   );
 }
-

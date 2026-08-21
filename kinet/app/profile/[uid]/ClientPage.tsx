@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import OptimizedMedia from "@/components/OptimizedMedia";
 import { useParams } from "next/navigation";
-import { BadgeCheck, Globe2, Grid3X3, Heart, Lock, Mail, MapPin, Music2, PlaySquare, Repeat2, Share2, ShieldAlert, Star, Tag, UserX } from "lucide-react";
+import { Globe2, Grid3X3, Heart, Lock, Mail, MapPin, Music2, PlaySquare, Repeat2, Share2, ShieldAlert, Star, Tag, UserX } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import { getUserProfileById, subscribeToUserProfile, toggleFollowUser, type Sear
 import { getProfilesByIds, getTaggedProfilePosts, hasPendingFollowRequest, toggleSocialList } from "@/lib/profile-social";
 import DefaultAvatar from "@/components/DefaultAvatar";
 import { subscribeToProfileHighlights, type ProfileHighlight } from "@/lib/profile-highlights";
+import KinetSignal, { type KinetSignalState } from "@/components/KinetSignal";
+import KinetVerifiedBadge from "@/components/KinetVerifiedBadge";
 
 interface PublicProfile {
   uid?: string;
@@ -115,6 +117,7 @@ export default function PublicProfilePageContent() {
 
   const isSelf = user?.uid === uid;
   const isFollowing = Boolean(user && profile?.followers?.includes(user.uid));
+  const isFollowedBy = Boolean(user && profile?.following?.includes(user.uid));
   const isPrivate = profile?.settings?.privateAccount === true;
   const blockedByCurrentUser = Boolean(uid && currentProfile?.blockedUsers?.includes(uid));
   const blockedByProfile = Boolean(user && profile?.blockedUsers?.includes(user.uid));
@@ -223,20 +226,20 @@ export default function PublicProfilePageContent() {
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-2">
                 <h1 className="text-3xl font-bold">{profile.displayName || "User"}</h1>
-                {profile.verified ? <Badge variant="secondary" className="gap-1"><BadgeCheck className="h-3 w-3 text-primary" />Verified</Badge> : null}
+                {profile.verified ? <KinetVerifiedBadge /> : null}
               </div>
               <p className="text-sm text-muted-foreground">@{profile.username || uid.slice(0, 8)}</p>
               {profile.status ? <p className="mt-1 text-sm font-medium" style={{ color: profile.accentColor }}>{profile.status}</p> : null}
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">{profile.pronouns ? <span>{profile.pronouns}</span> : null}{profile.category ? <Badge variant="outline">{profile.category}</Badge> : null}</div>
               {profile.settings?.headline ? <p className="mt-1 text-sm font-medium text-primary">{profile.settings.headline}</p> : null}
-              {profile.settings?.showActivityStatus !== false ? <p className="mt-1 text-xs text-muted-foreground">{profile.presence?.isOnline ? "● Active now" : "Offline"}</p> : null}
+              {profile.settings?.showActivityStatus !== false ? <div className="mt-2"><KinetSignal state={(profile.settings?.availabilityStatus as KinetSignalState) || "available"} isOnline={profile.presence?.isOnline} /></div> : null}
               <p className="mt-2 leading-6">{profile.bio || profile.role?.bio || "No bio yet."}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">{profile.location ? <span className="inline-flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</span> : null}{profile.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><Globe2 className="h-4 w-4" />Website</a> : null}{profile.musicUrl ? <a href={profile.musicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><Music2 className="h-4 w-4" />Profile song</a> : null}{profile.contactEmail ? <a href={`mailto:${profile.contactEmail}`} className="inline-flex items-center gap-1 text-primary"><Mail className="h-4 w-4" />Contact</a> : null}{profile.socialLinks?.map((link) => <a key={`${link.label}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{link.label}</a>)}</div>
               {profile.actionButton ? <Button className="mt-3" size="sm" asChild style={{ backgroundColor: profile.accentColor || undefined }}><a href={profile.actionButton.url} target="_blank" rel="noreferrer">{profile.actionButton.label}</a></Button> : null}
               <div className="mt-5 grid max-w-md grid-cols-3 gap-2 text-center">
                 <div><strong className="block text-lg text-foreground">{standardPosts.length + reelPosts.length}</strong><span className="text-xs text-muted-foreground">posts</span></div>
-                {canViewConnections ? <button type="button" onClick={() => void openConnections("Followers", profile.followers ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.followers?.length ?? 0}</strong><span className="text-xs text-muted-foreground">followers</span></button> : null}
-                {canViewConnections ? <button type="button" onClick={() => void openConnections("Following", profile.following ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.following?.length ?? 0}</strong><span className="text-xs text-muted-foreground">following</span></button> : null}
+                {canViewConnections ? <button type="button" onClick={() => void openConnections("With You", profile.followers ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.followers?.length ?? 0}</strong><span className="text-xs text-muted-foreground">with you</span></button> : null}
+                {canViewConnections ? <button type="button" onClick={() => void openConnections("You’re With", profile.following ?? [])} className="rounded-lg p-1 hover:bg-muted"><strong className="block text-lg text-foreground">{profile.following?.length ?? 0}</strong><span className="text-xs text-muted-foreground">you’re with</span></button> : null}
               </div>
               {mutualCount ? <p className="mt-2 text-xs text-primary">{mutualCount} mutual connection{mutualCount === 1 ? "" : "s"}</p> : null}
               <div className="mt-4 flex flex-wrap gap-3">
@@ -260,7 +263,7 @@ export default function PublicProfilePageContent() {
                         }
                       }}
                     >
-                      {isFollowing ? "Following" : followRequested ? "Requested" : "Follow"}
+                      {isFollowing ? "Connected on Kinet" : followRequested ? "Kinet requested" : isFollowedBy ? "Kinet Back" : "Kinet With"}
                     </Button>
                     <Button variant="outline" asChild>
                       <Link href={`/messages?user=${uid}`}>Message</Link>
@@ -310,7 +313,7 @@ export default function PublicProfilePageContent() {
       {canViewContent && profile.pinnedPosts?.length ? <section className="mt-6 rounded-2xl border p-4"><h2 className="mb-3 font-semibold">Pinned posts</h2><div className="grid grid-cols-3 gap-2">{posts.filter((post) => profile.pinnedPosts?.includes(post.id)).slice(0, 3).map((post) => <Link key={post.id} href={`/post/${post.id}`} className="aspect-square overflow-hidden rounded-xl bg-muted">{post.mediaType === "video" ? <video src={post.mediaUrl} muted className="h-full w-full object-cover" /> : <OptimizedMedia src={post.mediaUrl} alt={post.caption} width={480} height={480} sizes="33vw" className="h-full w-full object-cover" />}</Link>)}</div></section> : null}
 
       <div className="mt-6 rounded-xl border p-4">
-        {!canViewContent ? <div className="py-14 text-center"><Lock className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-3 font-semibold">This account is private</h2><p className="mt-1 text-sm text-muted-foreground">Follow this account to see its posts and videos.</p></div> : <>
+        {!canViewContent ? <div className="py-14 text-center"><Lock className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-3 font-semibold">This account is private</h2><p className="mt-1 text-sm text-muted-foreground">Kinet With this person to see their posts and videos.</p></div> : <>
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold">Content</h2>
           <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1">{([{ id: "posts", label: "Posts", icon: Grid3X3 }, { id: "reels", label: "Videos", icon: PlaySquare }, { id: "reposts", label: "Reposts", icon: Repeat2 }, { id: "tagged", label: "Tagged", icon: Tag }] as const).map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => { setContentView(tab.id); setVisibleCount(12); }} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm ${contentView === tab.id ? "bg-background shadow-sm" : "text-muted-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div>

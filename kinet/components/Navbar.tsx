@@ -23,6 +23,8 @@ const primaryNav = [
   { href: "/messages", label: "Messages" },
 ];
 
+const inboxMessageNotificationTypes = new Set(["message", "message_reply", "message_reaction", "group_message"]);
+
 export default function Navbar() {
   const { isAdmin } = useAdminClaim();
   const { user, loading } = useAuthContext();
@@ -100,6 +102,7 @@ export default function Navbar() {
     notifications
       .filter((notification) => !previousIds.has(notification.id))
       .filter((notification) => !notification.readBy?.includes(user.uid))
+      .filter((notification) => !inboxMessageNotificationTypes.has(notification.type))
       .filter((notification) => !(pathname === "/messages" && notification.conversationId && new URLSearchParams(window.location.search).get("conversation") === notification.conversationId))
       .slice(0, 3)
       .forEach((notification) => {
@@ -117,7 +120,7 @@ export default function Navbar() {
   }, [notifications, user]);
 
   const unreadCount = user
-    ? notifications.filter((notification) => !notification.readBy?.includes(user.uid)).length
+    ? notifications.filter((notification) => !inboxMessageNotificationTypes.has(notification.type) && !notification.readBy?.includes(user.uid)).length
     : 0;
   const unreadMessages = user
     ? conversations.filter((conversation) => conversation.unreadBy.includes(user.uid)).length
