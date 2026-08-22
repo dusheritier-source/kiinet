@@ -36,6 +36,7 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
     ]);
     const viewerData = viewerSnapshot?.exists() ? viewerSnapshot.data() : {};
     const followedUserIds = new Set(Array.isArray(viewerData.following) ? viewerData.following as string[] : []);
+    const viewerBlockedIds = new Set(Array.isArray(viewerData.blockedUsers) ? viewerData.blockedUsers as string[] : []);
     const byUserId = new Map(profiles.map((profile) => [profile.uid, profile]));
     const postAuthorIds = new Set<string>();
     for (const post of authoredPosts) {
@@ -72,6 +73,11 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
       }));
       authorProfiles.forEach((data, index) => {
         const uid = [...postAuthorIds][index];
+        const authorBlockedIds = Array.isArray(data?.blockedUsers) ? data.blockedUsers as string[] : [];
+        if (viewerBlockedIds.has(uid) || Boolean(auth.currentUser && authorBlockedIds.includes(auth.currentUser.uid))) {
+          byUserId.delete(uid);
+          return;
+        }
         const settings = (data?.settings ?? {}) as Record<string, unknown>;
         const profile = byUserId.get(uid);
         if (profile) byUserId.set(uid, {

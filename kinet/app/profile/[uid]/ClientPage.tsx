@@ -198,7 +198,8 @@ export default function PublicProfilePageContent() {
           <CardContent className="p-12 text-center">
             <UserX className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 text-xl font-semibold">Profile unavailable</h2>
-            <p className="mt-2 text-sm text-muted-foreground">This profile cannot be viewed or contacted.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{blockedByCurrentUser ? "You blocked this account." : "This profile cannot be viewed or contacted."}</p>
+            {blockedByCurrentUser ? <Button className="mt-5" variant="outline" onClick={() => void toggleBlockedUser(uid, true).then(async () => { const refreshed = user ? await getUserProfileById(user.uid) : null; setCurrentProfile(refreshed as PublicProfile | null); })}>Unblock account</Button> : null}
           </CardContent>
         </Card>
       </div>
