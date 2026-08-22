@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -51,6 +52,13 @@ export async function createNote(text: string, audience: NoteItem["audience"] = 
   }
   const now = Date.now();
   const expiresAt = new Date(now + 24 * 60 * 60 * 1000);
+  const profileSnapshot = audience === "following" || audience === "close_friends" ? await getDoc(doc(db, "users", auth.currentUser.uid)) : null;
+  const profile = profileSnapshot?.exists() ? profileSnapshot.data() : {};
+  const audienceViewerIds = audience === "following"
+    ? (Array.isArray(profile.followers) ? profile.followers as string[] : [])
+    : audience === "close_friends"
+      ? (Array.isArray(profile.closeFriends) ? profile.closeFriends as string[] : [])
+      : allowedViewerIds;
 
   await setDoc(doc(collection(db, "notes")), {
     userId: auth.currentUser.uid,
@@ -58,7 +66,7 @@ export async function createNote(text: string, audience: NoteItem["audience"] = 
     createdAt: serverTimestamp(),
     expiresAt,
     audience,
-    allowedViewerIds: Array.from(new Set(allowedViewerIds)).slice(0, 100),
+    allowedViewerIds: Array.from(new Set(audienceViewerIds)).slice(0, 100),
     hiddenBy: [],
   });
 }
@@ -100,24 +108,33 @@ export function subscribeToNotesForUsers(userIds: string[], viewerId: string, ca
     return undefined;
   }
   const notesMap = new Map<string, NoteItem>();
+  const candidates = new Map<string, Map<string, NoteItem>>();
   const firestore = db;
 
   const unsubscribers: ListenerCleanup[] = [];
-  userIds.forEach((uid) => {
-    const q = query(collection(firestore, "notes"), where("userId", "==", uid), orderBy("createdAt", "desc"), limit(1));
-    const unsub = onSnapshot(q, (snapshot) => {
+  const updateCandidates = (uid: string, source: string, snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
       const nowSeconds = Math.floor(Date.now() / 1000);
       const userNotes = snapshot.docs
         .map((docSnapshot: { id: string; data: () => Record<string, unknown> }) => mapNote(docSnapshot.id, docSnapshot.data()))
         .filter((note: NoteItem) => (note.expiresAt?.seconds ?? 0) > nowSeconds && !note.hiddenBy.includes(viewerId));
-      if (userNotes.length > 0) {
-        notesMap.set(uid, userNotes[0]);
+      const sources = candidates.get(uid) ?? new Map<string, NoteItem>();
+      const note = userNotes[0];
+      if (note) sources.set(source, note); else sources.delete(source);
+      candidates.set(uid, sources);
+      const newest = Array.from(sources.values()).sort((left, right) => (right.createdAt?.seconds ?? 0) - (left.createdAt?.seconds ?? 0))[0];
+      if (newest) {
+        notesMap.set(uid, newest);
       } else {
         notesMap.delete(uid);
       }
       callback(new Map(notesMap));
-    });
-    unsubscribers.push(unsub);
+  };
+
+  userIds.forEach((uid) => {
+    const publicQuery = query(collection(firestore, "notes"), where("userId", "==", uid), where("audience", "==", "everyone"), orderBy("createdAt", "desc"), limit(1));
+    const allowedQuery = query(collection(firestore, "notes"), where("userId", "==", uid), where("allowedViewerIds", "array-contains", viewerId), orderBy("createdAt", "desc"), limit(1));
+    unsubscribers.push(onSnapshot(publicQuery, (snapshot) => updateCandidates(uid, "public", snapshot)));
+    unsubscribers.push(onSnapshot(allowedQuery, (snapshot) => updateCandidates(uid, "allowed", snapshot)));
   });
 
   return () => {

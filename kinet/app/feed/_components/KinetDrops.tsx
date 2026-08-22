@@ -11,7 +11,7 @@ import { createNote, deleteNote, getActiveNotesForUser, subscribeToNotesForUsers
 import { getProfilesByIds } from "@/lib/profile-social";
 import { subscribeToUserProfile, type SearchProfile } from "@/lib/user-profile";
 
-export default function KinetDrops() {
+export default function KinetDrops({ userIds = [] }: { userIds?: string[] }) {
   const { user } = useAuthContext();
   const [following, setFollowing] = useState<string[]>([]);
   const [profiles, setProfiles] = useState<SearchProfile[]>([]);
@@ -26,8 +26,10 @@ export default function KinetDrops() {
     if (!user) return;
     return subscribeToUserProfile(user.uid, (profile) => setFollowing(Array.isArray(profile?.following) ? (profile.following as string[]).slice(0, 30) : []));
   }, [user]);
-  useEffect(() => { if (following.length) void getProfilesByIds(following).then(setProfiles); else setProfiles([]); }, [following]);
-  useEffect(() => { if (!user || !following.length) { setDrops(new Map()); return; } return subscribeToNotesForUsers(following, user.uid, setDrops); }, [following, user]);
+  const dropUserIds = useMemo(() => Array.from(new Set([...following, ...userIds])).filter((uid) => uid && uid !== user?.uid).slice(0, 30), [following, user?.uid, userIds]);
+  const dropUserIdsKey = dropUserIds.join("|");
+  useEffect(() => { if (dropUserIds.length) void getProfilesByIds(dropUserIds).then(setProfiles); else setProfiles([]); }, [dropUserIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!user || !dropUserIds.length) { setDrops(new Map()); return; } return subscribeToNotesForUsers(dropUserIds, user.uid, setDrops); }, [dropUserIdsKey, user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!user) return; const refresh = () => void getActiveNotesForUser(user.uid, user.uid).then((items) => setOwnDrop(items[0] ?? null)); refresh(); window.addEventListener("kinet:drop-changed", refresh); return () => window.removeEventListener("kinet:drop-changed", refresh); }, [user]);
 
   const visible = useMemo(() => profiles.flatMap((profile) => { const drop = drops.get(profile.uid); return drop ? [{ profile, drop }] : []; }), [drops, profiles]);

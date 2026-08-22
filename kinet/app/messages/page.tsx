@@ -581,6 +581,7 @@ function MessagesPageContent() {
     () => visibleConversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [activeConversationId, visibleConversations]
   );
+  const dropUserIds = useMemo(() => Array.from(new Set(visibleConversations.flatMap((conversation) => conversation.participantIds))).filter((uid) => uid !== currentUserId), [currentUserId, visibleConversations]);
   const activeOtherUserId = activeConversation?.participantIds.find((uid) => uid !== currentUserId) ?? null;
 
   useEffect(() => {
@@ -979,6 +980,7 @@ function MessagesPageContent() {
     if (!noteText.trim()) return;
     try {
       await createNote(noteText, noteAudience);
+      window.dispatchEvent(new Event("kinet:drop-changed"));
       setNoteText("");
       setShowNoteComposer(false);
       setNoteAudience("everyone");
@@ -1050,7 +1052,7 @@ function MessagesPageContent() {
           </Button>
         </div>
 
-        {!showConversationPane ? <KinetDrops /> : null}
+        <KinetDrops userIds={dropUserIds} />
 
         {error ? (
           <div className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
