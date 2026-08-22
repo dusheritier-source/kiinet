@@ -568,11 +568,23 @@ export async function createPost({
   const selectedFiles = (files.length ? files : file ? [file] : []).slice(0, 10);
   const trimmedCaption = caption.trim();
   await moderateTextBeforePublish([trimmedCaption, questionPrompt.trim()].filter(Boolean).join(" "), contentType === "reel" ? "reel_caption" : "post_caption");
+  const uploadFiles = [...selectedFiles, ...(coverFile ? [coverFile] : []), ...(musicFile ? [musicFile] : [])];
+  const uploadedBytes = new Array(uploadFiles.length).fill(0);
+  const totalBytes = uploadFiles.reduce((total, uploadFile) => total + uploadFile.size, 0);
+  const progressFor = (index: number) => onUploadProgress
+    ? (progress: number) => {
+        uploadedBytes[index] = uploadFiles[index].size * (progress / 100);
+        onUploadProgress(Math.min(99, Math.round((uploadedBytes.reduce((sum, bytes) => sum + bytes, 0) / totalBytes) * 100)));
+      }
+    : undefined;
+  const coverIndex = selectedFiles.length;
+  const musicIndex = coverIndex + (coverFile ? 1 : 0);
   const [uploadedItems, uploadedCover, uploadedMusic] = await Promise.all([
-    Promise.all(selectedFiles.map(async (selectedFile, index) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`, index === 0 ? onUploadProgress : undefined, signal); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; })),
-    coverFile ? uploadToFirebaseStorage(coverFile, `Kinet/reel-covers/${user!.uid}`, undefined, signal) : Promise.resolve(null),
-    musicFile ? uploadToFirebaseStorage(musicFile, `Kinet/reel-audio/${user!.uid}`, undefined, signal) : Promise.resolve(null),
+    Promise.all(selectedFiles.map(async (selectedFile, index) => { const uploaded = await uploadToFirebaseStorage(selectedFile, `Kinet/${contentType === "reel" ? "reels" : "posts"}/${user!.uid}`, progressFor(index), signal); return { url: uploaded.url, path: uploaded.path, type: selectedFile.type.startsWith("video/") ? "video" as const : "image" as const }; })),
+    coverFile ? uploadToFirebaseStorage(coverFile, `Kinet/reel-covers/${user!.uid}`, progressFor(coverIndex), signal) : Promise.resolve(null),
+    musicFile ? uploadToFirebaseStorage(musicFile, `Kinet/reel-audio/${user!.uid}`, progressFor(musicIndex), signal) : Promise.resolve(null),
   ]);
+  onUploadProgress?.(100);
   const uploadedMedia = uploadedItems[0] ?? null;
   const mediaType = uploadedMedia?.type ?? "image";
   const mediaUrl = uploadedMedia?.url ?? "";

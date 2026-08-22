@@ -7,7 +7,7 @@ test("creates a signed session marker that validates", () => {
   process.env.KINET_SESSION_SECRET = "test-secret-with-more-than-thirty-two-characters";
   const marker = createSessionMarker("user-123");
   assert.equal(verifySessionMarker(marker.value), true);
-  assert.equal(marker.maxAge, 3600);
+  assert.equal(marker.maxAge, 60 * 60 * 24 * 30);
 });
 
 test("rejects tampered and expired session markers", () => {

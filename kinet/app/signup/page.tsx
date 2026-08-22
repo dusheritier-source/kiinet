@@ -138,7 +138,7 @@ export default function SignupPage() {
               </div>
             )}
             <Button type="submit" className="w-full" disabled={submitting || loading}>
-              {submitting ? "Creating account..." : "Sign up"}
+              {submitting ? "Creating account..." : "Create account"}
             </Button>
           </form>
 

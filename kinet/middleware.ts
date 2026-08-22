@@ -32,6 +32,10 @@ export async function middleware(request: NextRequest) {
   if (process.env.NODE_ENV === "production" && (path.startsWith("/test-env") || path.startsWith("/test-realtime"))) {
     return new NextResponse("Not Found", { status: 404 });
   }
+  if (path === "/") {
+    const destination = await validSession(request.cookies.get("kinet_session")?.value) ? "/feed" : "/signup";
+    return NextResponse.redirect(new URL(destination, request.url));
+  }
   if (!protectedPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) return NextResponse.next();
   if (await validSession(request.cookies.get("kinet_session")?.value)) return NextResponse.next();
   const login = new URL("/login", request.url);

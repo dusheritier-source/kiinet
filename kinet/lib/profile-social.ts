@@ -26,7 +26,11 @@ export async function respondToFollowRequest(request: FollowRequest, accept: boo
   if (!db || !auth.currentUser || request.recipientId !== auth.currentUser.uid) throw new Error("This follow request is unavailable.");
   const batch = writeBatch(db); const requestRef = doc(db, "followRequests", request.id);
   batch.set(requestRef, { status: accept ? "accepted" : "rejected", respondedAt: serverTimestamp() }, { merge: true });
-  if (accept) { batch.set(doc(db, "users", request.recipientId), { followers: arrayUnion(request.requesterId), updatedAt: serverTimestamp() }, { merge: true }); batch.set(doc(db, "users", request.requesterId), { following: arrayUnion(request.recipientId), updatedAt: serverTimestamp() }, { merge: true }); }
+  if (accept) {
+    batch.set(doc(db, "users", request.recipientId), { followers: arrayUnion(request.requesterId), updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(doc(db, "users", request.requesterId), { following: arrayUnion(request.recipientId), updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(doc(db, "follows", `${request.requesterId}_${request.recipientId}`), { followerId: request.requesterId, followingId: request.recipientId, createdAt: serverTimestamp() });
+  }
   await batch.commit();
   if (accept) await createNotification({ type: "follow_request_accepted", recipientId: request.requesterId, actorId: request.recipientId, actorName: auth.currentUser.displayName || "Someone", actorAvatar: auth.currentUser.photoURL || "", message: `${auth.currentUser.displayName || "Someone"} accepted your Kinet request.` });
 }

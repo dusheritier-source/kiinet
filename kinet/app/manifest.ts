@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Kinet",
     short_name: "Kinet",
     description: "A social app for sharing, discovering, and connecting.",
-    start_url: "/feed",
+    start_url: "/",
     display: "standalone",
     background_color: "#000000",
     theme_color: "#000000",

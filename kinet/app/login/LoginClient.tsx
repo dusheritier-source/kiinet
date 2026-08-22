@@ -145,7 +145,7 @@ export default function LoginClient() {
           <div className="text-center text-sm">
             Don&apos;t have an account?{" "}
             <Link href="/signup" className="text-primary hover:underline font-medium">
-              Sign up
+              Create account
             </Link>
           </div>
         </CardContent>

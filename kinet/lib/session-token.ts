@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-const SESSION_TTL_SECONDS = 60 * 60;
+// Keep returning PWA/mobile users signed in instead of sending them through
+// the login/session refresh route every hour. Firebase still validates API
+// requests independently, and signing out clears this marker immediately.
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 function secret() {
   const value = process.env.KINET_SESSION_SECRET || process.env.NEXTAUTH_SECRET;

@@ -70,15 +70,15 @@ export async function searchPeopleDirectory(searchTerm: string): Promise<SearchP
           return null;
         }
       }));
-      const privateAuthorIds = new Set<string>();
       authorProfiles.forEach((data, index) => {
         const uid = [...postAuthorIds][index];
         const settings = (data?.settings ?? {}) as Record<string, unknown>;
-        if (settings.privateAccount === true && !followedUserIds.has(uid)) {
-          privateAuthorIds.add(uid);
-        }
+        const profile = byUserId.get(uid);
+        if (profile) byUserId.set(uid, {
+          ...profile,
+          privateAccount: settings.privateAccount === true || settings.profileVisibility === "private",
+        });
       });
-      privateAuthorIds.forEach((uid) => byUserId.delete(uid));
     }
     return Array.from(byUserId.values()).map((profile) => ({
       ...profile,

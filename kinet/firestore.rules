@@ -26,7 +26,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin()
+        // A private-account owner may accept a pending request and add only
+        // themselves to the requester's following list in the same batch.
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['following', 'updatedAt'])
+          && request.auth.uid in request.resource.data.following
+          && request.resource.data.following.size() == resource.data.get('following', []).size() + 1
+          && request.resource.data.following.hasAll(resource.data.get('following', []))
+          && getAfter(/databases/$(database)/documents/followRequests/$(userId + '_' + request.auth.uid)).data.status == 'accepted');
       allow delete: if false;
     }
 

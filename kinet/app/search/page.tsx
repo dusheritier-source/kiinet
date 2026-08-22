@@ -265,6 +265,7 @@ function ResultSection({ section, results, limit }: { section: Exclude<SearchCat
 
 function PeopleCard({ profile }: { profile: SearchProfile }) {
   const [following, setFollowing] = useState(Boolean(profile.discoveryIsFollowing));
+  const [requested, setRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const isCurrentUser = auth.currentUser?.uid === profile.uid;
   const bio = profile.role?.bio || profile.interests?.slice(0, 3).join(" · ") || "";
@@ -276,7 +277,7 @@ function PeopleCard({ profile }: { profile: SearchProfile }) {
     </Link>
     {bio ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{bio}</p> : null}
     <div className="mt-2 flex flex-wrap gap-x-3 text-xs text-muted-foreground">{profile.location ? <span>{profile.location}</span> : null}<span>{(profile.followers ?? []).length} with them</span>{profile.discoveryMutualCount ? <span className="text-primary">{profile.discoveryMutualCount} mutual</span> : null}</div>
-    {!isCurrentUser ? <div className="mt-4 flex gap-2"><Button size="sm" className="flex-1" variant={following ? "outline" : "default"} disabled={busy} onClick={() => { setBusy(true); void toggleFollowUser(profile.uid, following).then(() => setFollowing((value) => !value)).finally(() => setBusy(false)); }}>{following ? "Connected on Kinet" : "Kinet With"}</Button><Button size="sm" variant="outline" asChild><Link href={`/messages?user=${profile.uid}`}>Message</Link></Button></div> : null}
+    {!isCurrentUser ? <div className="mt-4 flex gap-2"><Button size="sm" className="flex-1" variant={following || requested ? "outline" : "default"} disabled={busy || requested} onClick={() => { setBusy(true); void toggleFollowUser(profile.uid, following).then((result) => { if (result === "requested") setRequested(true); else setFollowing(result === "following"); }).finally(() => setBusy(false)); }}>{following ? "Connected on Kinet" : requested ? "Request sent" : profile.privateAccount ? "Request to follow" : "Kinet With"}</Button><Button size="sm" variant="outline" asChild><Link href={`/messages?user=${profile.uid}`}>Message</Link></Button></div> : null}
   </article>;
 }
 

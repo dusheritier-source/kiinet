@@ -51,6 +51,7 @@ interface PublicProfile {
     availabilityStatus?: string;
     headline?: string;
     privateAccount?: boolean;
+    profileVisibility?: "public" | "private";
     showActivityStatus?: boolean;
     showFollowerCounts?: boolean;
     allowProfileSharing?: boolean;
@@ -118,7 +119,7 @@ export default function PublicProfilePageContent() {
   const isSelf = user?.uid === uid;
   const isFollowing = Boolean(user && profile?.followers?.includes(user.uid));
   const isFollowedBy = Boolean(user && profile?.following?.includes(user.uid));
-  const isPrivate = profile?.settings?.privateAccount === true;
+  const isPrivate = profile?.settings?.privateAccount === true || profile?.settings?.profileVisibility === "private";
   const blockedByCurrentUser = Boolean(uid && currentProfile?.blockedUsers?.includes(uid));
   const blockedByProfile = Boolean(user && profile?.blockedUsers?.includes(user.uid));
   const isBlockedRelationship = !isSelf && (blockedByCurrentUser || blockedByProfile);
@@ -263,7 +264,7 @@ export default function PublicProfilePageContent() {
                         }
                       }}
                     >
-                      {isFollowing ? "Connected on Kinet" : followRequested ? "Kinet requested" : isFollowedBy ? "Kinet Back" : "Kinet With"}
+                      {isFollowing ? "Connected on Kinet" : followRequested ? "Request sent" : isPrivate ? "Request to follow" : isFollowedBy ? "Kinet Back" : "Kinet With"}
                     </Button>
                     <Button variant="outline" asChild>
                       <Link href={`/messages?user=${uid}`}>Message</Link>

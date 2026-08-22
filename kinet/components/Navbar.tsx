@@ -269,7 +269,7 @@ export default function Navbar() {
               </Button>
               <Button size="sm" asChild>
                 <Link href="/signup">
-                  Sign Up
+                  Create account
                   <UserPlus className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
