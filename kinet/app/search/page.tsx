@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { BadgeCheck, Bell, BellOff, Bookmark, Check, Clock, Film, MessageCircle, Search, Share2, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { Bell, BellOff, Bookmark, Check, Clock, Film, MessageCircle, Search, Share2, Trash2, TrendingUp, Users, X } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DefaultAvatar from "@/components/DefaultAvatar";
+import KinetVerifiedBadge from "@/components/KinetVerifiedBadge";
 import OptimizedMedia from "@/components/OptimizedMedia";
 import { Button } from "@/components/ui/button";
 import { searchPeopleDirectory, universalSearch, type SearchCategory, type UniversalSearchResults } from "@/lib/search";
@@ -273,7 +274,7 @@ function PeopleCard({ profile }: { profile: SearchProfile }) {
   return <article className="rounded-2xl border p-4 transition hover:border-primary/30 hover:shadow-sm">
     <Link href={`/profile/${profile.uid}`} className="flex items-start gap-3">
       {profile.photoURL ? <OptimizedMedia src={profile.photoURL} alt="" width={56} height={56} sizes="56px" className="h-14 w-14 rounded-full object-cover" /> : <DefaultAvatar username={profile.displayName || "User"} className="h-14 w-14 rounded-full" />}
-      <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate font-semibold">{profile.displayName}{profile.verified ? <BadgeCheck className="h-4 w-4 shrink-0 text-primary" /> : null}</p><p className="truncate text-sm text-muted-foreground">@{profile.username || profile.uid.slice(0, 8)}</p><div className="flex gap-1">{profile.role?.type ? <span className="mt-1 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize">{profile.role.type}</span> : null}{profile.privateAccount ? <span className="mt-1 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px]">Private</span> : null}</div></div>
+      <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate font-semibold">{profile.displayName}{profile.verified ? <KinetVerifiedBadge compact /> : null}</p><p className="truncate text-sm text-muted-foreground">@{profile.username || profile.uid.slice(0, 8)}</p><div className="flex gap-1">{profile.role?.type ? <span className="mt-1 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize">{profile.role.type}</span> : null}{profile.privateAccount ? <span className="mt-1 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px]">Private</span> : null}</div></div>
     </Link>
     {bio ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{bio}</p> : null}
     <div className="mt-2 flex flex-wrap gap-x-3 text-xs text-muted-foreground">{profile.location ? <span>{profile.location}</span> : null}<span>{(profile.followers ?? []).length} with them</span>{profile.discoveryMutualCount ? <span className="text-primary">{profile.discoveryMutualCount} mutual</span> : null}</div>

@@ -200,7 +200,7 @@ function ProfilePageContent() {
     }
   };
 
-  const highlightSection = <Card className="mx-4 mt-6"><CardContent className="p-5"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Story highlights</h2><p className="text-xs text-muted-foreground">Keep your favorite stories on your profile.</p></div><Button size="sm" variant="outline" onClick={() => setShowHighlightCreator((value) => !value)}><Plus className="mr-1 h-4 w-4" />New</Button></div>{showHighlightCreator ? <div className="mb-5 rounded-2xl border p-4"><Input value={highlightTitle} onChange={(event) => setHighlightTitle(event.target.value)} placeholder="Highlight title" className="mb-3" /><div className="max-h-48 space-y-2 overflow-y-auto">{storyArchive.length ? storyArchive.map((story) => <label key={story.id} className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm"><input type="checkbox" checked={selectedStories.includes(story.id)} onChange={() => setSelectedStories((items) => items.includes(story.id) ? items.filter((id) => id !== story.id) : [...items, story.id])} /><img src={story.mediaUrl} alt="Story" className="h-10 w-10 rounded-lg object-cover" /><span>{(story.expiresAt?.seconds ?? 0) * 1000 < Date.now() ? "Archived story" : "Active story"}</span></label>) : <p className="text-sm text-muted-foreground">Create a story first, then save it here.</p>}</div><Button className="mt-3" size="sm" disabled={!selectedStories.length} onClick={() => void createProfileHighlight(highlightTitle, storyArchive.filter((story) => selectedStories.includes(story.id)), highlights.length).then(() => { setHighlightTitle(""); setSelectedStories([]); setShowHighlightCreator(false); })}>Create highlight</Button></div> : null}<div className="flex gap-4 overflow-x-auto pb-2">{highlights.map((highlight, index) => <div key={highlight.id} className="w-24 shrink-0 text-center"><Link href={`/highlights/${highlight.id}`}><img src={highlight.coverUrl} alt={highlight.title} className="mx-auto h-20 w-20 rounded-full border-4 object-cover" style={{ borderColor: profile?.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-sm font-medium">{highlight.title}</p></Link><div className="mt-1 flex justify-center"><button aria-label="Move left" disabled={index === 0} onClick={() => void moveProfileHighlight(highlights, highlight.id, -1)}><ChevronLeft className="h-4 w-4" /></button><button aria-label="Rename" className="px-1 text-[10px] text-muted-foreground" onClick={() => { const title = window.prompt("Rename highlight", highlight.title); if (title) void renameProfileHighlight(highlight.id, title); }}>Edit</button><button aria-label="Delete" onClick={() => void deleteProfileHighlight(highlight.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></button><button aria-label="Move right" disabled={index === highlights.length - 1} onClick={() => void moveProfileHighlight(highlights, highlight.id, 1)}><ChevronRight className="h-4 w-4" /></button></div></div>)}</div></CardContent></Card>;
+  const highlightSection = <section className="mt-5 border-b px-4 pb-5"><div className="flex gap-4 overflow-x-auto pb-1"><button type="button" onClick={() => setShowHighlightCreator((value) => !value)} className="w-20 shrink-0 text-center"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-muted-foreground/40"><Plus className="h-7 w-7" /></span><span className="mt-1 block truncate text-xs font-medium">New</span></button>{highlights.map((highlight, index) => <div key={highlight.id} className="w-20 shrink-0 text-center"><Link href={`/highlights/${highlight.id}`}><img src={highlight.coverUrl} alt={highlight.title} className="mx-auto h-16 w-16 rounded-full border-2 object-cover" style={{ borderColor: profile?.accentColor || "#6366f1" }} /><p className="mt-1 truncate text-xs font-medium">{highlight.title}</p></Link><div className="mt-1 flex justify-center"><button aria-label="Move left" disabled={index === 0} onClick={() => void moveProfileHighlight(highlights, highlight.id, -1)}><ChevronLeft className="h-3.5 w-3.5" /></button><button aria-label="Rename" className="px-1 text-[9px] text-muted-foreground" onClick={() => { const title = window.prompt("Rename highlight", highlight.title); if (title) void renameProfileHighlight(highlight.id, title); }}>Edit</button><button aria-label="Delete" onClick={() => void deleteProfileHighlight(highlight.id)}><Trash2 className="h-3 w-3 text-destructive" /></button><button aria-label="Move right" disabled={index === highlights.length - 1} onClick={() => void moveProfileHighlight(highlights, highlight.id, 1)}><ChevronRight className="h-3.5 w-3.5" /></button></div></div>)}</div>{showHighlightCreator ? <div className="mt-4 rounded-2xl border p-4"><Input value={highlightTitle} onChange={(event) => setHighlightTitle(event.target.value)} placeholder="Highlight title" className="mb-3" /><div className="max-h-48 space-y-2 overflow-y-auto">{storyArchive.length ? storyArchive.map((story) => <label key={story.id} className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm"><input type="checkbox" checked={selectedStories.includes(story.id)} onChange={() => setSelectedStories((items) => items.includes(story.id) ? items.filter((id) => id !== story.id) : [...items, story.id])} /><img src={story.mediaUrl} alt="Story" className="h-10 w-10 rounded-lg object-cover" /><span>{(story.expiresAt?.seconds ?? 0) * 1000 < Date.now() ? "Archived story" : "Active story"}</span></label>) : <p className="text-sm text-muted-foreground">Create a story first, then save it here.</p>}</div><Button className="mt-3" size="sm" disabled={!selectedStories.length} onClick={() => void createProfileHighlight(highlightTitle, storyArchive.filter((story) => selectedStories.includes(story.id)), highlights.length).then(() => { setHighlightTitle(""); setSelectedStories([]); setShowHighlightCreator(false); })}>Create highlight</Button></div> : null}</section>;
 
   const primaryActions = [
     {
@@ -208,11 +208,6 @@ function ProfilePageContent() {
       label: "Edit Profile",
       icon: Pencil,
       variant: "outline" as const,
-    },
-    {
-      href: "/upload",
-      label: "New Post",
-      variant: "default" as const,
     },
   ];
 
@@ -240,8 +235,8 @@ function ProfilePageContent() {
   return (
     <ProtectedRoute>
       <div className="mx-auto max-w-3xl pb-20">
-        <div className="px-4 pt-4">
-          <div className={`relative h-52 overflow-hidden rounded-[28px] bg-gradient-to-r ${getProfileThemeClass(profile?.profileTheme)}`} style={profile?.accentColor ? { backgroundImage: `linear-gradient(135deg, ${profile.accentColor}, #111827)` } : undefined}>
+        <div className="pt-1 sm:px-4 sm:pt-4">
+          <div className={`relative h-24 overflow-hidden bg-gradient-to-r sm:h-40 sm:rounded-3xl ${getProfileThemeClass(profile?.profileTheme)}`} style={profile?.accentColor ? { backgroundImage: `linear-gradient(135deg, ${profile.accentColor}, #111827)` } : undefined}>
             {profile?.coverPhotoURL ? (
               <OptimizedMedia src={profile.coverPhotoURL} alt={profile.coverAlt || `${profile.displayName || "User"} cover`} width={1600} height={480} sizes="100vw" priority className="absolute inset-0 h-full w-full object-cover" />
             ) : null}
@@ -249,61 +244,61 @@ function ProfilePageContent() {
           </div>
         </div>
 
-        <Card className="mx-4 -mt-14 rounded-[28px] border-border/60 shadow-lg">
-          <CardContent className="space-y-6 p-6">
-            <div className="flex flex-col gap-5 md:flex-row md:items-start">
-              <Avatar className="h-28 w-28 shrink-0 shadow-lg" style={{ boxShadow: `0 0 0 4px ${highlights.length ? (profile?.accentColor || "#6366f1") : "var(--background)"}` }}>
+        <Card className="-mt-7 rounded-none border-x-0 border-b-0 bg-background shadow-none sm:mx-4 sm:-mt-10 sm:rounded-3xl sm:border-x sm:shadow-sm">
+          <CardContent className="space-y-4 px-4 py-4 sm:p-6">
+            <div className="flex items-start gap-4">
+              <Avatar className="h-24 w-24 shrink-0 shadow-sm sm:h-28 sm:w-28" style={{ boxShadow: `0 0 0 3px ${highlights.length ? (profile?.accentColor || "#6366f1") : "var(--background)"}` }}>
                 <AvatarImage src={avatarUrl} alt={profile?.avatarAlt || `${profile?.displayName || "User"} profile photo`} />
                 <AvatarFallback className="bg-yellow-400 text-2xl font-bold text-yellow-950">{initials || "U"}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0 flex-1 space-y-3 text-center md:pt-6 md:text-left">
+              <div className="min-w-0 flex-1 space-y-2 pt-7 text-left sm:pt-9">
                 <div className="space-y-1">
-                  <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                    <h1 className="break-words text-3xl font-bold leading-tight">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h1 className="break-words text-xl font-bold leading-tight sm:text-2xl">
                       {profile?.displayName || user.displayName || "Kinet User"}
                     </h1>
                     {profile?.verified ? <KinetVerifiedBadge /> : null}
                   </div>
                   <p className="text-sm text-muted-foreground">@{profile?.username || user.uid.slice(0, 8)}</p>
                   {profile?.status ? <p className="text-sm font-medium" style={{ color: profile.accentColor }}>{profile.status}</p> : null}
-                  <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground md:justify-start">{profile?.pronouns ? <span>{profile.pronouns}</span> : null}{profile?.category ? <Badge variant="outline">{profile.category}</Badge> : null}</div>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">{profile?.pronouns ? <span>{profile.pronouns}</span> : null}{profile?.category ? <Badge variant="outline">{profile.category}</Badge> : null}</div>
                 </div>
 
                 {settings?.headline ? <p className="text-sm font-medium text-primary">{settings.headline}</p> : null}
-                {settings?.showActivityStatus ? <div className="flex justify-center md:justify-start"><KinetSignal state={settings.availabilityStatus} isOnline /></div> : null}
+                {settings?.showActivityStatus ? <div className="flex"><KinetSignal state={settings.availabilityStatus} isOnline /></div> : null}
 
-                <p className="mx-auto max-w-2xl text-sm leading-7 text-muted-foreground md:mx-0 md:text-base">
+                <p className="max-w-2xl text-sm leading-5 text-muted-foreground sm:text-base">
                   {profile?.bio || profile?.role?.bio || "Add a bio to tell people about yourself."}
                 </p>
-                <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm md:justify-start">{profile?.location ? <span className="inline-flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</span> : null}{profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><Globe2 className="h-4 w-4" />Website</a> : null}{profile?.musicUrl ? <a href={profile.musicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><Music2 className="h-4 w-4" />Profile song</a> : null}{profile?.contactEmail ? <a href={`mailto:${profile.contactEmail}`} className="inline-flex items-center gap-1 text-primary"><Mail className="h-4 w-4" />Contact</a> : null}{profile?.socialLinks?.map((link) => <a key={`${link.label}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{link.label}</a>)}</div>
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{profile?.location ? <span className="inline-flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</span> : null}{profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><Globe2 className="h-4 w-4" />Website</a> : null}{profile?.musicUrl ? <a href={profile.musicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><Music2 className="h-4 w-4" />Profile song</a> : null}{profile?.contactEmail ? <a href={`mailto:${profile.contactEmail}`} className="inline-flex items-center gap-1 text-primary"><Mail className="h-4 w-4" />Contact</a> : null}{profile?.socialLinks?.map((link) => <a key={`${link.label}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{link.label}</a>)}</div>
                 {profile?.actionButton ? <Button size="sm" asChild style={{ backgroundColor: profile.accentColor || undefined }}><a href={profile.actionButton.url} target="_blank" rel="noreferrer">{profile.actionButton.label}</a></Button> : null}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <button type="button" onClick={() => void openConnections("With You", profile?.followers ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
-                <div className="text-2xl font-bold text-primary">{profile?.followers?.length ?? 0}</div>
-                <div className="text-sm text-muted-foreground">With You</div>
+            <div className="grid grid-cols-4 border-y py-3">
+              <button type="button" onClick={() => void openConnections("With You", profile?.followers ?? [])} className="cursor-pointer text-center active:scale-[0.98]">
+                <div className="text-base font-bold sm:text-lg">{profile?.followers?.length ?? 0}</div>
+                <div className="text-[11px] text-muted-foreground sm:text-xs">Followers</div>
               </button>
-              <button type="button" onClick={() => void openConnections("You’re With", profile?.following ?? [])} className="cursor-pointer rounded-2xl bg-muted/70 p-4 text-center hover:bg-muted active:scale-[0.98]">
-                <div className="text-2xl font-bold">{profile?.following?.length ?? 0}</div>
-                <div className="text-sm text-muted-foreground">You’re With</div>
+              <button type="button" onClick={() => void openConnections("You’re With", profile?.following ?? [])} className="cursor-pointer text-center active:scale-[0.98]">
+                <div className="text-base font-bold sm:text-lg">{profile?.following?.length ?? 0}</div>
+                <div className="text-[11px] text-muted-foreground sm:text-xs">Following</div>
               </button>
-              <div className="rounded-2xl bg-muted/70 p-4 text-center">
-                <div className="text-2xl font-bold">{standardPosts.length}</div>
-                <div className="text-sm text-muted-foreground">Posts</div>
+              <div className="text-center">
+                <div className="text-base font-bold sm:text-lg">{standardPosts.length}</div>
+                <div className="text-[11px] text-muted-foreground sm:text-xs">Posts</div>
               </div>
-              <div className="rounded-2xl bg-muted/70 p-4 text-center">
-                <div className="text-2xl font-bold">{reelPosts.length}</div>
-                <div className="text-sm text-muted-foreground">Reels</div>
+              <div className="text-center">
+                <div className="text-base font-bold sm:text-lg">{reelPosts.length}</div>
+                <div className="text-[11px] text-muted-foreground sm:text-xs">Reels</div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 md:flex-row">
+            <div className="flex gap-2">
               {primaryActions.map((action) => {
                 const Icon = action.icon;
                 return (
-                  <Button key={action.href} className="h-11 md:flex-1" variant={action.variant} asChild>
+                  <Button key={action.href} className="h-9 flex-1" variant={action.variant} asChild>
                     <Link href={action.href}>
                       {Icon ? <Icon className="mr-2 h-4 w-4" /> : null}
                       {action.label}
@@ -312,7 +307,7 @@ function ProfilePageContent() {
                 );
               })}
               <Button
-                className="h-11 md:flex-1"
+                className="h-9 flex-1"
                 variant="outline"
                 onClick={async () => { const url = `${window.location.origin}/profile/${user.uid}`; if (navigator.share) await navigator.share({ title: user.displayName || "Kinet profile", url }); else await navigator.clipboard.writeText(url); setShared(true); window.setTimeout(() => setShared(false), 1600); }}
               >
@@ -419,30 +414,12 @@ function ProfilePageContent() {
             </Card>
           ) : null}
 
-          <Card>
-            <CardContent className="p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <Bookmark className="h-4 w-4 text-primary" />
-                <h2 className="font-semibold">Saved Highlights</h2>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                You have {profile?.savedPosts?.length ?? 0} saved posts.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-5">
-              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <Film className="h-4 w-4 text-primary" />
-                  <h2 className="font-semibold">Your Content</h2>
-                </div>
-                <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1">{([{ id: "posts", label: "Posts", icon: Grid3X3 }, { id: "reels", label: "Videos", icon: PlaySquare }, { id: "reposts", label: "Reposts", icon: Repeat2 }, { id: "tagged", label: "Tagged", icon: Tag }] as const).map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => { setContentView(tab.id); setVisibleCount(12); }} className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium ${contentView === tab.id ? "bg-background shadow-sm" : "text-muted-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div>
-              </div>
+          <Card className="rounded-none border-x-0 shadow-none sm:rounded-xl sm:border-x">
+            <CardContent className="p-0">
+              <div className="grid grid-cols-4 border-b">{([{ id: "posts", label: "Posts", icon: Grid3X3 }, { id: "reels", label: "Videos", icon: PlaySquare }, { id: "reposts", label: "Reposts", icon: Repeat2 }, { id: "tagged", label: "Tagged", icon: Tag }] as const).map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" aria-label={tab.label} onClick={() => { setContentView(tab.id); setVisibleCount(12); }} className={`flex items-center justify-center border-b-2 py-3 ${contentView === tab.id ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}><Icon className="h-5 w-5" /></button>; })}</div>
 
               {visibleContent.length === 0 ? (
-                <div className="rounded-2xl border border-dashed p-8 text-center">
+                <div className="m-6 rounded-2xl border border-dashed p-8 text-center">
                   <p className="font-medium">
                     {contentView === "reels" ? "No videos yet" : contentView === "reposts" ? "No reposts yet" : contentView === "tagged" ? "No tagged posts yet" : "No posts yet"}
                   </p>
@@ -456,9 +433,9 @@ function ProfilePageContent() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-0.5">
                   {visibleContent.map((post) => (
-                    <div key={post.id} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
+                    <div key={post.id} className="group relative aspect-square overflow-hidden bg-muted">
                       <Link
                         href={post.contentType === "reel" ? `/reels?reel=${post.id}` : `/feed?post=${post.id}`}
                         className="absolute inset-0 z-10"
