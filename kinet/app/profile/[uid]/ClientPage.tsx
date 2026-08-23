@@ -191,15 +191,14 @@ export default function PublicProfilePageContent() {
     }
   };
 
-  if (isBlockedRelationship) {
+  if (blockedByProfile) {
     return (
       <div className="mx-auto max-w-3xl py-8">
         <Card>
           <CardContent className="p-12 text-center">
             <UserX className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 text-xl font-semibold">Profile unavailable</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{blockedByCurrentUser ? "You blocked this account." : "This profile cannot be viewed or contacted."}</p>
-            {blockedByCurrentUser ? <Button className="mt-5" variant="outline" onClick={() => void toggleBlockedUser(uid, true).then(async () => { const refreshed = user ? await getUserProfileById(user.uid) : null; setCurrentProfile(refreshed as PublicProfile | null); })}>Unblock account</Button> : null}
+            <p className="mt-2 text-sm text-muted-foreground">This profile cannot be viewed or contacted.</p>
           </CardContent>
         </Card>
       </div>
@@ -248,6 +247,26 @@ export default function PublicProfilePageContent() {
                 {isSelf ? (
                   <Button asChild>
                     <Link href="/edit-profile">Edit profile</Link>
+                  </Button>
+                ) : blockedByCurrentUser ? (
+                  <Button
+                    variant="outline"
+                    disabled={blocking}
+                    onClick={async () => {
+                      setBlocking(true);
+                      try {
+                        await toggleBlockedUser(uid, true);
+                        setCurrentProfile((current) => current ? {
+                          ...current,
+                          blockedUsers: (current.blockedUsers ?? []).filter((id) => id !== uid),
+                        } : current);
+                      } finally {
+                        setBlocking(false);
+                      }
+                    }}
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    {blocking ? "Unblocking…" : "Unblock account"}
                   </Button>
                 ) : (
                   <>
@@ -315,7 +334,7 @@ export default function PublicProfilePageContent() {
       {canViewContent && profile.pinnedPosts?.length ? <section className="mt-6 rounded-2xl border p-4"><h2 className="mb-3 font-semibold">Pinned posts</h2><div className="grid grid-cols-3 gap-2">{posts.filter((post) => profile.pinnedPosts?.includes(post.id)).slice(0, 3).map((post) => <Link key={post.id} href={`/post/${post.id}`} className="aspect-square overflow-hidden rounded-xl bg-muted">{post.mediaType === "video" ? <video src={post.mediaUrl} muted className="h-full w-full object-cover" /> : <OptimizedMedia src={post.mediaUrl} alt={post.caption} width={480} height={480} sizes="33vw" className="h-full w-full object-cover" />}</Link>)}</div></section> : null}
 
       <div className="mt-6 rounded-xl border p-4">
-        {!canViewContent ? <div className="py-14 text-center"><Lock className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-3 font-semibold">This account is private</h2><p className="mt-1 text-sm text-muted-foreground">Kinet With this person to see their posts and videos.</p></div> : <>
+        {!canViewContent ? <div className="py-14 text-center"><Lock className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-3 font-semibold">{blockedByCurrentUser ? "You blocked this account" : "This account is private"}</h2><p className="mt-1 text-sm text-muted-foreground">{blockedByCurrentUser ? "Unblock this account to see posts, videos, and contact options." : "Kinet With this person to see their posts and videos."}</p></div> : <>
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold">Content</h2>
           <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1">{([{ id: "posts", label: "Posts", icon: Grid3X3 }, { id: "reels", label: "Videos", icon: PlaySquare }, { id: "reposts", label: "Reposts", icon: Repeat2 }, { id: "tagged", label: "Tagged", icon: Tag }] as const).map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => { setContentView(tab.id); setVisibleCount(12); }} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm ${contentView === tab.id ? "bg-background shadow-sm" : "text-muted-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div>

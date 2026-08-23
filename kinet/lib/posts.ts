@@ -1070,15 +1070,21 @@ export async function recordPostShare(postId: string) {
   await updateDoc(doc(db, "posts", postId), { shares: increment(1) });
 }
 
-function scorePosts(posts: FeedPost[], following: string[], _legacyPreference: string) {
+function scorePosts(posts: FeedPost[], following: string[], preferredSport: string, interests: string[] = []) {
   const now = Date.now() / 1000;
+  const normalizedPreferences = Array.from(new Set([preferredSport, ...interests].map((value) => value.trim().toLowerCase()).filter(Boolean)));
   const scored = [...posts].sort((a, b) => {
     const score = (post: FeedPost) => {
       const ageHours = Math.max(0, (now - (post.createdAt?.seconds ?? now)) / 3600);
       const recency = Math.max(0, 5 - ageHours / 12);
       const engagement = Math.log2(1 + post.likes.length + post.commentsCount * 2 + post.shares * 3 + post.saves.length * 2);
       const completionRate = (post.completedViews ?? 0) / Math.max(1, post.views ?? 0);
-      return recency + engagement + completionRate * 5 + (following.includes(post.userId) ? 12 : 0);
+      const postTopics = [post.sport, ...post.hashtags].map((value) => value.trim().toLowerCase()).filter(Boolean);
+      const caption = post.caption.toLowerCase();
+      const preferenceMatches = normalizedPreferences.filter((preference) => postTopics.includes(preference) || caption.includes(preference)).length;
+      const interestAffinity = Math.min(6, preferenceMatches * 3);
+      const relationshipAffinity = following.includes(post.userId) ? 6 : 0;
+      return recency + engagement + completionRate * 5 + interestAffinity + relationshipAffinity;
     };
     return score(b) - score(a);
   });
@@ -1148,6 +1154,7 @@ export function subscribeToFeed(
   let stopped = false;
   let authorUnsubscribes: ListenerCleanup[] = [];
   const postsByAuthor = new Map<string, FeedPost[]>();
+  let discoveryPosts: FeedPost[] = [];
   let viewerProfile: Awaited<ReturnType<typeof getCurrentAuthorProfile>> | null = null;
 
   const publishFeed = () => {
@@ -1156,12 +1163,14 @@ export function subscribeToFeed(
     const viewerId = auth?.currentUser?.uid ?? "";
     const following = profile.following ?? [];
     const blockedUsers = profile.blockedUsers ?? [];
-    const visiblePosts = Array.from(postsByAuthor.values())
-      .flat()
+    const visiblePosts = Array.from(new Map(
+      [...Array.from(postsByAuthor.values()).flat(), ...discoveryPosts].map((post) => [post.id, post])
+    ).values())
       .filter((post) => post.contentType === "post" && isVisiblePost(post) && canAccessPost(post, profile))
       .filter((post) => post.userId === viewerId || (!blockedUsers.includes(post.userId) && matchesFeedPreferences(post, profile.profile)))
       .map((post) => post.userId === viewerId ? { ...post, author: profile.author } : post);
-    callback(scorePosts(visiblePosts, following, profile.defaultSport ?? "").slice(0, 60));
+    const interests = Array.isArray(profile.profile?.interests) ? profile.profile.interests as string[] : [];
+    callback(scorePosts(visiblePosts, following, profile.defaultSport ?? "", interests).slice(0, 60));
   };
 
   const subscribeToVisibleAuthors = () => {
@@ -1199,6 +1208,29 @@ export function subscribeToFeed(
   };
 
   const viewerId = auth?.currentUser?.uid ?? "";
+  const discoveryQuery = query(
+    collection(db, "posts"),
+    where("contentType", "==", "post"),
+    orderBy("createdAt", "desc"),
+    limit(80)
+  );
+  const unsubscribeDiscovery = onSnapshot(discoveryQuery, async (snapshot) => {
+    const candidates = snapshot.docs.map((postDoc) => mapPost(postDoc.id, postDoc.data()));
+    const authorIds = Array.from(new Set(candidates.map((post) => post.userId).filter(Boolean)));
+    const authorSnapshots = await Promise.all(authorIds.map((uid) => getDoc(doc(db!, "users", uid)).catch(() => null)));
+    const allowedAuthors = new Set(authorIds.filter((uid, index) => {
+      if (uid === viewerId) return true;
+      const authorSnapshot = authorSnapshots[index];
+      if (!authorSnapshot?.exists()) return true;
+      const author = authorSnapshot.data() as Record<string, unknown>;
+      const settings = (author.settings as Record<string, unknown> | undefined) ?? {};
+      const authorBlockedUsers = Array.isArray(author.blockedUsers) ? author.blockedUsers as string[] : [];
+      const isPrivate = settings.privateAccount === true || settings.profileVisibility === "private";
+      return !authorBlockedUsers.includes(viewerId) && (!isPrivate || viewerProfile?.following?.includes(uid));
+    }));
+    discoveryPosts = candidates.filter((post) => allowedAuthors.has(post.userId) && post.visibility === "public");
+    if (!stopped) publishFeed();
+  }, (error) => onError?.(error));
   const unsubscribeProfile = viewerId
     ? onSnapshot(doc(db, "users", viewerId), (snapshot) => {
         const profile = snapshot.exists() ? snapshot.data() as Record<string, unknown> : {};
@@ -1224,6 +1256,7 @@ export function subscribeToFeed(
   return () => {
     stopped = true;
     unsubscribeProfile();
+    unsubscribeDiscovery();
     authorUnsubscribes.forEach((unsubscribeAuthor) => unsubscribeAuthor());
   };
 }
