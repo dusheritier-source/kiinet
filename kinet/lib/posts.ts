@@ -563,7 +563,11 @@ export async function createPost({
   assertFirebaseReady();
 
   const user = auth!.currentUser;
-  const { author } = await getCurrentAuthorProfile();
+  const { author, profile } = await getCurrentAuthorProfile();
+  const profileSettings = (profile?.settings as Record<string, unknown> | undefined) ?? {};
+  const discoverable = visibility === "public"
+    && profileSettings.privateAccount !== true
+    && profileSettings.profileVisibility !== "private";
 
   const selectedFiles = (files.length ? files : file ? [file] : []).slice(0, 10);
   const trimmedCaption = caption.trim();
@@ -626,6 +630,7 @@ export async function createPost({
         ? scheduledDate
         : null,
     visibility,
+    discoverable,
     premiumGroupId: visibility === "premium_group" ? premiumGroupId.trim() || null : null,
     sponsored,
     sponsorLabel: sponsored ? sponsorLabel.trim() || "Sponsored" : null,
@@ -830,7 +835,10 @@ export async function repostPost(postId: string) {
   }
 
   const post = mapPost(snapshot.id, snapshot.data() as Record<string, unknown>);
-  const { author } = await getCurrentAuthorProfile();
+  const { author, profile } = await getCurrentAuthorProfile();
+  const profileSettings = (profile?.settings as Record<string, unknown> | undefined) ?? {};
+  const discoverable = profileSettings.privateAccount !== true
+    && profileSettings.profileVisibility !== "private";
 
   await addDoc(collection(db, "posts"), {
     userId: auth.currentUser.uid,
@@ -847,6 +855,8 @@ export async function repostPost(postId: string) {
     views: 0,
     completedViews: 0,
     author,
+    visibility: "public",
+    discoverable,
     originalPostId: postId,
     createdAt: serverTimestamp(),
   });
@@ -1058,8 +1068,11 @@ export async function quotePost(postId: string, caption: string) {
   const snapshot = await getDoc(doc(db, "posts", postId));
   if (!snapshot.exists()) throw new Error("Post not found.");
   const original = mapPost(snapshot.id, snapshot.data() as Record<string, unknown>);
-  const { author } = await getCurrentAuthorProfile();
-  await addDoc(collection(db, "posts"), { userId: auth.currentUser.uid, caption: caption.trim(), mediaUrl: original.mediaUrl, mediaType: original.mediaType, contentType: "post", postType: "standard", sport: "", likes: [], commentsCount: 0, shares: 0, saves: [], hashtags: extractHashtags(caption), views: 0, completedViews: 0, author, originalPostId: postId, createdAt: serverTimestamp() });
+  const { author, profile } = await getCurrentAuthorProfile();
+  const profileSettings = (profile?.settings as Record<string, unknown> | undefined) ?? {};
+  const discoverable = profileSettings.privateAccount !== true
+    && profileSettings.profileVisibility !== "private";
+  await addDoc(collection(db, "posts"), { userId: auth.currentUser.uid, caption: caption.trim(), mediaUrl: original.mediaUrl, mediaType: original.mediaType, contentType: "post", postType: "standard", sport: "", likes: [], commentsCount: 0, shares: 0, saves: [], hashtags: extractHashtags(caption), views: 0, completedViews: 0, author, visibility: "public", discoverable, originalPostId: postId, createdAt: serverTimestamp() });
   await updateDoc(doc(db, "posts", postId), { shares: increment(1) });
   await incrementUserCounter(auth.currentUser.uid, "postsCount", 1);
   await createNotification({ type: "repost", recipientId: original.userId, actorId: auth.currentUser.uid, actorName: author.name, actorAvatar: author.avatar, message: `${author.name} quoted your post.`, postId });
@@ -1211,6 +1224,7 @@ export function subscribeToFeed(
   const discoveryQuery = query(
     collection(db, "posts"),
     where("contentType", "==", "post"),
+    where("discoverable", "==", true),
     orderBy("createdAt", "desc"),
     limit(80)
   );
@@ -1273,6 +1287,7 @@ export function subscribeToReels(
   const reelsQuery = query(
     collection(db, "posts"),
     where("contentType", "==", "reel"),
+    where("discoverable", "==", true),
     orderBy("createdAt", "desc"),
     limit(24)
   );

@@ -157,6 +157,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "contentType", "order": "ASCENDING" },
+        { "fieldPath": "discoverable", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },

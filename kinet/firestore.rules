@@ -148,13 +148,22 @@ service cloud.firestore {
     match /posts/{postId} {
       function canReadPost() {
         return resource.data.userId == request.auth.uid
+          || resource.data.get('discoverable', false) == true
           || !get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('settings', {}).get('privateAccount', false)
           || (request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('followers', [])
             && request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.get('following', []));
       }
       allow read: if isSignedIn() && canReadPost();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['discoverable'])
+          || request.resource.data.discoverable
+            == (request.resource.data.get('visibility', 'public') == 'public'
+              && !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('settings', {}).get('privateAccount', false)
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('settings', {}).get('profileVisibility', 'public') != 'private'));
+      allow update: if isSignedIn()
+        && request.resource.data.get('discoverable', false) == resource.data.get('discoverable', false)
+        && (
         resource.data.userId == request.auth.uid
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
           && request.auth.uid in request.resource.data.likes)
