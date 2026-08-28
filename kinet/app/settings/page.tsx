@@ -37,9 +37,25 @@ function SettingsPageContent() {
   const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
-    void getCurrentUserSettings().then(setSettings);
+    const nextCapability = getPushCapability();
+    setPushCapability(nextCapability);
+    void getCurrentUserSettings().then((currentSettings) => {
+      const normalizedSettings = {
+        ...currentSettings,
+        pushNotificationsEnabled: currentSettings.pushNotificationsEnabled || nextCapability === "granted",
+        pushPermission: nextCapability === "granted" ? "granted" : currentSettings.pushPermission,
+      };
+
+      if (nextCapability === "granted" && !currentSettings.pushNotificationsEnabled) {
+        void updateCurrentUserSettings({
+          pushNotificationsEnabled: true,
+          pushPermission: "granted",
+        }).catch(() => undefined);
+      }
+
+      setSettings(normalizedSettings);
+    });
     void getPushDevices().then(setDevices);
-    setPushCapability(getPushCapability());
   }, []);
 
   const turnOnPush = async () => {
@@ -91,6 +107,8 @@ function SettingsPageContent() {
   if (!settings) {
     return <div className="flex min-h-[60vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" /></div>;
   }
+
+  const pushEnabled = settings.pushNotificationsEnabled || pushCapability === "granted";
 
   return (
     <ProtectedRoute>
@@ -229,11 +247,11 @@ function SettingsPageContent() {
                       <p className="font-semibold">App notifications</p>
                       <p className="mt-1 text-xs text-muted-foreground">Get messages, reactions, mentions and account alerts even when Kinet is closed.</p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${settings.pushNotificationsEnabled && pushCapability === "granted" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{settings.pushNotificationsEnabled && pushCapability === "granted" ? "On" : "Off"}</span>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${pushEnabled ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{pushEnabled ? "On" : "Off"}</span>
                   </div>
                   {pushCapability === "denied" ? <p className="mt-3 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">Notifications are blocked. Open this app in your device settings, allow notifications, then return here.</p> : null}
                   {pushCapability === "unsupported" ? <p className="mt-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">This browser does not support app notifications. On iPhone, install Kinet to the Home Screen and open it from the app icon.</p> : null}
-                  <Button type="button" className="mt-4 w-full" variant={settings.pushNotificationsEnabled && pushCapability === "granted" ? "outline" : "default"} disabled={pushBusy || pushCapability === "denied" || pushCapability === "unsupported"} onClick={() => void (settings.pushNotificationsEnabled && pushCapability === "granted" ? turnOffPush() : turnOnPush())}>{pushBusy ? "Please wait…" : settings.pushNotificationsEnabled && pushCapability === "granted" ? "Turn off on this device" : "Allow app notifications"}</Button>
+                  <Button type="button" className="mt-4 w-full" variant={pushEnabled ? "outline" : "default"} disabled={pushBusy || pushCapability === "denied" || pushCapability === "unsupported"} onClick={() => void (pushEnabled ? turnOffPush() : turnOnPush())}>{pushBusy ? "Please wait…" : pushEnabled ? "Turn off on this device" : "Allow app notifications"}</Button>
                   {pushStatus ? <p role="status" className="mt-2 text-xs font-medium text-muted-foreground">{pushStatus}</p> : null}
                 </div>
                 <div className="rounded-xl border p-3 space-y-3">
