@@ -10,6 +10,9 @@ import ReactQueryProvider from "@/components/ReactQueryProvider";
 import BottomNav from "@/components/BottomNav";
 import NavigationFeedback from "@/components/NavigationFeedback";
 
+const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT?.trim() || "ca-pub-6169342782691776";
+const validAdsenseClient = adsenseClient && /^ca-pub-\d{16}$/.test(adsenseClient) ? adsenseClient : null;
+
 export const metadata: Metadata = {
   title: {
     default: "Kinet",
@@ -35,6 +38,7 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Kinet",
   },
+  other: validAdsenseClient ? { "google-adsense-account": validAdsenseClient } : {},
 };
 
 export const viewport = {
@@ -54,6 +58,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {validAdsenseClient ? <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${validAdsenseClient}`} crossOrigin="anonymous" /> : null}
+      </head>
       <body className="bg-background font-sans text-foreground">
         <ReactQueryProvider>
           <AuthProvider>
