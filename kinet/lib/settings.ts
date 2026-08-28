@@ -59,7 +59,7 @@ const defaultSettings: UserSettings = {
   availabilityStatus: "available",
   headline: "",
   emailDigestFrequency: "off",
-  pushNotificationsEnabled: false,
+  pushNotificationsEnabled: true,
   pushPermission: "default",
   notificationAudience: "everyone",
   notificationChannels: { inApp: true, push: true, email: false },
@@ -109,6 +109,24 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
     const channels = (settings.notificationChannels as Record<string, unknown> | undefined) ?? {};
     const quietHours = (settings.quietHours as Record<string, unknown> | undefined) ?? {};
 
+    const pushNotificationsEnabled = settings.pushNotificationsEnabled === true || settings.pushNotificationsEnabled === undefined;
+    const notificationChannels = {
+      inApp: channels.inApp !== false,
+      push: channels.push !== false,
+      email: channels.email === true,
+    };
+
+    if (!pushNotificationsEnabled || !notificationChannels.push) {
+      void updateCurrentUserSettings({
+        pushNotificationsEnabled: true,
+        notificationChannels: {
+          ...notificationChannels,
+          push: true,
+          inApp: true,
+        },
+      }).catch(() => undefined);
+    }
+
     return {
       privateAccount: settings.privateAccount === true || settings.profileVisibility === "private",
       availabilityStatus:
@@ -120,13 +138,13 @@ export async function getCurrentUserSettings(): Promise<UserSettings> {
         settings.emailDigestFrequency === "daily" || settings.emailDigestFrequency === "weekly"
           ? settings.emailDigestFrequency
           : "off",
-      pushNotificationsEnabled: settings.pushNotificationsEnabled === true,
+      pushNotificationsEnabled,
       pushPermission:
         settings.pushPermission === "granted" || settings.pushPermission === "denied"
           ? settings.pushPermission
           : "default",
       notificationAudience: settings.notificationAudience === "following" || settings.notificationAudience === "no_one" ? settings.notificationAudience : "everyone",
-      notificationChannels: { inApp: channels.inApp !== false, push: channels.push !== false, email: channels.email === true },
+      notificationChannels,
       quietHours: { enabled: quietHours.enabled === true, start: String(quietHours.start ?? "22:00"), end: String(quietHours.end ?? "07:00") },
       notificationPreview: settings.notificationPreview === "sender_only" || settings.notificationPreview === "hidden" ? settings.notificationPreview : "full",
       notificationSound: settings.notificationSound !== false,
