@@ -7,8 +7,17 @@ import { syncPushNotificationPreference } from "@/lib/settings";
 
 const deviceKey = "kinet:fcm-device-id";
 
+function isIosBrowserOutsideInstalledApp() {
+  if (typeof window === "undefined") return false;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const standalone = window.matchMedia("(display-mode: standalone)").matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return ios && !standalone;
+}
+
 export async function enableFirebasePush(onForegroundMessage?: (payload: MessagePayload) => void) {
   if (!firebaseApp || typeof window === "undefined" || !(await isSupported())) throw new Error("Push notifications are not supported on this browser.");
+  if (isIosBrowserOutsideInstalledApp()) throw new Error("On iPhone, install Kinet to your Home Screen, open the installed app, then turn on notifications.");
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     await syncPushNotificationPreference(false);
@@ -16,12 +25,15 @@ export async function enableFirebasePush(onForegroundMessage?: (payload: Message
   }
   const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
   if (!vapidKey) throw new Error("NEXT_PUBLIC_FIREBASE_VAPID_KEY is required for Firebase push notifications.");
-  const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { updateViaCache: "none" });
+  await navigator.serviceWorker.ready;
   const messaging = getMessaging(firebaseApp);
   const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
   if (!token) throw new Error("Firebase did not return a device token.");
   const existingId = localStorage.getItem(deviceKey) ?? undefined;
-  const id = await registerPushDevice({ id: existingId, label: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Web browser", token, platform: "web-fcm" });
+  const installed = window.matchMedia("(display-mode: standalone)").matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const id = await registerPushDevice({ id: existingId, label: installed ? "Kinet app" : navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Web browser", token, platform: installed ? "pwa-fcm" : "web-fcm" });
   localStorage.setItem(deviceKey, id);
   await syncPushNotificationPreference(true);
   const unsubscribe = onMessage(messaging, (payload) => {

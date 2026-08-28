@@ -30,6 +30,8 @@ function SettingsPageContent() {
   const [saving, setSaving] = useState(false);
   const [devices, setDevices] = useState<PushDeviceRecord[]>([]);
   const [pushStatus, setPushStatus] = useState("");
+  const [pushCapability, setPushCapability] = useState<NotificationPermission | "unsupported">("default");
+  const [pushBusy, setPushBusy] = useState(false);
   const [privacyStatus, setPrivacyStatus] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -37,7 +39,40 @@ function SettingsPageContent() {
   useEffect(() => {
     void getCurrentUserSettings().then(setSettings);
     void getPushDevices().then(setDevices);
+    setPushCapability(getPushCapability());
   }, []);
+
+  const turnOnPush = async () => {
+    setPushBusy(true);
+    setPushStatus("Connecting this device…");
+    try {
+      await enableFirebasePush(() => setPushStatus("Notification received while Kinet is open."));
+      setSettings((current) => current ? { ...current, pushNotificationsEnabled: true, pushPermission: "granted" } : current);
+      setPushCapability("granted");
+      setDevices(await getPushDevices());
+      setPushStatus("Notifications are on. Kinet can alert you when the app is closed.");
+    } catch (error) {
+      setPushCapability(getPushCapability());
+      setPushStatus(error instanceof Error ? error.message : "Push setup failed.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const turnOffPush = async () => {
+    setPushBusy(true);
+    setPushStatus("Turning notifications off…");
+    try {
+      await disableFirebasePush();
+      setSettings((current) => current ? { ...current, pushNotificationsEnabled: false } : current);
+      setDevices(await getPushDevices());
+      setPushStatus("Notifications are off on this device.");
+    } catch {
+      setPushStatus("Notifications could not be turned off.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -188,16 +223,18 @@ function SettingsPageContent() {
                     <option value="weekly">Weekly</option>
                   </select>
                 </div>
-                <div className="rounded-xl border p-3">
+                <div className="rounded-2xl border p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">Firebase push notifications</p>
-                      <p className="text-xs text-muted-foreground">Browser permission: {getPushCapability()}</p>
+                      <p className="font-semibold">App notifications</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Get messages, reactions, mentions and account alerts even when Kinet is closed.</p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${settings.pushNotificationsEnabled ? "bg-green-100 text-green-700" : "bg-muted"}`}>{settings.pushNotificationsEnabled ? "Enabled" : "Off"}</span>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${settings.pushNotificationsEnabled && pushCapability === "granted" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{settings.pushNotificationsEnabled && pushCapability === "granted" ? "On" : "Off"}</span>
                   </div>
-                  <div className="mt-3 flex gap-2"><Button type="button" size="sm" disabled={settings.pushNotificationsEnabled} onClick={() => { setPushStatus("Connecting…"); void enableFirebasePush(() => setPushStatus("Push received while Kinet is open.")).then(async () => { setSettings((current) => current ? { ...current, pushNotificationsEnabled: true, pushPermission: "granted" } : current); setDevices(await getPushDevices()); setPushStatus("Notifications are on for this device."); }).catch((error) => setPushStatus(error instanceof Error ? error.message : "Push setup failed.")); }}>Turn on notifications</Button><Button type="button" variant="outline" size="sm" disabled={!settings.pushNotificationsEnabled} onClick={() => { setPushStatus("Turning notifications off…"); void disableFirebasePush().then(async () => { setSettings((current) => current ? { ...current, pushNotificationsEnabled: false } : current); setDevices(await getPushDevices()); setPushStatus("Notifications are off for this device."); }).catch(() => setPushStatus("Notifications could not be turned off.")); }}>Turn off notifications</Button></div>
-                  {pushStatus ? <p className="mt-2 text-xs text-muted-foreground">{pushStatus}</p> : null}
+                  {pushCapability === "denied" ? <p className="mt-3 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">Notifications are blocked. Open this app in your device settings, allow notifications, then return here.</p> : null}
+                  {pushCapability === "unsupported" ? <p className="mt-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">This browser does not support app notifications. On iPhone, install Kinet to the Home Screen and open it from the app icon.</p> : null}
+                  <Button type="button" className="mt-4 w-full" variant={settings.pushNotificationsEnabled && pushCapability === "granted" ? "outline" : "default"} disabled={pushBusy || pushCapability === "denied" || pushCapability === "unsupported"} onClick={() => void (settings.pushNotificationsEnabled && pushCapability === "granted" ? turnOffPush() : turnOnPush())}>{pushBusy ? "Please wait…" : settings.pushNotificationsEnabled && pushCapability === "granted" ? "Turn off on this device" : "Allow app notifications"}</Button>
+                  {pushStatus ? <p role="status" className="mt-2 text-xs font-medium text-muted-foreground">{pushStatus}</p> : null}
                 </div>
                 <div className="rounded-xl border p-3 space-y-3">
                   <p className="text-sm font-medium">Connected push devices</p>

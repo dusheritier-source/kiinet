@@ -10,7 +10,9 @@ export default function PWARegistrar() {
     }
 
     void navigator.serviceWorker
-      .register("/sw.js", { updateViaCache: "none" })
+      // One worker owns the root scope so offline caching and Firebase push do
+      // not replace each other on installed mobile apps.
+      .register("/firebase-messaging-sw.js", { updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => undefined);
     const captureInstall = (event: Event) => {
