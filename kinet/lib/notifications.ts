@@ -298,12 +298,13 @@ export async function markConversationNotificationsRead(conversationId: string) 
     query(
       collection(db, "notifications"),
       where("recipientId", "==", auth.currentUser.uid),
-      where("conversationId", "==", conversationId),
       limit(100)
     )
   );
   const unread = snapshot.docs.filter((item) => {
-    const readBy = item.data().readBy;
+    const data = item.data();
+    if (data.conversationId !== conversationId) return false;
+    const readBy = data.readBy;
     return !Array.isArray(readBy) || !readBy.includes(auth.currentUser!.uid);
   });
 
