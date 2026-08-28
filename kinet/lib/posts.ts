@@ -835,41 +835,9 @@ export async function repostPost(postId: string) {
   }
 
   const post = mapPost(snapshot.id, snapshot.data() as Record<string, unknown>);
-  const { author, profile } = await getCurrentAuthorProfile();
-  const profileSettings = (profile?.settings as Record<string, unknown> | undefined) ?? {};
-  const discoverable = profileSettings.privateAccount !== true
-    && profileSettings.profileVisibility !== "private";
-
-  await addDoc(collection(db, "posts"), {
-    userId: auth.currentUser.uid,
-    caption: `Reposted: ${post.caption}`.trim(),
-    mediaUrl: post.mediaUrl,
-    mediaType: post.mediaType,
-    contentType: post.contentType,
-    sport: post.sport,
-    likes: [],
-    commentsCount: 0,
-    shares: 0,
-    saves: [],
-    hashtags: post.hashtags,
-    views: 0,
-    completedViews: 0,
-    author,
-    visibility: "public",
-    discoverable,
-    originalPostId: postId,
-    createdAt: serverTimestamp(),
-  });
-
   await updateDoc(doc(db, "posts", postId), {
     shares: increment(1),
   });
-
-  await incrementUserCounter(
-    auth.currentUser.uid,
-    post.contentType === "reel" ? "reelsCount" : "postsCount",
-    1
-  );
 
   await createNotification({
     type: "repost",
