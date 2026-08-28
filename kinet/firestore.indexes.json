@@ -113,6 +113,14 @@
       ]
     },
     {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipientId", "order": "ASCENDING" },
+        { "fieldPath": "conversationId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "calls",
       "queryScope": "COLLECTION",
       "fields": [

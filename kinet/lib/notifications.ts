@@ -291,6 +291,33 @@ export async function markAllNotificationsRead(notifications: AppNotification[])
   }
 }
 
+export async function markConversationNotificationsRead(conversationId: string) {
+  if (!auth?.currentUser || !db) return;
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, "notifications"),
+      where("recipientId", "==", auth.currentUser.uid),
+      where("conversationId", "==", conversationId),
+      limit(100)
+    )
+  );
+  const unread = snapshot.docs.filter((item) => {
+    const readBy = item.data().readBy;
+    return !Array.isArray(readBy) || !readBy.includes(auth.currentUser!.uid);
+  });
+
+  for (let offset = 0; offset < unread.length; offset += 450) {
+    const batch = writeBatch(db);
+    unread.slice(offset, offset + 450).forEach((item) => batch.set(item.ref, {
+      readBy: [...(Array.isArray(item.data().readBy) ? item.data().readBy as string[] : []), auth.currentUser!.uid],
+      deliveryStatus: "opened",
+      openedAt: serverTimestamp(),
+    }, { merge: true }));
+    await batch.commit();
+  }
+}
+
 export async function deleteNotification(notificationId: string) {
   if (!auth?.currentUser || !db) return;
   await recordNotificationEvent(notificationId, "dismissed");

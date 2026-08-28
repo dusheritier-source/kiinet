@@ -18,7 +18,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, markConversationNotificationsRead } from "@/lib/notifications";
 import { uploadMessageAttachment } from "@/lib/message-attachments";
 import { getUserProfileById, isMutualFollow } from "@/lib/user-profile";
 
@@ -281,6 +281,8 @@ export async function markConversationRead(conversationId: string) {
   if (!auth?.currentUser || !db) {
     return;
   }
+
+  await markConversationNotificationsRead(conversationId);
 
   const currentUser = auth.currentUser;
 
