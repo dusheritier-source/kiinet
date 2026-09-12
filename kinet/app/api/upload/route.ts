@@ -16,7 +16,7 @@ const allowedDocuments = new Set([
   "text/vtt",
 ]);
 const maxFileSize = 50 * 1024 * 1024;
-const allowedExtensions = new Set(["jpg", "jpeg", "png", "gif", "webp", "mp4", "webm", "mp3", "wav", "ogg", "pdf", "doc", "docx", "txt", "vtt"]);
+const allowedExtensions = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif", "heic", "heif", "bmp", "mp4", "m4v", "mov", "webm", "mp3", "wav", "ogg", "pdf", "doc", "docx", "txt", "vtt"]);
 
 function hasPrefix(bytes: Uint8Array, prefix: number[], offset = 0) {
   return prefix.every((value, index) => bytes[offset + index] === value);
@@ -25,13 +25,23 @@ function hasPrefix(bytes: Uint8Array, prefix: number[], offset = 0) {
 function hasExpectedSignature(file: File, bytes: Uint8Array) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "";
   if (!allowedExtensions.has(extension)) return false;
-  const ascii = new TextDecoder("ascii").decode(bytes.slice(0, 16));
+  const ascii = new TextDecoder("ascii").decode(bytes.slice(0, 64));
+  const isIsoMedia = ascii.slice(4, 8) === "ftyp";
+  const isoBrands = ascii.slice(8).match(/[\x20-\x7e]{4}/g) ?? [];
+  const hasIsoBrand = (brands: string[]) => isIsoMedia && isoBrands.some((brand) => brands.includes(brand));
   const signatures: Record<string, boolean> = {
     "image/jpeg": hasPrefix(bytes, [0xff, 0xd8, 0xff]),
     "image/png": hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    "image/x-png": hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     "image/gif": ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a"),
     "image/webp": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP",
-    "video/mp4": ascii.slice(4, 8) === "ftyp",
+    "image/avif": hasIsoBrand(["avif", "avis"]),
+    "image/heic": hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
+    "image/heif": hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
+    "image/bmp": ascii.startsWith("BM"),
+    "video/mp4": isIsoMedia,
+    "video/x-m4v": isIsoMedia,
+    "video/quicktime": isIsoMedia || ascii.slice(4, 8) === "moov",
     "video/webm": hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]),
     "audio/mpeg": ascii.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0),
     "audio/wav": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE",
