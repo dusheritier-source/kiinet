@@ -16,7 +16,7 @@ const allowedDocuments = new Set([
   "text/vtt",
 ]);
 const maxFileSize = 50 * 1024 * 1024;
-const allowedExtensions = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif", "heic", "heif", "bmp", "mp4", "m4v", "mov", "webm", "mp3", "wav", "ogg", "pdf", "doc", "docx", "txt", "vtt"]);
+const allowedExtensions = new Set(["jpg", "jpeg", "jpe", "jfif", "png", "gif", "webp", "avif", "heic", "heif", "bmp", "mp4", "m4v", "mov", "3gp", "3g2", "webm", "mp3", "wav", "ogg", "pdf", "doc", "docx", "txt", "vtt"]);
 
 function hasPrefix(bytes: Uint8Array, prefix: number[], offset = 0) {
   return prefix.every((value, index) => bytes[offset + index] === value);
@@ -27,32 +27,37 @@ function hasExpectedSignature(file: File, bytes: Uint8Array) {
   if (!allowedExtensions.has(extension)) return false;
   const ascii = new TextDecoder("ascii").decode(bytes.slice(0, 64));
   const isIsoMedia = ascii.slice(4, 8) === "ftyp";
-  const isoBrands = ascii.slice(8).match(/[\x20-\x7e]{4}/g) ?? [];
-  const hasIsoBrand = (brands: string[]) => isIsoMedia && isoBrands.some((brand) => brands.includes(brand));
-  const signatures: Record<string, boolean> = {
-    "image/jpeg": hasPrefix(bytes, [0xff, 0xd8, 0xff]),
-    "image/png": hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    "image/x-png": hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    "image/gif": ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a"),
-    "image/webp": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP",
-    "image/avif": hasIsoBrand(["avif", "avis"]),
-    "image/heic": hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
-    "image/heif": hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
-    "image/bmp": ascii.startsWith("BM"),
-    "video/mp4": isIsoMedia,
-    "video/x-m4v": isIsoMedia,
-    "video/quicktime": isIsoMedia || ascii.slice(4, 8) === "moov",
-    "video/webm": hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]),
-    "audio/mpeg": ascii.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0),
-    "audio/wav": ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE",
-    "audio/ogg": ascii.startsWith("OggS"),
-    "application/pdf": ascii.startsWith("%PDF-"),
-    "application/msword": hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]),
-    "text/plain": !bytes.includes(0),
-    "text/vtt": !bytes.includes(0) && new TextDecoder().decode(bytes.slice(0, 64)).trimStart().startsWith("WEBVTT"),
+  const hasIsoBrand = (brands: string[]) => isIsoMedia && brands.some((brand) => ascii.slice(8).includes(brand));
+  const isImage = file.type.startsWith("image/");
+  const isVideo = file.type.startsWith("video/");
+  const checks: Record<string, boolean> = {
+    jpg: isImage && hasPrefix(bytes, [0xff, 0xd8, 0xff]),
+    jpeg: isImage && hasPrefix(bytes, [0xff, 0xd8, 0xff]),
+    jpe: isImage && hasPrefix(bytes, [0xff, 0xd8, 0xff]),
+    jfif: isImage && hasPrefix(bytes, [0xff, 0xd8, 0xff]),
+    png: isImage && hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    gif: isImage && (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")),
+    webp: isImage && ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP",
+    avif: isImage && hasIsoBrand(["avif", "avis"]),
+    heic: isImage && hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
+    heif: isImage && hasIsoBrand(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]),
+    bmp: isImage && ascii.startsWith("BM"),
+    mp4: isVideo && isIsoMedia,
+    m4v: isVideo && isIsoMedia,
+    mov: isVideo && (isIsoMedia || ascii.slice(4, 8) === "moov"),
+    "3gp": isVideo && isIsoMedia,
+    "3g2": isVideo && isIsoMedia,
+    webm: isVideo && hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]),
+    mp3: file.type.startsWith("audio/") && (ascii.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)),
+    wav: file.type.startsWith("audio/") && ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE",
+    ogg: file.type.startsWith("audio/") && ascii.startsWith("OggS"),
+    pdf: file.type === "application/pdf" && ascii.startsWith("%PDF-"),
+    doc: file.type === "application/msword" && hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    docx: file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]),
+    txt: file.type === "text/plain" && !bytes.includes(0),
+    vtt: file.type === "text/vtt" && !bytes.includes(0) && new TextDecoder().decode(bytes.slice(0, 64)).trimStart().startsWith("WEBVTT"),
   };
-  return signatures[file.type] === true;
+  return checks[extension] === true;
 }
 
 function getStorageBucket() {
