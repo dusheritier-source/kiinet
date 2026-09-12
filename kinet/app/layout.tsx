@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Script from "next/script";
 import "./globals.css";
 import PWARegistrar from "@/components/PWARegistrar";
 import ThemeSync from "@/components/ThemeSync";
-import StoriesOverlay from "@/components/StoriesOverlay";
+import LazyStoriesOverlay from "@/components/LazyStoriesOverlay";
 import { AuthProvider } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import ReactQueryProvider from "@/components/ReactQueryProvider";
 import BottomNav from "@/components/BottomNav";
 import NavigationFeedback from "@/components/NavigationFeedback";
 
-const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT?.trim() || "ca-pub-6169342782691776";
+const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT?.trim();
 const validAdsenseClient = adsenseClient && /^ca-pub-\d{16}$/.test(adsenseClient) ? adsenseClient : null;
 
 export const metadata: Metadata = {
@@ -58,16 +59,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {validAdsenseClient ? <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${validAdsenseClient}`} crossOrigin="anonymous" /> : null}
-      </head>
       <body className="bg-background font-sans text-foreground">
+        {validAdsenseClient ? <Script strategy="lazyOnload" src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${validAdsenseClient}`} crossOrigin="anonymous" /> : null}
         <ReactQueryProvider>
           <AuthProvider>
             <PWARegistrar />
             <Suspense fallback={null}><NavigationFeedback /></Suspense>
             <ThemeSync />
-            <StoriesOverlay />
+            <LazyStoriesOverlay />
             <Navbar />
             <main className="mobile-safe-shell mx-auto min-h-[100svh] w-full min-w-0 overflow-x-hidden px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6 md:pb-6">
               {children}

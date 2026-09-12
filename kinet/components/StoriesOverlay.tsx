@@ -13,7 +13,7 @@ import OptimizedMedia from "@/components/OptimizedMedia";
 const STORY_DURATION_MS = 5000;
 const STORY_REACTIONS = ["❤️", "😂", "🔥", "👏", "😍", "😮", "😢", "💯"];
 
-export default function StoriesOverlay() {
+export default function StoriesOverlay({ initialStoryId }: { initialStoryId?: string }) {
   const { user } = useAuthContext();
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -38,9 +38,7 @@ export default function StoriesOverlay() {
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
-    const handler = async (event: Event) => {
-      const custom = event as CustomEvent<{ storyId?: string }>;
-      const storyId = custom.detail?.storyId;
+    const openStory = async (storyId?: string) => {
       if (!storyId) return;
       setLoading(true);
       try {
@@ -60,9 +58,14 @@ export default function StoriesOverlay() {
         setLoading(false);
       }
     };
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ storyId?: string }>;
+      void openStory(custom.detail?.storyId);
+    };
     window.addEventListener("open-stories", handler as EventListener);
+    void openStory(initialStoryId);
     return () => window.removeEventListener("open-stories", handler as EventListener);
-  }, []);
+  }, [initialStoryId]);
 
   useEffect(() => {
     if (!activeIndex || !stories[activeIndex]) return;

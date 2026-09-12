@@ -835,19 +835,51 @@ export async function repostPost(postId: string) {
   }
 
   const post = mapPost(snapshot.id, snapshot.data() as Record<string, unknown>);
+  const { author, profile } = await getCurrentAuthorProfile();
+  const profileSettings = (profile?.settings as Record<string, unknown> | undefined) ?? {};
+  const discoverable =
+    profileSettings.privateAccount !== true && profileSettings.profileVisibility !== "private";
+
+  await addDoc(collection(db, "posts"), {
+    userId: auth.currentUser.uid,
+    caption: `Reposted: ${post.caption}`,
+    mediaUrl: post.mediaUrl,
+    mediaType: post.mediaType,
+    mediaItems: post.mediaItems ?? [],
+    contentType: post.contentType,
+    postType: "standard",
+    sport: post.sport,
+    likes: [],
+    commentsCount: 0,
+    shares: 0,
+    saves: [],
+    hashtags: post.hashtags,
+    views: 0,
+    completedViews: 0,
+    author,
+    visibility: "public",
+    discoverable,
+    originalPostId: postId,
+    createdAt: serverTimestamp(),
+  });
   await updateDoc(doc(db, "posts", postId), {
     shares: increment(1),
   });
+  await incrementUserCounter(
+    auth.currentUser.uid,
+    post.contentType === "reel" ? "reelsCount" : "postsCount",
+    1
+  ).catch(() => undefined);
 
   await createNotification({
     type: "repost",
     recipientId: post.userId,
     actorId: auth.currentUser.uid,
-    actorName: auth.currentUser.displayName || "Kinet User",
-    actorAvatar: auth.currentUser.photoURL || "",
-    message: `${auth.currentUser.displayName || "Someone"} reposted your ${post.contentType}.`,
+    actorName: author.name,
+    actorAvatar: author.avatar,
+    message: `${author.name} reposted your ${post.contentType}.`,
     postId,
-  });
+  }).catch(() => undefined);
 }
 
 export async function togglePollVote(postId: string, optionIndex: number) {
