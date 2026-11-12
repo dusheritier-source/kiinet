@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuthContext } from "@/components/AuthProvider";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { subscribeToUserPosts, type FeedPost } from "@/lib/posts";
 import { recordProfileVisit } from "@/lib/profile-analytics";
@@ -76,7 +76,7 @@ function getProfileThemeClass(theme?: string) {
 export default function PublicProfilePageContent() {
   const params = useParams<{ uid: string }>();
   const uid = params.uid;
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);

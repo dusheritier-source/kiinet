@@ -17,6 +17,8 @@ import {
   where,
 } from "firebase/firestore";
 
+import { subscribeWithInitialFetch } from "@/lib/initial-subscription";
+
 import { auth, db, isTransientFirestoreError } from "@/lib/firebase";
 import { createNotification, markConversationNotificationsRead } from "@/lib/notifications";
 import { uploadMessageAttachment } from "@/lib/message-attachments";
@@ -567,6 +569,18 @@ export async function getConversationsOnce(userId: string): Promise<Conversation
   return mapConversationSummaries(snapshot.docs);
 }
 
+export async function getConversationMessagesOnce(conversationId: string): Promise<{ messages: ConversationMessage[]; hasOlder: boolean }> {
+  const firebaseApp = (await import("@/lib/firebase")).default;
+  const lite = await import("firebase/firestore/lite");
+  const snapshot = await lite.getDocs(lite.query(
+    lite.collection(lite.getFirestore(firebaseApp), "messages"),
+    lite.where("conversationId", "==", conversationId),
+    lite.orderBy("createdAt", "desc"),
+    lite.limit(MESSAGE_PAGE_SIZE),
+  ));
+  return { messages: snapshot.docs.map(mapConversationMessage).reverse(), hasOlder: snapshot.docs.length === MESSAGE_PAGE_SIZE };
+}
+
 export function subscribeToConversations(
   userId: string,
   callback: (conversations: ConversationSummary[]) => void,
@@ -585,20 +599,28 @@ export function subscribeToConversations(
 
   let active = true;
   let snapshotVersion = 0;
-  const unsubscribe = onSnapshot(
+  const profileLookups = new Map<string, { promise: ReturnType<typeof getUserProfileById>; expiresAt: number }>();
+  const unsubscribe = subscribeWithInitialFetch<ConversationSummary[]>(
+    (publish) => onSnapshot(
     conversationsQuery,
-    (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+    (snapshot) => {
+      if (snapshot.metadata.fromCache && snapshot.empty) return;
       const version = ++snapshotVersion;
       const sorted = mapConversationSummaries(snapshot.docs);
       const mapped = sorted;
 
       // Stored participant profiles are enough to paint the inbox immediately.
       // Fresh profile lookups should never block navigation or the first render.
-      callback(sorted);
+      publish(sorted);
 
       const participantIds = Array.from(new Set(mapped.flatMap((conversation) => conversation.participantIds)));
       void Promise.all(participantIds.map(async (uid) => {
-        const profile = await getUserProfileById(uid).catch(() => null);
+        let lookup = profileLookups.get(uid);
+        if (!lookup || lookup.expiresAt <= Date.now()) {
+          lookup = { promise: getUserProfileById(uid).catch(() => null), expiresAt: Date.now() + 60_000 };
+          profileLookups.set(uid, lookup);
+        }
+        const profile = await lookup.promise;
         return [uid, profile] as const;
       })).then((profiles) => {
         if (!active || version !== snapshotVersion) return;
@@ -606,7 +628,7 @@ export function subscribeToConversations(
         profiles.forEach(([uid, profile]) => {
           if (profile) resolvedProfiles.set(uid, profile as Record<string, unknown>);
         });
-        callback(sorted.map((conversation) => ({
+        publish(sorted.map((conversation) => ({
           ...conversation,
           participantProfiles: conversation.participantIds.map((uid) => {
             const stored = conversation.participantProfiles.find((profile) => profile.uid === uid);
@@ -623,6 +645,9 @@ export function subscribeToConversations(
     (error) => {
       onError?.(error instanceof Error ? error : new Error("Unable to load conversations."));
     }
+    ),
+    () => getConversationsOnce(userId),
+    callback,
   );
 
   return () => {
@@ -650,14 +675,16 @@ export function subscribeToConversationMessages(
     limit(MESSAGE_PAGE_SIZE)
   );
 
-  return onSnapshot(
+  return subscribeWithInitialFetch<{ messages: ConversationMessage[]; hasOlder: boolean }>(
+    (publish) => onSnapshot(
     messagesQuery,
-    async (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => {
+    async (snapshot) => {
+      if (snapshot.metadata.fromCache && snapshot.empty) return;
       const nextMessages = snapshot.docs
         .map(mapConversationMessage)
         .sort((first, second) => (first.createdAt?.seconds ?? 0) - (second.createdAt?.seconds ?? 0));
 
-      callback(nextMessages, snapshot.docs.length === MESSAGE_PAGE_SIZE);
+      publish({ messages: nextMessages, hasOlder: snapshot.docs.length === MESSAGE_PAGE_SIZE });
 
       if (auth?.currentUser) {
         const currentUser = auth.currentUser;
@@ -679,9 +706,11 @@ export function subscribeToConversationMessages(
       }
     },
     (subscriptionError) => {
-      callback([], false);
       onError?.(subscriptionError);
     }
+    ),
+    () => getConversationMessagesOnce(conversationId),
+    ({ messages, hasOlder }) => callback(messages, hasOlder),
   );
 }
 

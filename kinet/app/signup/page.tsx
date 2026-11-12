@@ -9,12 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
-import { signUpWithEmail, signInWithGoogle } from "@/lib/firebase-auth";
-import { useAuth } from "@/hooks/useAuth";
+import { createServerSession, signUpWithEmail, signInWithGoogle } from "@/lib/firebase-auth";
+import { useAuthContext } from "@/components/AuthProvider";
+import { auth } from "@/lib/firebase";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuthContext();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,11 +25,15 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      router.replace("/onboarding");
-    }
-  }, [user, router]);
-
+    if (!user || !auth.currentUser || submitting) return;
+    let active = true;
+    void createServerSession(auth.currentUser).then(() => {
+      if (active) router.replace("/onboarding");
+    }).catch((sessionError: unknown) => {
+      if (active) setError(sessionError instanceof Error ? sessionError.message : "Could not restore your session.");
+    });
+    return () => { active = false; };
+  }, [user, router, submitting]);
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthChange } from "@/lib/firebase-auth";
+import { createServerSession, onAuthChange } from "@/lib/firebase-auth";
 
 interface AuthUser {
   uid: string;
@@ -24,10 +24,7 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthChange((firebaseUser) => {
       if (firebaseUser) {
-        void firebaseUser.getIdToken().then((token) => fetch("/api/auth/session", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        })).catch(() => undefined);
+        void createServerSession(firebaseUser).catch(() => undefined);
         setState({
           user: {
             uid: firebaseUser.uid,

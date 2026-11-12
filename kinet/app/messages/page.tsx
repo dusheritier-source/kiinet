@@ -44,7 +44,6 @@ import {
   createGroupConversation,
   deleteConversationMessage,
   getOlderConversationMessages,
-  getConversationsOnce,
   markConversationRead,
   markConversationUnread,
   leaveGroupConversation,
@@ -75,6 +74,9 @@ import { validateMessageAttachment } from "@/lib/message-attachments";
 import { reportEntity, toggleBlockedUser } from "@/lib/moderation";
 import { getCurrentUserSettings, updateCurrentUserSettings, type UserSettings } from "@/lib/settings";
 import KinetDrops from "@/app/feed/_components/KinetDrops";
+import ActivePeopleStrip from "@/components/messages/ActivePeopleStrip";
+import MessageText from "@/components/messages/MessageText";
+import NewConversationPanel from "@/components/messages/NewConversationPanel";
 
 const CallPanel = dynamic(() => import("@/components/CallPanel"), { ssr: false });
 const VoiceNotePlayer = dynamic(() => import("@/components/VoiceNotePlayer"), { ssr: false });
@@ -86,10 +88,6 @@ interface QueuedMessage {
   text: string;
   replyTo?: ConversationMessage["replyTo"];
   expiresInSeconds?: number | null;
-}
-
-function MessageText({ text }: { text: string }) {
-  return <p className="whitespace-pre-wrap break-words">{text.split(/(https?:\/\/[^\s]+)/g).map((part, index) => part.startsWith("http") ? <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer" className="underline">{part}</a> : part)}</p>;
 }
 
 function MessagesPageContent() {
@@ -347,7 +345,6 @@ function MessagesPageContent() {
       if (!first) return;
       setConversationsLoading(false);
       setConversationsSyncDelayed(true);
-      void getConversationsOnce(user.uid).then(handle).catch(() => undefined);
     }, 12_000);
 
     const cleanup = subscribeToConversations(user.uid, handle, () => {
@@ -1067,33 +1064,7 @@ function MessagesPageContent() {
           </div>
         ) : null}
 
-        {showNewMessage ? (
-          <div className="mb-6 rounded-3xl border bg-background p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold">{creatingGroup ? "New group" : "New message"}</h2>
-              <Button variant="ghost" size="icon" onClick={() => setShowNewMessage(false)}><X className="h-4 w-4" /></Button>
-            </div>
-            <div className="mb-3 flex gap-2">
-              <Button size="sm" variant={!creatingGroup ? "default" : "outline"} onClick={() => setCreatingGroup(false)}>Direct</Button>
-              <Button size="sm" variant={creatingGroup ? "default" : "outline"} onClick={() => setCreatingGroup(true)}>Group</Button>
-            </div>
-            {creatingGroup ? <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Group name" maxLength={80} className="mb-3 h-10 w-full rounded-full border bg-muted/40 px-4 text-sm outline-none" /> : null}
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <input value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder="Search people by name or username" className="h-10 w-full rounded-full border bg-muted/40 pl-10 pr-4 text-sm outline-none" autoFocus />
-            </div>
-            <div className="max-h-64 space-y-1 overflow-y-auto">
-              {people.map((profile) => (
-                <button key={profile.uid} type="button" onClick={() => creatingGroup ? setSelectedGroupMembers((current) => current.includes(profile.uid) ? current.filter((uid) => uid !== profile.uid) : [...current, profile.uid]) : void startConversation(profile)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted ${selectedGroupMembers.includes(profile.uid) ? "bg-primary/10" : ""}`} disabled={creating}>
-                  <ProfileAvatar src={profile.photoURL} username={profile.displayName || "Kinet User"} alt={profile.displayName || "Kinet User"} className="h-10 w-10" />
-                  <div className="min-w-0"><p className="truncate font-medium">{profile.displayName || "Kinet User"}</p><p className="truncate text-xs text-muted-foreground">{profile.username ? `@${profile.username}` : "Start a conversation"}</p></div>
-                </button>
-              ))}
-              {!creating && people.length === 0 ? <p className="p-4 text-center text-sm text-muted-foreground">No people found.</p> : null}
-            </div>
-            {creatingGroup ? <Button className="mt-3 w-full" onClick={() => void startGroupConversation()} disabled={creating || selectedGroupMembers.length < 2 || groupName.trim().length < 2}>Create group ({selectedGroupMembers.length + 1})</Button> : null}
-          </div>
-        ) : null}
+        {showNewMessage ? <NewConversationPanel creating={creating} creatingGroup={creatingGroup} groupName={groupName} people={people} peopleSearch={peopleSearch} selectedMemberIds={selectedGroupMembers} onClose={() => setShowNewMessage(false)} onCreateGroup={() => void startGroupConversation()} onGroupNameChange={setGroupName} onModeChange={setCreatingGroup} onPeopleSearchChange={setPeopleSearch} onSelectPerson={(profile) => creatingGroup ? setSelectedGroupMembers((current) => current.includes(profile.uid) ? current.filter((uid) => uid !== profile.uid) : [...current, profile.uid]) : void startConversation(profile)} /> : null}
 
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between">
@@ -1107,48 +1078,7 @@ function MessagesPageContent() {
               </Button>
             </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2">
-            {conversationsLoading ? (
-              <div className="flex gap-3">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="flex w-[84px] shrink-0 flex-col items-center gap-2 opacity-60">
-                    <div className="h-[68px] w-[68px] rounded-full bg-muted/60 animate-pulse" />
-                    <div className="h-3 w-20 rounded bg-muted/60 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : directPeople.length === 0 ? (
-              <div className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-                No active chats yet.
-              </div>
-            ) : (
-              directPeople.map((person) => (
-                <button
-                  key={person.conversationId}
-                  type="button"
-                  onClick={() => openConversation(person.conversationId)}
-                  onMouseEnter={() => void router.prefetch(`/messages?conversation=${person.conversationId}`)}
-                  className="flex w-[84px] shrink-0 flex-col items-center gap-2"
-                >
-                  <div
-                    className={`rounded-full p-[2px] ${
-                      person.unread ? "bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400" : "bg-muted"
-                    }`}
-                  >
-                    <div className="rounded-full bg-background p-[2px]">
-                      <ProfileAvatar
-                        src={person.photoURL}
-                        username={person.displayName}
-                        alt={person.displayName}
-                        className="h-[68px] w-[68px]"
-                      />
-                    </div>
-                  </div>
-                  <span className="max-w-[84px] truncate text-center text-xs font-medium">{person.displayName}</span>
-                </button>
-              ))
-            )}
-          </div>
+          <ActivePeopleStrip people={directPeople} loading={conversationsLoading} onOpen={openConversation} onPrefetch={(id) => void router.prefetch(`/messages?conversation=${id}`)} />
         </div>
 
         <div className="grid w-full min-w-0 gap-6 md:grid-cols-[minmax(0,330px)_minmax(0,1fr)]">

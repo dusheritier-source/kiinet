@@ -17,10 +17,20 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
-async function createServerSession(user: FirebaseUser) {
-  const token = await user.getIdToken();
-  const response = await fetch("/api/auth/session", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error("Your secure session could not be created.");
+let pendingSession: { uid: string; promise: Promise<void> } | null = null;
+
+export function createServerSession(user: FirebaseUser): Promise<void> {
+  if (pendingSession?.uid === user.uid) return pendingSession.promise;
+  const promise = (async () => {
+    const token = await user.getIdToken();
+    const response = await fetch('/api/auth/session', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+    if (!response.ok) throw new Error('Your secure session could not be created.');
+  })();
+  pendingSession = { uid: user.uid, promise };
+  void promise.finally(() => {
+    if (pendingSession?.promise === promise) pendingSession = null;
+  }).catch(() => undefined);
+  return promise;
 }
 
 async function ensureSearchableUserProfile(user: FirebaseUser) {

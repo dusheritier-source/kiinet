@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signInWithEmail, signInWithGoogle } from "@/lib/firebase-auth";
-import { useAuth } from "@/hooks/useAuth";
+import { createServerSession, signInWithEmail, signInWithGoogle } from "@/lib/firebase-auth";
+import { useAuthContext } from "@/components/AuthProvider";
+import { auth } from "@/lib/firebase";
 
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuthContext();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,10 +23,16 @@ export default function LoginClient() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      router.replace(searchParams.get("next") || "/feed");
-    }
-  }, [user, router, searchParams]);
+    if (!user || !auth.currentUser || submitting) return;
+    let active = true;
+    // Middleware needs the session cookie before navigating to a protected page.
+    void createServerSession(auth.currentUser).then(() => {
+      if (active) router.replace(searchParams.get("next") || "/feed");
+    }).catch((sessionError: unknown) => {
+      if (active) setError(sessionError instanceof Error ? sessionError.message : "Could not restore your session.");
+    });
+    return () => { active = false; };
+  }, [user, router, searchParams, submitting]);
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

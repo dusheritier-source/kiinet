@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuthContext } from "@/components/AuthProvider";
 
 import { getUserProfileById } from "@/lib/user-profile";
 import OptimizedMedia from "@/components/OptimizedMedia";
@@ -10,7 +10,7 @@ import OptimizedMedia from "@/components/OptimizedMedia";
 export default function EmbeddedProfileWidgetContent() {
   const params = useParams<{ uid: string }>();
   const uid = params.uid;
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfileById>> | null>(null);
 
   useEffect(() => {
